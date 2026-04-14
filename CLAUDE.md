@@ -1,8 +1,14 @@
 # dagman 开发工作流
 
-Co-Authored-By: GLM 5.1 <noreply@z.ai>
-
 本项目使用 dagman 管理开发任务。工作流已预定义，你只需按步骤执行。
+
+## 提交规范
+
+每次 git commit 时，在 commit message 末尾附加：
+
+```
+Co-Authored-By: GLM 5.1 <noreply@z.ai>
+```
 
 ## 启动开发
 
