@@ -53,7 +53,7 @@ npx dagman context set <当前节点名> <key> <value>
 ### 4. 更新状态
 
 ```bash
-npx dagman change <节点名> <状态>
+npx dagman status set <节点名> <状态>
 ```
 
 可选状态为全局固定值：

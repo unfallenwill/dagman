@@ -19,7 +19,7 @@ export function registerGraphCommand(program: Command): void {
     });
 
   graph
-    .command("validator")
+    .command("validate")
     .description("校验任务图合法性")
     .action(async () => {
       try {

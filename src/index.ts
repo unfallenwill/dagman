@@ -2,15 +2,14 @@
 
 import { Command } from "commander";
 import { registerHelpCommand } from "./commands/help.js";
-import { registerCreateCommand } from "./commands/create.js";
-import { registerAddCommand } from "./commands/add.js";
-import { registerRemoveCommand } from "./commands/remove.js";
-import { registerChangeCommand } from "./commands/change.js";
+import { registerNodeCommand } from "./commands/node.js";
+import { registerStatusCommand } from "./commands/status.js";
 import { registerContextCommand } from "./commands/context.js";
 import { registerGraphCommand } from "./commands/graph.js";
 import { registerRunCommand } from "./commands/run.js";
 import { registerNextCommand } from "./commands/next.js";
 import { registerLogCommand } from "./commands/log.js";
+import { registerInitCommand } from "./commands/init.js";
 
 process.on("uncaughtException", (err: Error) => {
   console.error(`错误: ${err.message}`);
@@ -21,14 +20,13 @@ const program = new Command();
 program.name("dagman");
 
 registerHelpCommand(program);
-registerCreateCommand(program);
-registerAddCommand(program);
-registerRemoveCommand(program);
-registerChangeCommand(program);
+registerNodeCommand(program);
+registerStatusCommand(program);
 registerContextCommand(program);
 registerGraphCommand(program);
 registerRunCommand(program);
 registerNextCommand(program);
 registerLogCommand(program);
+registerInitCommand(program);
 
 program.parse();

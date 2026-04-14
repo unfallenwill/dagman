@@ -51,6 +51,26 @@ export async function findNextNode(runId?: string): Promise<NextResult | null> {
   return null;
 }
 
+export async function findAllNextNodes(runId?: string): Promise<NextResult[]> {
+  const nodes = await nodeService.listNodes();
+  const states = await stateService.getState(runId);
+
+  const sorted = [...nodes].sort((a, b) => a.name.localeCompare(b.name));
+  const results: NextResult[] = [];
+
+  for (const node of sorted) {
+    const currentState = states[node.name];
+    if (currentState !== undefined) {
+      continue;
+    }
+    if (areDependenciesSatisfied(node, states)) {
+      results.push(await buildResult(node, runId));
+    }
+  }
+
+  return results;
+}
+
 async function buildResult(node: Node, runId?: string): Promise<NextResult> {
   const context = await contextService.getContext(node.name, runId);
   const upstreamContext: Record<string, ContextData> = {};
