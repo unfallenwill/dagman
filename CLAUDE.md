@@ -11,6 +11,7 @@
 ## 项目结构
 
 - `src/commands/` — CLI 命令定义（Commander.js，名词+动词分组风格）
+- `src/constants.ts` — 路径常量和 run-aware 路径解析
 - `src/services/` — 业务逻辑层
 - `src/models/` — 类型定义和数据模型
 - `src/utils/` — 共享工具（文件 I/O、环检测、交互提示）
@@ -21,8 +22,10 @@
 ## 代码规范
 
 - 所有 import 使用 `.js` 扩展名（Node16 模块解析要求）
-- 用户可见的错误和提示信息用英文
+- 用户可见的错误和提示信息用中文
 - 自定义错误类定义在 `src/errors.ts`
+- 节点定义存储为 YAML（`kind: Node` 包装），schema 由 `src/utils/json.ts` 的 zod 校验
+- 添加节点时自动做环检测（`src/utils/cycle.ts`，DFS 三色标记）
 
 ## 提交规范
 
@@ -30,4 +33,20 @@
 
 ```
 Co-Authored-By: GLM 5.1 <noreply@z.ai>
+```
+
+## 数据存储
+
+```
+.dagman/
+  .current-run              # 当前活跃运行实例 ID
+  nodes/
+    <name>.yaml             # 节点定义（kind: Node + Node 字段）
+  runs/
+    <run-id>/
+      run.json              # 运行实例元数据
+      state.json            # 节点状态映射
+      events.jsonl          # 状态变迁事件日志（追加写入）
+      context/
+        <node-name>.json    # 每节点上下文数据
 ```
