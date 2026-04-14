@@ -42,3 +42,10 @@ export class RunExistsError extends Error {
     this.name = "RunExistsError";
   }
 }
+
+export class GraphNotFoundError extends Error {
+  constructor(name: string) {
+    super(`图 '${name}' 不存在`);
+    this.name = "GraphNotFoundError";
+  }
+}

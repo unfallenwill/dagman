@@ -9,7 +9,8 @@ import { registerGraphCommand } from "./commands/graph.js";
 import { registerRunCommand } from "./commands/run.js";
 import { registerNextCommand } from "./commands/next.js";
 import { registerLogCommand } from "./commands/log.js";
-import { registerInitCommand } from "./commands/init.js";
+import { registerImportCommand } from "./commands/import.js";
+import { registerExportCommand } from "./commands/export.js";
 
 process.on("uncaughtException", (err: Error) => {
   console.error(`错误: ${err.message}`);
@@ -27,6 +28,7 @@ registerGraphCommand(program);
 registerRunCommand(program);
 registerNextCommand(program);
 registerLogCommand(program);
-registerInitCommand(program);
+registerImportCommand(program);
+registerExportCommand(program);
 
 program.parse();

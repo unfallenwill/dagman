@@ -2,7 +2,7 @@
 
 基于有向无环图（DAG）的通用 Agent 任务编排 CLI 工具。
 
-dagman 将复杂的多步骤任务拆分为节点，通过依赖关系构成 DAG，由外部 Agent 循环调用 `dagman next` 驱动执行。它本身不执行任务，而是作为调度器告诉 Agent 下一步该做什么、有哪些上下文可用。
+dagman 将复杂的多步骤任务拆分为节点，通过边（Edge）构成 DAG，由外部 Agent 循环调用 `dagman next` 驱动执行。它本身不执行任务，而是作为调度器告诉 Agent 下一步该做什么、有哪些上下文可用。
 
 ## 安装
 
@@ -24,44 +24,55 @@ npm link
 
 ### 1. 编写计划文件
 
-创建一个 YAML 文件，每个文档定义一个节点：
+创建一个 YAML 文件，用 `---` 分隔多个文档。节点（`kind: Node`）定义"做什么"，图（`kind: Graph`）定义"怎么连"：
 
 ```yaml
+kind: Node
 name: setup
 description: 初始化项目环境
 instructions: 安装依赖并创建配置文件
-depends_on: []
 ---
+kind: Node
 name: lint
 description: 代码检查
 instructions: 运行 ESLint 检查所有源文件
-depends_on:
-  - setup
 ---
+kind: Node
 name: test
 description: 运行测试
 instructions: 执行完整测试套件
-depends_on:
-  - setup
 ---
+kind: Node
 name: deploy
 description: 部署到生产环境
 instructions: 构建并部署到生产服务器
-depends_on:
-  - lint
-  - test
+---
+kind: Graph
+name: ci
+edges:
+  - from: lint
+    to: setup
+  - from: test
+    to: setup
+  - from: deploy
+    to: lint
+  - from: deploy
+    to: test
 ```
 
-### 2. 导入节点
+### 2. 导入节点和图
 
 ```bash
-dagman init plan.yaml
+dagman import plan.yaml
+
+# 或从标准输入
+cat plan.yaml | dagman import
 ```
 
 ### 3. 创建运行实例
 
 ```bash
-dagman run create my-deploy --switch
+dagman run create my-deploy --graph ci --switch
 ```
 
 ### 4. 驱动执行
@@ -82,11 +93,40 @@ dagman next
 # ... 重复直到没有可执行节点
 ```
 
+### 5. 导出
+
+```bash
+# 导出到标准输出
+dagman export
+
+# 导出指定图及其引用的节点
+dagman export --graph ci > plan.yaml
+
+# 导出到文件
+dagman export plan.yaml
+```
+
 ## 命令参考
 
-### `dagman init <plan-file>`
+### `dagman import [file]`
 
-从 YAML 计划文件批量导入节点。跳过已存在的同名节点，添加时自动进行环检测。
+从 YAML 文件或标准输入导入节点和图。支持 `kind: Node` 和 `kind: Graph` 混合的 multi-document YAML。跳过已存在的同名节点和图。
+
+```bash
+dagman import plan.yaml   # 从文件导入
+dagman import < plan.yaml # 从标准输入导入
+```
+
+### `dagman export [file]`
+
+导出节点和图为 YAML。默认输出到标准输出。
+
+```bash
+dagman export                    # 导出所有节点和图
+dagman export --graph ci         # 导出指定图及其引用的节点
+dagman export > plan.yaml        # 导出到标准输出
+dagman export plan.yaml          # 导出到文件
+```
 
 ### `dagman node`
 
@@ -94,7 +134,6 @@ dagman next
 
 ```bash
 dagman node create <name>          # 创建节点（交互式输入描述和指令）
-dagman node add <filepath>         # 从 YAML 文件导入节点
 dagman node list                   # 列出所有节点
 dagman node remove <name> [--force] # 删除节点
 ```
@@ -124,8 +163,9 @@ dagman context clear <name>             # 清除全部上下文
 DAG 可视化和验证。
 
 ```bash
-dagman graph show       # 显示节点图及当前状态
-dagman graph validate   # 检查缺失依赖、无效状态、环、孤立节点
+dagman graph list                # 列出所有图
+dagman graph show --graph <name> # 显示节点图及当前状态
+dagman graph validate --graph <name> # 检查缺失依赖、无效状态、环、孤立节点
 ```
 
 `graph show` 输出示例：
@@ -139,13 +179,13 @@ test [pending] -> setup:success
 
 ### `dagman run`
 
-运行实例管理。每个运行实例拥有独立的状态、事件日志和上下文。
+运行实例管理。每个运行实例拥有独立的状态、事件日志和上下文，并绑定到一个图。
 
 ```bash
-dagman run create [label] [--switch]  # 创建运行实例
-dagman run list                       # 列出所有运行实例
-dagman run switch <run-id>            # 切换当前运行实例
-dagman run show [run-id]              # 查看运行实例详情
+dagman run create [label] --graph <name> [--switch]  # 创建运行实例并绑定图
+dagman run list                                      # 列出所有运行实例
+dagman run switch <run-id>                           # 切换当前运行实例
+dagman run show [run-id]                             # 查看运行实例详情
 ```
 
 ### `dagman next`
@@ -171,24 +211,25 @@ dagman log <node>       # 查看指定节点的状态变迁
 dagman log --run <id>   # 指定运行实例
 ```
 
-## 依赖关系
+## 边与依赖关系
 
-节点通过 `depends_on` 声明依赖，支持两种格式：
+节点不包含依赖信息。依赖关系通过图中的边（Edge）声明：
 
 ```yaml
-# 简写：期望上游节点状态为 success
-depends_on:
-  - build
+kind: Graph
+name: ci
+edges:
+  # 简写：lint 依赖于 setup，期望 setup 状态为 success
+  - from: lint
+    to: setup
 
-# 完整：指定期望的上游状态（success 或 skipped）
-depends_on:
-  - node: build
-    status: success
-  - node: optional-check
-    status: skipped
+  # 完整：指定期望的上游状态
+  - from: optional-check
+    to: setup
+    expect: skipped
 ```
 
-当依赖期望 `success` 时，上游节点状态为 `skipped` 也视为满足（跳过等价于成功）。
+`expect` 默认为 `"success"`。当期望 `success` 时，上游节点状态为 `skipped` 也视为满足（跳过等价于成功）。
 
 ## 数据存储
 
@@ -198,17 +239,19 @@ depends_on:
 .dagman/
   .current-run              # 当前活跃的运行实例 ID
   nodes/
-    <name>.yaml             # 节点定义
+    <name>.yaml             # 节点定义（kind: Node）
+  graphs/
+    <name>.yaml             # 图定义（kind: Graph）
   runs/
     <run-id>/
-      run.json              # 运行实例元数据
+      run.json              # 运行实例元数据（含 graphName 绑定）
       state.json            # 节点状态映射
       events.jsonl          # 状态变迁事件日志（追加写入）
       context/
         <node-name>.json    # 每个节点的上下文数据
 ```
 
-节点定义全局共享，状态和上下文按运行实例隔离。
+节点定义全局共享，图定义拓扑关系，状态和上下文按运行实例隔离。
 
 ## 开发
 

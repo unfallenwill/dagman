@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { Node } from "../../src/models/node.js";
+import type { Edge } from "../../src/models/graph.js";
 import {
   checkMissingDeps,
   checkInvalidStatus,
@@ -9,91 +9,82 @@ import {
   formatValidationResults,
 } from "../../src/services/validator.js";
 
-const makeNode = (
-  name: string,
-  depends_on: Node["depends_on"] = [],
-): Node => ({
-  name,
-  description: `${name} desc`,
-  instructions: `${name} instructions`,
-  depends_on,
-});
-
 describe("checkMissingDeps", () => {
-  it("should pass when all deps exist", () => {
-    const nodes = [makeNode("a", ["b"]), makeNode("b")];
-    const results = checkMissingDeps(nodes);
+  it("should pass when all edge targets exist", () => {
+    const edges: Edge[] = [{ from: "a", to: "b" }];
+    const nodeNames = new Set(["a", "b"]);
+    const results = checkMissingDeps(edges, nodeNames);
     expect(results.every((r) => r.passed)).toBe(true);
   });
 
-  it("should report error for missing dep", () => {
-    const nodes = [makeNode("a", ["nonexistent"])];
-    const results = checkMissingDeps(nodes);
+  it("should report error for missing edge target", () => {
+    const edges: Edge[] = [{ from: "a", to: "nonexistent" }];
+    const nodeNames = new Set(["a"]);
+    const results = checkMissingDeps(edges, nodeNames);
     expect(results.some((r) => r.level === "error" && !r.passed)).toBe(true);
   });
 });
 
 describe("checkInvalidStatus", () => {
-  it("should pass when status is in target states", () => {
-    const nodes = [
-      makeNode("a", [{ node: "b", status: "success" }]),
-      makeNode("b"),
-    ];
-    const results = checkInvalidStatus(nodes);
+  it("should pass when expect is valid", () => {
+    const edges: Edge[] = [{ from: "a", to: "b", expect: "success" }];
+    const results = checkInvalidStatus(edges);
     expect(results.every((r) => r.passed)).toBe(true);
   });
 
-  it("should report error when status not in target states", () => {
-    const nodes = [
-      makeNode("a", [{ node: "b", status: "invalid_status" }]),
-      makeNode("b"),
-    ];
-    const results = checkInvalidStatus(nodes);
-    expect(results.some((r) => r.level === "error" && !r.passed)).toBe(true);
+  it("should pass when expect is undefined (defaults to success)", () => {
+    const edges: Edge[] = [{ from: "a", to: "b" }];
+    const results = checkInvalidStatus(edges);
+    expect(results.length).toBe(0);
   });
 
-  it("should skip when target node does not exist", () => {
-    const nodes = [makeNode("a", [{ node: "ghost", status: "success" }])];
-    const results = checkInvalidStatus(nodes);
-    expect(results.length).toBe(0);
+  it("should report error when expect is invalid", () => {
+    const edges: Edge[] = [{ from: "a", to: "b", expect: "invalid_status" as "success" }];
+    const results = checkInvalidStatus(edges);
+    expect(results.some((r) => r.level === "error" && !r.passed)).toBe(true);
   });
 });
 
 describe("checkCycles", () => {
   it("should pass with no cycles", () => {
-    const nodes = [makeNode("a", ["b"]), makeNode("b")];
-    const results = checkCycles(nodes);
+    const edges: Edge[] = [{ from: "a", to: "b" }];
+    const results = checkCycles(edges);
     expect(results.length).toBe(0);
   });
 
   it("should detect A -> B -> A cycle", () => {
-    const nodes = [makeNode("a", ["b"]), makeNode("b", ["a"])];
-    const results = checkCycles(nodes);
+    const edges: Edge[] = [
+      { from: "a", to: "b" },
+      { from: "b", to: "a" },
+    ];
+    const results = checkCycles(edges);
     expect(results.some((r) => r.level === "error")).toBe(true);
     expect(results[0].message).toContain("循环依赖");
   });
 
   it("should detect A -> B -> C -> A cycle", () => {
-    const nodes = [
-      makeNode("a", ["b"]),
-      makeNode("b", ["c"]),
-      makeNode("c", ["a"]),
+    const edges: Edge[] = [
+      { from: "a", to: "b" },
+      { from: "b", to: "c" },
+      { from: "c", to: "a" },
     ];
-    const results = checkCycles(nodes);
+    const results = checkCycles(edges);
     expect(results.some((r) => r.level === "error")).toBe(true);
   });
 });
 
 describe("checkOrphans", () => {
   it("should pass with no orphans", () => {
-    const nodes = [makeNode("a", ["b"]), makeNode("b")];
-    const results = checkOrphans(nodes);
+    const edges: Edge[] = [{ from: "a", to: "b" }];
+    const nodeNames = new Set(["a", "b"]);
+    const results = checkOrphans(edges, nodeNames);
     expect(results.length).toBe(0);
   });
 
   it("should report warning for orphan nodes", () => {
-    const nodes = [makeNode("lonely")];
-    const results = checkOrphans(nodes);
+    const edges: Edge[] = [];
+    const nodeNames = new Set(["lonely"]);
+    const results = checkOrphans(edges, nodeNames);
     expect(results.length).toBe(1);
     expect(results[0].level).toBe("warning");
     expect(results[0].message).toContain("孤立节点");

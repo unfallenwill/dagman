@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import * as runService from "../services/run-service.js";
-import { RunNotFoundError } from "../errors.js";
+import * as graphService from "../services/graph-service.js";
+import { RunNotFoundError, GraphNotFoundError } from "../errors.js";
 
 export function registerRunCommand(program: Command): void {
   const run = program.command("run").description("管理运行实例");
@@ -9,18 +10,39 @@ export function registerRunCommand(program: Command): void {
     .command("create [label]")
     .description("创建新的运行实例")
     .option("-s, --switch", "创建后自动切换到新运行", false)
-    .action(async (label?: string, options?: { switch?: boolean }) => {
-      try {
-        const info = await runService.createRun(label, options?.switch);
-        console.log(`已创建运行: ${info.id}${info.label ? ` (${info.label})` : ""}`);
-        if (options?.switch) {
-          console.log(`已切换到运行: ${info.id}`);
+    .option("--graph <name>", "绑定图")
+    .action(
+      async (
+        label?: string,
+        options?: { switch?: boolean; graph?: string }
+      ) => {
+        try {
+          if (options?.graph) {
+            if (!(await graphService.graphExists(options.graph))) {
+              console.error(`错误: 图 '${options.graph}' 不存在`);
+              process.exit(1);
+            }
+          }
+          const info = await runService.createRun(
+            label,
+            options?.graph,
+            options?.switch
+          );
+          console.log(
+            `已创建运行: ${info.id}${info.label ? ` (${info.label})` : ""}`
+          );
+          if (info.graphName) {
+            console.log(`绑定图: ${info.graphName}`);
+          }
+          if (options?.switch) {
+            console.log(`已切换到运行: ${info.id}`);
+          }
+        } catch (err: unknown) {
+          console.error(`错误: ${(err as Error).message}`);
+          process.exit(1);
         }
-      } catch (err: unknown) {
-        console.error(`错误: ${(err as Error).message}`);
-        process.exit(1);
       }
-    });
+    );
 
   run
     .command("list")
@@ -35,7 +57,10 @@ export function registerRunCommand(program: Command): void {
         const currentRunId = await runService.getCurrentRunId();
         for (const r of runs) {
           const marker = r.id === currentRunId ? " *" : "";
-          console.log(`  ${r.id}${r.label ? ` (${r.label})` : ""}${marker}`);
+          const graph = r.graphName ? ` [${r.graphName}]` : "";
+          console.log(
+            `  ${r.id}${r.label ? ` (${r.label})` : ""}${graph}${marker}`
+          );
         }
       } catch (err: unknown) {
         console.error(`错误: ${(err as Error).message}`);
@@ -69,6 +94,7 @@ export function registerRunCommand(program: Command): void {
         const info = await runService.showRun(rid);
         console.log(`运行 ID: ${info.id}`);
         if (info.label) console.log(`标签: ${info.label}`);
+        if (info.graphName) console.log(`绑定图: ${info.graphName}`);
         console.log(`创建时间: ${info.createdAt}`);
         console.log(`状态记录数: ${info.stateCount}`);
       } catch (err: unknown) {

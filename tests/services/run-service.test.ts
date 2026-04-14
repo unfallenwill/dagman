@@ -99,9 +99,40 @@ describe("createRun", () => {
   });
 
   it("should switch to new run when switchTo is true", async () => {
-    await runService.createRun("feature-x", true);
+    await runService.createRun("feature-x", undefined, true);
     const currentId = await runService.getCurrentRunId();
     expect(currentId).toBe("feature-x");
+  });
+
+  it("should store graphName in run metadata", async () => {
+    const info = await runService.createRun("with-graph", "my-graph");
+    expect(info.graphName).toBe("my-graph");
+  });
+});
+
+describe("getGraphForRun", () => {
+  it("should return graphName from run metadata", async () => {
+    await runService.createRun("graph-test", "test-graph");
+    const graphName = await runService.getGraphForRun("graph-test");
+    expect(graphName).toBe("test-graph");
+  });
+
+  it("should return null when run has no graph", async () => {
+    await runService.createRun("no-graph");
+    const graphName = await runService.getGraphForRun("no-graph");
+    expect(graphName).toBeNull();
+  });
+});
+
+describe("resolveRunId", () => {
+  it("should return provided runId", async () => {
+    const id = await runService.resolveRunId("explicit");
+    expect(id).toBe("explicit");
+  });
+
+  it("should resolve to current run when no runId", async () => {
+    const id = await runService.resolveRunId();
+    expect(id).toBe("default");
   });
 });
 

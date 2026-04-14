@@ -1,10 +1,13 @@
 import type { Node } from "../models/node.js";
-import { normalizeDependency } from "../models/node.js";
+import type { Edge } from "../models/graph.js";
 import type { StateMap } from "../models/state.js";
 import type { ContextData } from "../models/context.js";
 import * as nodeService from "./node-service.js";
 import * as stateService from "./state-service.js";
 import * as contextService from "./context-service.js";
+import * as graphService from "./graph-service.js";
+import * as runService from "./run-service.js";
+import { areDepsSatisfied, collectUpstream } from "../utils/topology.js";
 
 export interface NextResult {
   node: Node;
@@ -12,39 +15,35 @@ export interface NextResult {
   upstreamContext: Record<string, ContextData>;
 }
 
-function areDependenciesSatisfied(
-  node: Node,
-  states: StateMap
-): boolean {
-  if (node.depends_on.length === 0) return true;
+interface RunContext {
+  runId: string;
+  edges: Edge[];
+  nodes: Node[];
+  states: StateMap;
+}
 
-  return node.depends_on.every((dep) => {
-    const norm = normalizeDependency(dep);
-    const depState = states[norm.node];
-    if (depState === norm.status) return true;
-    // skipped 等价于 success：依赖期望 success 时，skipped 也视为满足
-    if (norm.status === "success" && depState === "skipped") return true;
-    return false;
-  });
+async function resolveRunContext(runId?: string): Promise<RunContext> {
+  const resolvedRunId = await runService.resolveRunId(runId);
+  const graphName = await runService.getGraphForRun(resolvedRunId);
+  if (!graphName) {
+    throw new Error("当前运行实例未绑定图，请使用 run create --graph <name>");
+  }
+
+  const graph = await graphService.loadGraph(graphName);
+  const nodes = await nodeService.listNodes();
+  const states = await stateService.getState(resolvedRunId);
+  return { runId: resolvedRunId, edges: graph.edges, nodes, states };
 }
 
 export async function findNextNode(runId?: string): Promise<NextResult | null> {
-  const nodes = await nodeService.listNodes();
-  const states = await stateService.getState(runId);
-
+  const { runId: rid, edges, nodes, states } = await resolveRunContext(runId);
   const sorted = [...nodes].sort((a, b) => a.name.localeCompare(b.name));
 
   for (const node of sorted) {
     const currentState = states[node.name];
-
-    // 有状态记录：节点已处理，跳过
-    if (currentState !== undefined) {
-      continue;
-    }
-
-    // 无状态记录且依赖满足：下一个可执行节点
-    if (areDependenciesSatisfied(node, states)) {
-      return await buildResult(node, runId);
+    if (currentState !== undefined) continue;
+    if (areDepsSatisfied(node.name, edges, states)) {
+      return await buildResult(node, edges, rid);
     }
   }
 
@@ -52,32 +51,28 @@ export async function findNextNode(runId?: string): Promise<NextResult | null> {
 }
 
 export async function findAllNextNodes(runId?: string): Promise<NextResult[]> {
-  const nodes = await nodeService.listNodes();
-  const states = await stateService.getState(runId);
-
+  const { runId: rid, edges, nodes, states } = await resolveRunContext(runId);
   const sorted = [...nodes].sort((a, b) => a.name.localeCompare(b.name));
   const results: NextResult[] = [];
 
   for (const node of sorted) {
     const currentState = states[node.name];
-    if (currentState !== undefined) {
-      continue;
-    }
-    if (areDependenciesSatisfied(node, states)) {
-      results.push(await buildResult(node, runId));
+    if (currentState !== undefined) continue;
+    if (areDepsSatisfied(node.name, edges, states)) {
+      results.push(await buildResult(node, edges, rid));
     }
   }
 
   return results;
 }
 
-async function buildResult(node: Node, runId?: string): Promise<NextResult> {
+async function buildResult(node: Node, edges: Edge[], runId: string): Promise<NextResult> {
   const context = await contextService.getContext(node.name, runId);
   const upstreamContext: Record<string, ContextData> = {};
 
-  for (const dep of node.depends_on) {
-    const norm = normalizeDependency(dep);
-    upstreamContext[norm.node] = await contextService.getContext(norm.node, runId);
+  const upstream = collectUpstream(node.name, edges);
+  for (const depName of upstream) {
+    upstreamContext[depName] = await contextService.getContext(depName, runId);
   }
 
   return { node, context, upstreamContext };

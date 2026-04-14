@@ -1,7 +1,10 @@
-import type { Node } from "../models/node.js";
-import { normalizeDependency } from "../models/node.js";
-import { hasCycle } from "../utils/cycle.js";
-import * as nodeService from "./node-service.js";
+import type { Edge } from "../models/graph.js";
+import {
+  hasCycle,
+  findCyclePaths,
+  findMissingTargets,
+  findOrphanNodes,
+} from "../utils/topology.js";
 
 export interface ValidationResult {
   rule: string;
@@ -10,10 +13,11 @@ export interface ValidationResult {
   message: string;
 }
 
-export async function validateGraph(): Promise<ValidationResult[]> {
-  const nodes = await nodeService.listNodes();
-
-  if (nodes.length === 0) {
+export function validateGraph(
+  nodeNames: string[],
+  edges: Edge[]
+): ValidationResult[] {
+  if (nodeNames.length === 0) {
     return [
       {
         rule: "empty-graph",
@@ -25,148 +29,87 @@ export async function validateGraph(): Promise<ValidationResult[]> {
   }
 
   const results: ValidationResult[] = [];
-  results.push(...checkMissingDeps(nodes));
-  results.push(...checkInvalidStatus(nodes));
-  results.push(...checkCycles(nodes));
-  results.push(...checkOrphans(nodes));
+  const nameSet = new Set(nodeNames);
+  results.push(...checkMissingDeps(edges, nameSet));
+  results.push(...checkInvalidStatus(edges));
+  results.push(...checkCycles(edges));
+  results.push(...checkOrphans(edges, nameSet));
   return results;
 }
 
-export function checkMissingDeps(nodes: Node[]): ValidationResult[] {
+export function checkMissingDeps(
+  edges: Edge[],
+  nodeNames: Set<string>
+): ValidationResult[] {
   const results: ValidationResult[] = [];
-  const names = new Set(nodes.map((n) => n.name));
+  const missing = findMissingTargets(edges, nodeNames);
 
-  for (const node of nodes) {
-    for (const dep of node.depends_on) {
-      const norm = normalizeDependency(dep);
-      if (!names.has(norm.node)) {
-        results.push({
-          rule: "missing-dep",
-          passed: false,
-          level: "error",
-          message: `节点 '${node.name}' 依赖的节点 '${norm.node}' 不存在`,
-        });
-      }
-    }
-  }
-
-  return results;
-}
-
-const VALID_DEPENDENCY_STATUSES = ["success", "skipped"];
-
-export function checkInvalidStatus(nodes: Node[]): ValidationResult[] {
-  const results: ValidationResult[] = [];
-
-  for (const node of nodes) {
-    for (const dep of node.depends_on) {
-      const norm = normalizeDependency(dep);
-      if (!VALID_DEPENDENCY_STATUSES.includes(norm.status)) {
-        results.push({
-          rule: "invalid-status",
-          passed: false,
-          level: "error",
-          message: `节点 '${node.name}' 依赖 '${norm.node}' 的状态 '${norm.status}' 无效，依赖状态仅支持: ${VALID_DEPENDENCY_STATUSES.join(", ")}`,
-        });
-      }
-    }
+  for (const { edge, side } of missing) {
+    const missingName = side === "from" ? edge.from : edge.to;
+    results.push({
+      rule: "missing-dep",
+      passed: false,
+      level: "error",
+      message: `边引用的节点 '${missingName}' 不存在（${side}: ${side === "from" ? edge.from : edge.to}）`,
+    });
   }
 
   return results;
 }
 
-export function checkCycles(nodes: Node[]): ValidationResult[] {
-  if (!hasCycle(nodes)) {
-    return [];
-  }
+const VALID_EXPECT_STATUSES = ["success", "skipped"];
 
-  // 找到具体的循环路径用于错误信息
+export function checkInvalidStatus(edges: Edge[]): ValidationResult[] {
   const results: ValidationResult[] = [];
-  const adj = new Map<string, string[]>();
-  for (const node of nodes) {
-    adj.set(
-      node.name,
-      node.depends_on.map((d) => normalizeDependency(d).node)
-    );
-  }
 
-  const WHITE = 0;
-  const GRAY = 1;
-  const BLACK = 2;
-  const color = new Map<string, number>();
-  for (const node of nodes) {
-    color.set(node.name, WHITE);
-  }
-
-  const dfsPath: string[] = [];
-
-  function dfs(node: string): boolean {
-    color.set(node, GRAY);
-    dfsPath.push(node);
-
-    const neighbors = adj.get(node) ?? [];
-    for (const neighbor of neighbors) {
-      if (!color.has(neighbor)) continue;
-      const c = color.get(neighbor)!;
-      if (c === GRAY) {
-        const cycleStart = dfsPath.indexOf(neighbor);
-        const cycle = dfsPath.slice(cycleStart).join(" -> ");
-        results.push({
-          rule: "cycle",
-          passed: false,
-          level: "error",
-          message: `检测到循环依赖：${cycle}`,
-        });
-        dfsPath.pop();
-        color.set(node, BLACK);
-        return true;
-      }
-      if (c === WHITE && dfs(neighbor)) {
-        dfsPath.pop();
-        color.set(node, BLACK);
-        return true;
-      }
-    }
-
-    dfsPath.pop();
-    color.set(node, BLACK);
-    return false;
-  }
-
-  for (const node of nodes) {
-    if (color.get(node.name) === WHITE) {
-      dfs(node.name);
-    }
-  }
-
-  return results;
-}
-
-export function checkOrphans(nodes: Node[]): ValidationResult[] {
-  const results: ValidationResult[] = [];
-  const connected = new Set<string>();
-
-  for (const node of nodes) {
-    if (node.depends_on.length > 0) {
-      connected.add(node.name);
-    }
-    for (const dep of node.depends_on) {
-      connected.add(normalizeDependency(dep).node);
-    }
-  }
-
-  for (const node of nodes) {
-    if (!connected.has(node.name)) {
+  for (const edge of edges) {
+    if (
+      edge.expect !== undefined &&
+      !VALID_EXPECT_STATUSES.includes(edge.expect)
+    ) {
       results.push({
-        rule: "orphan",
+        rule: "invalid-status",
         passed: false,
-        level: "warning",
-        message: `节点 '${node.name}' 为孤立节点（无依赖关系）`,
+        level: "error",
+        message: `边 '${edge.from}' -> '${edge.to}' 的期望状态 '${edge.expect}' 无效，仅支持: ${VALID_EXPECT_STATUSES.join(", ")}`,
       });
     }
   }
 
   return results;
+}
+
+export function checkCycles(edges: Edge[]): ValidationResult[] {
+  if (!hasCycle(edges)) {
+    return [];
+  }
+
+  const results: ValidationResult[] = [];
+  const cyclePaths = findCyclePaths(edges);
+
+  for (const cycle of cyclePaths) {
+    results.push({
+      rule: "cycle",
+      passed: false,
+      level: "error",
+      message: `检测到循环依赖：${cycle.join(" -> ")}`,
+    });
+  }
+
+  return results;
+}
+
+export function checkOrphans(
+  edges: Edge[],
+  nodeNames: Set<string>
+): ValidationResult[] {
+  const orphans = findOrphanNodes(edges, nodeNames);
+  return orphans.map((name) => ({
+    rule: "orphan",
+    passed: false,
+    level: "warning" as const,
+    message: `节点 '${name}' 为孤立节点（无依赖关系）`,
+  }));
 }
 
 export function formatValidationResults(results: ValidationResult[]): string {

@@ -1,5 +1,6 @@
 export const DAGMAN_DIR = ".dagman";
 export const NODES_DIR = ".dagman/nodes";
+export const GRAPHS_DIR = ".dagman/graphs";
 export const RUNS_DIR = ".dagman/runs";
 export const CURRENT_RUN_FILE = ".dagman/.current-run";
 export const DEFAULT_RUN_ID = "default";

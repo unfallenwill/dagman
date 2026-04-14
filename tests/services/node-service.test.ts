@@ -3,10 +3,9 @@ import * as path from "path";
 import * as os from "os";
 import * as fs from "fs/promises";
 import * as nodeService from "../../src/services/node-service.js";
-import { FileExistsError, NodeNotFoundError, ValidationError } from "../../src/errors.js";
+import { FileExistsError, NodeNotFoundError } from "../../src/errors.js";
 
 const TMP_DIR = path.join(os.tmpdir(), `dagman-test-${Date.now()}`);
-const FIXTURES = path.resolve(__dirname, "../fixtures");
 
 let originalCwd: string;
 
@@ -22,18 +21,20 @@ afterEach(async () => {
 });
 
 describe("createTemplate", () => {
-  it("should create a template file", async () => {
+  it("should create a template file without depends_on", async () => {
     const filePath = await nodeService.createTemplate("my-node");
-    expect(filePath).toBe(".dagman/nodes/my-node.json");
+    expect(filePath).toBe(".dagman/nodes/my-node.yaml");
 
+    const yaml = await import("js-yaml");
     const content = await fs.readFile(
-      path.join(TMP_DIR, ".dagman/nodes/my-node.json"),
+      path.join(TMP_DIR, ".dagman/nodes/my-node.yaml"),
       "utf-8"
     );
-    const parsed = JSON.parse(content);
+    const parsed = yaml.load(content) as Record<string, unknown>;
+    expect(parsed.kind).toBe("Node");
     expect(parsed.name).toBe("my-node");
     expect(parsed.description).toBe("");
-    expect(parsed.depends_on).toEqual([]);
+    expect(parsed).not.toHaveProperty("depends_on");
   });
 
   it("should throw FileExistsError when node already exists", async () => {
@@ -41,29 +42,6 @@ describe("createTemplate", () => {
     await expect(nodeService.createTemplate("existing")).rejects.toThrow(
       FileExistsError
     );
-  });
-});
-
-describe("addNode", () => {
-  it("should register a valid node", async () => {
-    const node = await nodeService.addNode(
-      path.join(FIXTURES, "sample-node.json")
-    );
-    expect(node.name).toBe("test-node");
-    expect(node.depends_on).toEqual([]);
-  });
-
-  it("should throw ValidationError for missing fields", async () => {
-    await expect(
-      nodeService.addNode(path.join(FIXTURES, "missing-fields-node.json"))
-    ).rejects.toThrow(ValidationError);
-  });
-
-  it("should throw FileExistsError when node name already registered", async () => {
-    await nodeService.addNode(path.join(FIXTURES, "sample-node.json"));
-    await expect(
-      nodeService.addNode(path.join(FIXTURES, "sample-node.json"))
-    ).rejects.toThrow(FileExistsError);
   });
 });
 
@@ -102,7 +80,7 @@ describe("removeNode", () => {
 
 describe("getNode", () => {
   it("should return a node by name", async () => {
-    await nodeService.addNode(path.join(FIXTURES, "sample-node.json"));
+    await nodeService.createTemplate("test-node");
     const node = await nodeService.getNode("test-node");
     expect(node.name).toBe("test-node");
   });
@@ -129,30 +107,19 @@ describe("listNodes", () => {
   });
 });
 
-describe("findDependents", () => {
+describe("collectDownstream", () => {
   it("should find nodes that depend on the given node", async () => {
-    await nodeService.createTemplate("parent");
-    const child = {
-      name: "child",
-      description: "child node",
-      instructions: "do child work",
-      depends_on: ["parent"],
-    };
-    await fs.mkdir(path.join(TMP_DIR, ".dagman/nodes"), {
-      recursive: true,
-    });
-    await fs.writeFile(
-      path.join(TMP_DIR, ".dagman/nodes/child.json"),
-      JSON.stringify(child)
-    );
-
-    const deps = await nodeService.findDependents("parent");
+    const { collectDownstream } = await import("../../src/utils/topology.js");
+    const edges = [
+      { from: "child", to: "parent" },
+    ];
+    const deps = collectDownstream("parent", edges);
     expect(deps).toEqual(["child"]);
   });
 
   it("should return empty array when no dependents", async () => {
-    await nodeService.createTemplate("lonely");
-    const deps = await nodeService.findDependents("lonely");
+    const { collectDownstream } = await import("../../src/utils/topology.js");
+    const deps = collectDownstream("lonely", []);
     expect(deps).toEqual([]);
   });
 });

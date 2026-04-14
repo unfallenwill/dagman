@@ -18,6 +18,7 @@ export interface RunInfo {
   id: string;
   createdAt: string;
   label?: string;
+  graphName?: string;
 }
 
 export async function getCurrentRunId(): Promise<string | null> {
@@ -66,7 +67,7 @@ export async function resolveCurrentRunId(): Promise<string> {
   return DEFAULT_RUN_ID;
 }
 
-async function createRunInternal(runId: string, label?: string): Promise<RunInfo> {
+async function createRunInternal(runId: string, label?: string, graphName?: string): Promise<RunInfo> {
   const runDir = getRunDir(runId);
   if (await fileExists(getRunMetaFile(runId))) {
     throw new RunExistsError(runId);
@@ -78,12 +79,13 @@ async function createRunInternal(runId: string, label?: string): Promise<RunInfo
     id: runId,
     createdAt: new Date().toISOString(),
     label,
+    graphName,
   };
   await writeJSON(getRunMetaFile(runId), info);
   return info;
 }
 
-export async function createRun(label?: string, switchTo?: boolean): Promise<RunInfo> {
+export async function createRun(label?: string, graphName?: string, switchTo?: boolean): Promise<RunInfo> {
   const runId = label
     ? label.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "")
     : `run-${Date.now()}`;
@@ -92,7 +94,7 @@ export async function createRun(label?: string, switchTo?: boolean): Promise<Run
     throw new Error("无法从标签生成有效的运行 ID");
   }
 
-  const info = await createRunInternal(runId, label);
+  const info = await createRunInternal(runId, label, graphName);
 
   if (switchTo) {
     await setCurrentRunId(runId);
@@ -130,6 +132,16 @@ export async function switchRun(runId: string): Promise<void> {
     throw new RunNotFoundError(runId);
   }
   await setCurrentRunId(runId);
+}
+
+export async function getGraphForRun(runId: string): Promise<string | null> {
+  const meta = await readJSON<RunInfo>(getRunMetaFile(runId));
+  return meta.graphName ?? null;
+}
+
+export async function resolveRunId(runId?: string): Promise<string> {
+  if (runId) return runId;
+  return resolveCurrentRunId();
 }
 
 export async function showRun(runId: string): Promise<RunInfo & { stateCount: number }> {

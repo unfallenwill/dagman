@@ -3,16 +3,13 @@ import * as path from "path";
 import * as os from "os";
 import * as fs from "fs/promises";
 import { Command } from "commander";
-import { registerCreateCommand } from "../../src/commands/create.js";
-import { registerAddCommand } from "../../src/commands/add.js";
-import { registerRemoveCommand } from "../../src/commands/remove.js";
-import { registerChangeCommand } from "../../src/commands/change.js";
+import { registerNodeCommand } from "../../src/commands/node.js";
+import { registerStatusCommand } from "../../src/commands/status.js";
 import { registerContextCommand } from "../../src/commands/context.js";
 import { registerGraphCommand } from "../../src/commands/graph.js";
 import { registerHelpCommand } from "../../src/commands/help.js";
 
 const TMP_DIR = path.join(os.tmpdir(), `dagman-cmd-test-${Date.now()}`);
-const FIXTURES = path.resolve(__dirname, "../fixtures");
 
 let originalCwd: string;
 
@@ -34,82 +31,50 @@ function createProgram(): Command {
     writeErr: () => {},
   });
   registerHelpCommand(program);
-  registerCreateCommand(program);
-  registerAddCommand(program);
-  registerRemoveCommand(program);
-  registerChangeCommand(program);
+  registerNodeCommand(program);
+  registerStatusCommand(program);
   registerContextCommand(program);
   registerGraphCommand(program);
   return program;
 }
 
-describe("create command", () => {
+describe("node create command", () => {
   it("should create a node template", async () => {
     const program = createProgram();
-    await program.parseAsync(["node", "dagman", "create", "my-node"]);
-
-    const content = await fs.readFile(
-      path.join(TMP_DIR, ".dagman/nodes/my-node.json"),
-      "utf-8"
-    );
-    const parsed = JSON.parse(content);
-    expect(parsed.name).toBe("my-node");
-  });
-
-  it("should fail when node already exists", async () => {
-    const program1 = createProgram();
-    await program1.parseAsync(["node", "dagman", "create", "dup"]);
-
-    const program2 = createProgram();
-    await expect(
-      program2.parseAsync(["node", "dagman", "create", "dup"])
-    ).rejects.toThrow();
-  });
-});
-
-describe("add command", () => {
-  it("should register a valid node", async () => {
-    const program = createProgram();
-    await program.parseAsync([
-      "node",
-      "dagman",
-      "add",
-      path.join(FIXTURES, "sample-node.json"),
-    ]);
+    await program.parseAsync(["node", "dagman", "node", "create", "my-node"]);
 
     const exists = await fs
-      .access(path.join(TMP_DIR, ".dagman/nodes/test-node.json"))
+      .access(path.join(TMP_DIR, ".dagman/nodes/my-node.yaml"))
       .then(() => true)
       .catch(() => false);
     expect(exists).toBe(true);
   });
 
-  it("should fail for invalid node file", async () => {
-    const program = createProgram();
+  it("should fail when node already exists", async () => {
+    const program1 = createProgram();
+    await program1.parseAsync(["node", "dagman", "node", "create", "dup"]);
+
+    const program2 = createProgram();
     await expect(
-      program.parseAsync([
-        "node",
-        "dagman",
-        "add",
-        path.join(FIXTURES, "missing-fields-node.json"),
-      ])
+      program2.parseAsync(["node", "dagman", "node", "create", "dup"])
     ).rejects.toThrow();
   });
 });
 
-describe("change command", () => {
+describe("status command", () => {
   it("should update node state", async () => {
     // Setup: create node definition and run structure
     const node = {
+      kind: "Node",
       name: "changer",
       description: "test",
       instructions: "test",
-      depends_on: [],
     };
     await fs.mkdir(path.join(TMP_DIR, ".dagman/nodes"), { recursive: true });
+    const yaml = await import("js-yaml");
     await fs.writeFile(
-      path.join(TMP_DIR, ".dagman/nodes/changer.json"),
-      JSON.stringify(node)
+      path.join(TMP_DIR, ".dagman/nodes/changer.yaml"),
+      yaml.dump(node, { lineWidth: -1 })
     );
     await fs.mkdir(path.join(TMP_DIR, ".dagman/runs/default"), { recursive: true });
     await fs.writeFile(
@@ -122,13 +87,7 @@ describe("change command", () => {
     );
 
     const program = createProgram();
-    await program.parseAsync([
-      "node",
-      "dagman",
-      "change",
-      "changer",
-      "failed",
-    ]);
+    await program.parseAsync(["node", "dagman", "status", "set", "changer", "failed"]);
 
     const state = JSON.parse(
       await fs.readFile(
@@ -141,17 +100,18 @@ describe("change command", () => {
 
   it("should fail for invalid status", async () => {
     const node = {
+      kind: "Node",
       name: "strict",
       description: "test",
       instructions: "test",
-      depends_on: [],
     };
     await fs.mkdir(path.join(TMP_DIR, ".dagman/nodes"), {
       recursive: true,
     });
+    const yaml = await import("js-yaml");
     await fs.writeFile(
-      path.join(TMP_DIR, ".dagman/nodes/strict.json"),
-      JSON.stringify(node)
+      path.join(TMP_DIR, ".dagman/nodes/strict.yaml"),
+      yaml.dump(node, { lineWidth: -1 })
     );
     await fs.mkdir(path.join(TMP_DIR, ".dagman/runs/default"), { recursive: true });
     await fs.writeFile(
@@ -161,13 +121,7 @@ describe("change command", () => {
 
     const program = createProgram();
     await expect(
-      program.parseAsync([
-        "node",
-        "dagman",
-        "change",
-        "strict",
-        "invalid",
-      ])
+      program.parseAsync(["node", "dagman", "status", "set", "strict", "invalid"])
     ).rejects.toThrow();
   });
 });
@@ -175,17 +129,18 @@ describe("change command", () => {
 describe("context commands", () => {
   beforeEach(async () => {
     const node = {
+      kind: "Node",
       name: "ctx-node",
       description: "test",
       instructions: "test",
-      depends_on: [],
     };
     await fs.mkdir(path.join(TMP_DIR, ".dagman/nodes"), {
       recursive: true,
     });
+    const yaml = await import("js-yaml");
     await fs.writeFile(
-      path.join(TMP_DIR, ".dagman/nodes/ctx-node.json"),
-      JSON.stringify(node)
+      path.join(TMP_DIR, ".dagman/nodes/ctx-node.yaml"),
+      yaml.dump(node, { lineWidth: -1 })
     );
     await fs.mkdir(path.join(TMP_DIR, ".dagman/runs/default"), { recursive: true });
     await fs.writeFile(
@@ -197,35 +152,18 @@ describe("context commands", () => {
   it("should show empty context", async () => {
     const program = createProgram();
     // Should not throw
-    await program.parseAsync([
-      "node",
-      "dagman",
-      "context",
-      "show",
-      "ctx-node",
-    ]);
+    await program.parseAsync(["node", "dagman", "context", "show", "ctx-node"]);
   });
 
   it("should set and get context", async () => {
     const setProgram = createProgram();
     await setProgram.parseAsync([
-      "node",
-      "dagman",
-      "context",
-      "set",
-      "ctx-node",
-      "mykey",
-      "myvalue",
+      "node", "dagman", "context", "set", "ctx-node", "mykey", "myvalue",
     ]);
 
     const getProgram = createProgram();
     await getProgram.parseAsync([
-      "node",
-      "dagman",
-      "context",
-      "get",
-      "ctx-node",
-      "mykey",
+      "node", "dagman", "context", "get", "ctx-node", "mykey",
     ]);
   });
 
@@ -233,22 +171,12 @@ describe("context commands", () => {
     // Set first
     const setProgram = createProgram();
     await setProgram.parseAsync([
-      "node",
-      "dagman",
-      "context",
-      "set",
-      "ctx-node",
-      "k",
-      "v",
+      "node", "dagman", "context", "set", "ctx-node", "k", "v",
     ]);
 
     const clearProgram = createProgram();
     await clearProgram.parseAsync([
-      "node",
-      "dagman",
-      "context",
-      "clear",
-      "ctx-node",
+      "node", "dagman", "context", "clear", "ctx-node",
     ]);
 
     // Context file should be gone
@@ -261,13 +189,8 @@ describe("context commands", () => {
 });
 
 describe("graph commands", () => {
-  it("should show empty graph", async () => {
+  it("should list empty graphs", async () => {
     const program = createProgram();
-    await program.parseAsync(["node", "dagman", "graph", "show"]);
-  });
-
-  it("should validate empty graph", async () => {
-    const program = createProgram();
-    await program.parseAsync(["node", "dagman", "graph", "validator"]);
+    await program.parseAsync(["node", "dagman", "graph", "list"]);
   });
 });
