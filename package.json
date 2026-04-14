@@ -1,5 +1,5 @@
 {
-  "name": "dagman",
+  "name": "@unfallenwill/dagman",
   "version": "0.1.0",
   "description": "dagman - 通用 agent 任务编排 CLI 工具",
   "main": "dist/index.js",
