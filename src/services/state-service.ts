@@ -1,7 +1,9 @@
 import type { StateMap } from "../models/state.js";
 import { getStateFile } from "../constants.js";
+import { DEFAULT_STATE } from "../models/state.js";
 import { readJSON, writeJSON, ensureDir, fileExists } from "../utils/file.js";
 import { resolveCurrentRunId } from "./run-service.js";
+import * as eventService from "./event-service.js";
 
 async function resolveRun(runId?: string): Promise<string> {
   if (runId) return runId;
@@ -20,6 +22,8 @@ export async function getState(runId?: string): Promise<StateMap> {
 export async function setState(nodeName: string, status: string, runId?: string): Promise<void> {
   const rid = await resolveRun(runId);
   const state = await getState(rid);
+  const from = state[nodeName] ?? DEFAULT_STATE;
+  await eventService.appendEvent(nodeName, from, status, rid);
   state[nodeName] = status;
   const stateFile = getStateFile(rid);
   await ensureDir(`.dagman/runs/${rid}`);

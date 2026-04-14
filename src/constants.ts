@@ -24,3 +24,7 @@ export function getStateFile(runId: string): string {
 export function getContextDir(runId: string): string {
   return `${RUNS_DIR}/${runId}/context`;
 }
+
+export function getEventsFile(runId: string): string {
+  return `${RUNS_DIR}/${runId}/events.jsonl`;
+}

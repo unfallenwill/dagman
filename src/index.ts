@@ -10,6 +10,7 @@ import { registerContextCommand } from "./commands/context.js";
 import { registerGraphCommand } from "./commands/graph.js";
 import { registerRunCommand } from "./commands/run.js";
 import { registerNextCommand } from "./commands/next.js";
+import { registerLogCommand } from "./commands/log.js";
 
 process.on("uncaughtException", (err: Error) => {
   console.error(`错误: ${err.message}`);
@@ -28,5 +29,6 @@ registerContextCommand(program);
 registerGraphCommand(program);
 registerRunCommand(program);
 registerNextCommand(program);
+registerLogCommand(program);
 
 program.parse();

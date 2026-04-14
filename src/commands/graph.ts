@@ -10,8 +10,8 @@ export function registerGraphCommand(program: Command): void {
     .description("展示完整任务图")
     .action(async () => {
       try {
-        const { nodes, states } = await graphService.buildGraph();
-        console.log(graphService.formatGraph(nodes, states));
+        const { nodes, states, timestamps } = await graphService.buildGraph();
+        console.log(graphService.formatGraph(nodes, states, timestamps));
       } catch (err: unknown) {
         console.error(`错误: ${(err as Error).message}`);
         process.exit(1);
