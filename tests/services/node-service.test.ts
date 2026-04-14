@@ -34,7 +34,7 @@ describe("createTemplate", () => {
     expect(parsed.name).toBe("my-node");
     expect(parsed.description).toBe("");
     expect(parsed.states).toEqual(["success", "failed"]);
-    expect(parsed.default_state).toBe("success");
+    expect(parsed.default_state).toBe("pending");
     expect(parsed.depends_on).toEqual([]);
   });
 
@@ -84,9 +84,11 @@ describe("removeNode", () => {
     );
   });
 
-  it("should also delete context file", async () => {
+  it("should also delete context file across runs", async () => {
     await nodeService.createTemplate("ctx-test");
-    const ctxDir = path.join(TMP_DIR, ".dagman/context");
+    // Create run structure with context
+    const runDir = path.join(TMP_DIR, ".dagman/runs/default");
+    const ctxDir = path.join(runDir, "context");
     await fs.mkdir(ctxDir, { recursive: true });
     await fs.writeFile(
       path.join(ctxDir, "ctx-test.json"),

@@ -1,7 +1,9 @@
 import type { Node } from "../models/node.js";
 import { normalizeDependency } from "../models/node.js";
-import { NODES_DIR, CONTEXT_DIR } from "../constants.js";
+import { NODES_DIR, RUNS_DIR } from "../constants.js";
 import { ensureDir, readJSON, writeJSON, fileExists, deleteFile, listFiles } from "../utils/file.js";
+import { readdir } from "fs/promises";
+import * as path from "path";
 import { validateNodeFormat } from "../utils/json.js";
 import { NodeNotFoundError, ValidationError, FileExistsError, CycleError } from "../errors.js";
 import { hasCycle } from "../utils/cycle.js";
@@ -18,7 +20,7 @@ export async function createTemplate(name: string): Promise<string> {
     description: "",
     instructions: "",
     states: ["success", "failed"],
-    default_state: "success",
+    default_state: "pending",
     depends_on: [],
   };
 
@@ -58,8 +60,15 @@ export async function removeNode(name: string): Promise<void> {
     throw new NodeNotFoundError(name);
   }
   await deleteFile(filePath);
-  // 同时尝试删除上下文文件
-  await deleteFile(`${CONTEXT_DIR}/${name}.json`);
+  // 清理所有运行实例中的上下文文件
+  try {
+    const entries = await readdir(path.resolve(RUNS_DIR));
+    for (const entry of entries) {
+      await deleteFile(`${RUNS_DIR}/${entry}/context/${name}.json`);
+    }
+  } catch {
+    // runs 目录不存在时忽略
+  }
 }
 
 export async function getNode(name: string): Promise<Node> {

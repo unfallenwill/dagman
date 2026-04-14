@@ -1,35 +1,49 @@
 import type { StateMap } from "../models/state.js";
-import { STATE_FILE, DAGMAN_DIR } from "../constants.js";
+import { getStateFile } from "../constants.js";
 import { readJSON, writeJSON, ensureDir, fileExists } from "../utils/file.js";
+import { resolveCurrentRunId } from "./run-service.js";
 
-export async function getState(): Promise<StateMap> {
-  if (!(await fileExists(STATE_FILE))) {
+async function resolveRun(runId?: string): Promise<string> {
+  if (runId) return runId;
+  return resolveCurrentRunId();
+}
+
+export async function getState(runId?: string): Promise<StateMap> {
+  const rid = await resolveRun(runId);
+  const stateFile = getStateFile(rid);
+  if (!(await fileExists(stateFile))) {
     return {};
   }
-  return readJSON<StateMap>(STATE_FILE);
+  return readJSON<StateMap>(stateFile);
 }
 
-export async function setState(nodeName: string, status: string): Promise<void> {
-  const state = await getState();
+export async function setState(nodeName: string, status: string, runId?: string): Promise<void> {
+  const rid = await resolveRun(runId);
+  const state = await getState(rid);
   state[nodeName] = status;
-  await ensureDir(DAGMAN_DIR);
-  await writeJSON(STATE_FILE, state);
+  const stateFile = getStateFile(rid);
+  await ensureDir(`.dagman/runs/${rid}`);
+  await writeJSON(stateFile, state);
 }
 
-export async function initState(nodeName: string, defaultState: string): Promise<void> {
-  const state = await getState();
+export async function initState(nodeName: string, defaultState: string, runId?: string): Promise<void> {
+  const rid = await resolveRun(runId);
+  const state = await getState(rid);
   if (!(nodeName in state)) {
     state[nodeName] = defaultState;
-    await ensureDir(DAGMAN_DIR);
-    await writeJSON(STATE_FILE, state);
+    const stateFile = getStateFile(rid);
+    await ensureDir(`.dagman/runs/${rid}`);
+    await writeJSON(stateFile, state);
   }
 }
 
-export async function removeState(nodeName: string): Promise<void> {
-  if (!(await fileExists(STATE_FILE))) {
+export async function removeState(nodeName: string, runId?: string): Promise<void> {
+  const rid = await resolveRun(runId);
+  const stateFile = getStateFile(rid);
+  if (!(await fileExists(stateFile))) {
     return;
   }
-  const state = await getState();
+  const state = await getState(rid);
   delete state[nodeName];
-  await writeJSON(STATE_FILE, state);
+  await writeJSON(stateFile, state);
 }

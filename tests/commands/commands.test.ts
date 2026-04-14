@@ -82,14 +82,6 @@ describe("add command", () => {
       .then(() => true)
       .catch(() => false);
     expect(exists).toBe(true);
-
-    const state = JSON.parse(
-      await fs.readFile(
-        path.join(TMP_DIR, ".dagman/state.json"),
-        "utf-8"
-      )
-    );
-    expect(state["test-node"]).toBe("success");
   });
 
   it("should fail for invalid node file", async () => {
@@ -107,25 +99,28 @@ describe("add command", () => {
 
 describe("change command", () => {
   it("should update node state", async () => {
-    // First create and add a node
-    const setup = createProgram();
-    await setup.parseAsync(["node", "dagman", "create", "changer"]);
-    // Add needs a valid file, so write one manually
+    // Setup: create node definition and run structure
     const node = {
       name: "changer",
       description: "test",
       instructions: "test",
       states: ["success", "failed"],
-      default_state: "success",
+      default_state: "pending",
       depends_on: [],
     };
+    await fs.mkdir(path.join(TMP_DIR, ".dagman/nodes"), { recursive: true });
     await fs.writeFile(
       path.join(TMP_DIR, ".dagman/nodes/changer.json"),
       JSON.stringify(node)
     );
+    await fs.mkdir(path.join(TMP_DIR, ".dagman/runs/default"), { recursive: true });
     await fs.writeFile(
-      path.join(TMP_DIR, ".dagman/state.json"),
+      path.join(TMP_DIR, ".dagman/runs/default/state.json"),
       JSON.stringify({ changer: "success" })
+    );
+    await fs.writeFile(
+      path.join(TMP_DIR, ".dagman/.current-run"),
+      "default"
     );
 
     const program = createProgram();
@@ -139,7 +134,7 @@ describe("change command", () => {
 
     const state = JSON.parse(
       await fs.readFile(
-        path.join(TMP_DIR, ".dagman/state.json"),
+        path.join(TMP_DIR, ".dagman/runs/default/state.json"),
         "utf-8"
       )
     );
@@ -152,7 +147,7 @@ describe("change command", () => {
       description: "test",
       instructions: "test",
       states: ["success"],
-      default_state: "success",
+      default_state: "pending",
       depends_on: [],
     };
     await fs.mkdir(path.join(TMP_DIR, ".dagman/nodes"), {
@@ -161,6 +156,11 @@ describe("change command", () => {
     await fs.writeFile(
       path.join(TMP_DIR, ".dagman/nodes/strict.json"),
       JSON.stringify(node)
+    );
+    await fs.mkdir(path.join(TMP_DIR, ".dagman/runs/default"), { recursive: true });
+    await fs.writeFile(
+      path.join(TMP_DIR, ".dagman/.current-run"),
+      "default"
     );
 
     const program = createProgram();
@@ -183,7 +183,7 @@ describe("context commands", () => {
       description: "test",
       instructions: "test",
       states: ["success"],
-      default_state: "success",
+      default_state: "pending",
       depends_on: [],
     };
     await fs.mkdir(path.join(TMP_DIR, ".dagman/nodes"), {
@@ -192,6 +192,11 @@ describe("context commands", () => {
     await fs.writeFile(
       path.join(TMP_DIR, ".dagman/nodes/ctx-node.json"),
       JSON.stringify(node)
+    );
+    await fs.mkdir(path.join(TMP_DIR, ".dagman/runs/default"), { recursive: true });
+    await fs.writeFile(
+      path.join(TMP_DIR, ".dagman/.current-run"),
+      "default"
     );
   });
 
@@ -202,6 +207,7 @@ describe("context commands", () => {
       "node",
       "dagman",
       "context",
+      "show",
       "ctx-node",
     ]);
   });
@@ -253,7 +259,7 @@ describe("context commands", () => {
 
     // Context file should be gone
     const exists = await fs
-      .access(path.join(TMP_DIR, ".dagman/context/ctx-node.json"))
+      .access(path.join(TMP_DIR, ".dagman/runs/default/context/ctx-node.json"))
       .then(() => true)
       .catch(() => false);
     expect(exists).toBe(false);

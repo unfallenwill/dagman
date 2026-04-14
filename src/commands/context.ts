@@ -6,9 +6,9 @@ import { NodeNotFoundError } from "../errors.js";
 export function registerContextCommand(program: Command): void {
   const ctx = program.command("context").description("管理节点上下文");
 
-  // 默认 action：查看上下文
   ctx
-    .argument("<name>")
+    .command("show <name>")
+    .description("查看节点上下文")
     .action(async (name: string) => {
       try {
         await nodeService.getNode(name);

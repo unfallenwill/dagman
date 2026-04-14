@@ -8,6 +8,8 @@ import { registerRemoveCommand } from "./commands/remove.js";
 import { registerChangeCommand } from "./commands/change.js";
 import { registerContextCommand } from "./commands/context.js";
 import { registerGraphCommand } from "./commands/graph.js";
+import { registerRunCommand } from "./commands/run.js";
+import { registerNextCommand } from "./commands/next.js";
 
 process.on("uncaughtException", (err: Error) => {
   console.error(`错误: ${err.message}`);
@@ -24,5 +26,7 @@ registerRemoveCommand(program);
 registerChangeCommand(program);
 registerContextCommand(program);
 registerGraphCommand(program);
+registerRunCommand(program);
+registerNextCommand(program);
 
 program.parse();

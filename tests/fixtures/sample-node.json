@@ -3,6 +3,6 @@
   "description": "测试用节点",
   "instructions": "执行测试操作",
   "states": ["success", "failed"],
-  "default_state": "success",
+  "default_state": "pending",
   "depends_on": []
 }

@@ -28,3 +28,17 @@ export class CycleError extends Error {
     this.name = "CycleError";
   }
 }
+
+export class RunNotFoundError extends Error {
+  constructor(runId: string) {
+    super(`运行实例 '${runId}' 不存在`);
+    this.name = "RunNotFoundError";
+  }
+}
+
+export class RunExistsError extends Error {
+  constructor(runId: string) {
+    super(`运行实例 '${runId}' 已存在`);
+    this.name = "RunExistsError";
+  }
+}

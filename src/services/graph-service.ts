@@ -4,12 +4,12 @@ import type { StateMap } from "../models/state.js";
 import * as nodeService from "./node-service.js";
 import * as stateService from "./state-service.js";
 
-export async function buildGraph(): Promise<{
+export async function buildGraph(runId?: string): Promise<{
   nodes: Node[];
   states: StateMap;
 }> {
   const nodes = await nodeService.listNodes();
-  const states = await stateService.getState();
+  const states = await stateService.getState(runId);
   return { nodes, states };
 }
 

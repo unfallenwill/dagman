@@ -1,6 +1,5 @@
 import type { Command } from "commander";
 import * as nodeService from "../services/node-service.js";
-import * as stateService from "../services/state-service.js";
 import { ValidationError, FileExistsError, NodeNotFoundError, CycleError } from "../errors.js";
 
 export function registerAddCommand(program: Command): void {
@@ -10,10 +9,7 @@ export function registerAddCommand(program: Command): void {
     .action(async (filePath: string) => {
       try {
         const node = await nodeService.addNode(filePath);
-        await stateService.initState(node.name, node.default_state);
-        console.log(
-          `已注册节点: ${node.name}（默认状态: ${node.default_state}）`
-        );
+        console.log(`已注册节点: ${node.name}`);
       } catch (err: unknown) {
         if (err instanceof NodeNotFoundError) {
           console.error(`错误: 文件 '${filePath}' 不存在`);

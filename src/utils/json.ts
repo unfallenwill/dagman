@@ -24,10 +24,7 @@ export const nodeSchema = z.object({
     }),
   default_state: z.string(),
   depends_on: z.array(dependencySchema),
-}).refine(
-  (data) => data.states.includes(data.default_state),
-  { message: "default_state 必须存在于 states 数组中", path: ["default_state"] }
-);
+});
 
 export type NodeInput = z.infer<typeof nodeSchema>;
 
