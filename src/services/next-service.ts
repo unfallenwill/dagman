@@ -8,9 +8,11 @@ import * as contextService from "./context-service.js";
 import * as graphService from "./graph-service.js";
 import * as runService from "./run-service.js";
 import { areDepsSatisfied, collectUpstream } from "../utils/topology.js";
+import { renderTemplate } from "../utils/template.js";
 
 export interface NextResult {
   node: Node;
+  instructions: string;
   context: ContextData;
   upstreamContext: Record<string, ContextData>;
 }
@@ -68,6 +70,7 @@ export async function findAllNextNodes(runId?: string): Promise<NextResult[]> {
 
 async function buildResult(node: Node, edges: Edge[], runId: string): Promise<NextResult> {
   const context = await contextService.getContext(node.name, runId);
+  const globalContext = await contextService.getGlobalContext(runId);
   const upstreamContext: Record<string, ContextData> = {};
 
   const upstream = collectUpstream(node.name, edges);
@@ -75,5 +78,48 @@ async function buildResult(node: Node, edges: Edge[], runId: string): Promise<Ne
     upstreamContext[depName] = await contextService.getContext(depName, runId);
   }
 
-  return { node, context, upstreamContext };
+  const instructions = renderInstructions(
+    node.instructions,
+    context,
+    globalContext,
+    upstreamContext
+  );
+
+  return { node, instructions, context, upstreamContext };
+}
+
+/**
+ * 渲染节点指令中的变量引用。
+ * 解析优先级：self > global > upstream node
+ * 缺少值时抛出错误。
+ */
+function renderInstructions(
+  raw: string,
+  selfContext: ContextData,
+  globalContext: ContextData,
+  upstreamContext: Record<string, ContextData>
+): string {
+  const { text, missing } = renderTemplate(
+    raw,
+    (source, key, nodeName) => {
+      switch (source) {
+        case "self":
+          return key in selfContext ? String(selfContext[key]) : undefined;
+        case "global":
+          return key in globalContext ? String(globalContext[key]) : undefined;
+        case "node": {
+          const ctx = upstreamContext[nodeName!];
+          return ctx && key in ctx ? String(ctx[key]) : undefined;
+        }
+      }
+    }
+  );
+
+  if (missing.length > 0) {
+    throw new Error(
+      `节点指令中存在未解析的变量: ${missing.join(", ")}`
+    );
+  }
+
+  return text;
 }

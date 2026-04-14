@@ -5,7 +5,8 @@ import { writeYAML, ensureDir } from "../utils/file.js";
 import { validateNodeFormat, validateGraphFormat } from "../utils/json.js";
 import * as nodeService from "./node-service.js";
 import * as graphService from "./graph-service.js";
-import { hasCycle } from "../utils/topology.js";
+import { hasCycle, collectUpstream } from "../utils/topology.js";
+import { extractVarRefs } from "../utils/template.js";
 import { ValidationError } from "../errors.js";
 
 export interface ImportResult {
@@ -102,6 +103,31 @@ export async function importFromYAML(content: string): Promise<ImportResult> {
   for (const graph of newGraphs) {
     if (graph.edges.length > 0 && hasCycle(graph.edges)) {
       throw new ValidationError(`图 '${graph.name}' 包含循环依赖，请检查边的配置`, []);
+    }
+  }
+
+  // 验证变量引用：检查 {{node-name.key}} 中的 node-name 是否为上游节点
+  const allNodeNames = new Set(nodes.map((n) => n.name).concat(existingNodes.map((n) => n.name)));
+  for (const graph of newGraphs) {
+    for (const node of nodes) {
+      const refs = extractVarRefs(node.instructions);
+      const upstream = new Set(collectUpstream(node.name, graph.edges));
+      for (const ref of refs) {
+        if (ref.source === "node") {
+          if (!allNodeNames.has(ref.nodeName!)) {
+            throw new ValidationError(
+              `节点 '${node.name}' 的指令引用了不存在的节点 '${ref.nodeName}'`,
+              [`变量 {{${ref.expr}}} 引用的节点不存在`]
+            );
+          }
+          if (!upstream.has(ref.nodeName!)) {
+            throw new ValidationError(
+              `节点 '${node.name}' 的指令引用了非上游节点 '${ref.nodeName}'`,
+              [`变量 {{${ref.expr}}} 引用的节点不是 '${node.name}' 的上游依赖`]
+            );
+          }
+        }
+      }
     }
   }
 

@@ -3,9 +3,34 @@ import { getContextDir } from "../constants.js";
 import { readJSON, writeJSON, deleteFile, ensureDir } from "../utils/file.js";
 import { resolveCurrentRunId } from "./run-service.js";
 
+const GLOBAL_CONTEXT_NAME = "_global";
+
 async function resolveRun(runId?: string): Promise<string> {
   if (runId) return runId;
   return resolveCurrentRunId();
+}
+
+export async function getGlobalContext(runId?: string): Promise<ContextData> {
+  return getContext(GLOBAL_CONTEXT_NAME, runId);
+}
+
+export async function setGlobalContextField(
+  key: string,
+  value: string,
+  runId?: string
+): Promise<void> {
+  return setContextField(GLOBAL_CONTEXT_NAME, key, value, runId);
+}
+
+export async function getGlobalContextField(
+  key: string,
+  runId?: string
+): Promise<{ found: boolean; value?: string }> {
+  return getContextField(GLOBAL_CONTEXT_NAME, key, runId);
+}
+
+export async function clearGlobalContext(runId?: string): Promise<void> {
+  return clearContext(GLOBAL_CONTEXT_NAME, runId);
 }
 
 export async function getContext(nodeName: string, runId?: string): Promise<ContextData> {

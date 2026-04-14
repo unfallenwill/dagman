@@ -13,10 +13,12 @@
   },
   "dependencies": {
     "commander": "^12.1.0",
+    "handlebars": "^4.7.9",
     "js-yaml": "^4.1.1",
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@types/handlebars": "^4.0.40",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^25.6.0",
     "tsx": "^4.19.0",

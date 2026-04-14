@@ -26,7 +26,7 @@ export function registerNextCommand(program: Command): void {
           for (const result of results) {
             console.log(`节点: ${result.node.name}`);
             console.log(`描述: ${result.node.description}`);
-            console.log(`指令: ${result.node.instructions}`);
+            console.log(`指令: ${result.instructions}`);
             console.log(`可用状态: ${CHANGEABLE_STATES.join(", ")}`);
             console.log("---");
           }
@@ -46,7 +46,7 @@ export function registerNextCommand(program: Command): void {
 
         console.log(`节点: ${result.node.name}`);
         console.log(`描述: ${result.node.description}`);
-        console.log(`指令: ${result.node.instructions}`);
+        console.log(`指令: ${result.instructions}`);
         console.log(`可用状态: ${CHANGEABLE_STATES.join(", ")}`);
 
         if (Object.keys(result.upstreamContext).length > 0) {
