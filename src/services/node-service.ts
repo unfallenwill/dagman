@@ -19,8 +19,6 @@ export async function createTemplate(name: string): Promise<string> {
     name,
     description: "",
     instructions: "",
-    states: ["success", "failed"],
-    default_state: "pending",
     depends_on: [],
   };
 

@@ -53,23 +53,20 @@ export function checkMissingDeps(nodes: Node[]): ValidationResult[] {
   return results;
 }
 
+const VALID_DEPENDENCY_STATUSES = ["success", "skipped"];
+
 export function checkInvalidStatus(nodes: Node[]): ValidationResult[] {
   const results: ValidationResult[] = [];
-  const nodeMap = new Map(nodes.map((n) => [n.name, n]));
 
   for (const node of nodes) {
     for (const dep of node.depends_on) {
       const norm = normalizeDependency(dep);
-      const target = nodeMap.get(norm.node);
-      if (!target) {
-        continue; // 已由 checkMissingDeps 覆盖
-      }
-      if (!target.states.includes(norm.status)) {
+      if (!VALID_DEPENDENCY_STATUSES.includes(norm.status)) {
         results.push({
           rule: "invalid-status",
           passed: false,
           level: "error",
-          message: `节点 '${node.name}' 依赖 '${norm.node}' 的状态 '${norm.status}' 不在目标节点的 states 声明中`,
+          message: `节点 '${node.name}' 依赖 '${norm.node}' 的状态 '${norm.status}' 无效，依赖状态仅支持: ${VALID_DEPENDENCY_STATUSES.join(", ")}`,
         });
       }
     }

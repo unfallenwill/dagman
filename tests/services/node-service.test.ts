@@ -33,8 +33,6 @@ describe("createTemplate", () => {
     const parsed = JSON.parse(content);
     expect(parsed.name).toBe("my-node");
     expect(parsed.description).toBe("");
-    expect(parsed.states).toEqual(["success", "failed"]);
-    expect(parsed.default_state).toBe("pending");
     expect(parsed.depends_on).toEqual([]);
   });
 
@@ -52,7 +50,7 @@ describe("addNode", () => {
       path.join(FIXTURES, "sample-node.json")
     );
     expect(node.name).toBe("test-node");
-    expect(node.states).toEqual(["success", "failed"]);
+    expect(node.depends_on).toEqual([]);
   });
 
   it("should throw ValidationError for missing fields", async () => {
@@ -138,8 +136,6 @@ describe("findDependents", () => {
       name: "child",
       description: "child node",
       instructions: "do child work",
-      states: ["success"],
-      default_state: "success",
       depends_on: ["parent"],
     };
     await fs.mkdir(path.join(TMP_DIR, ".dagman/nodes"), {

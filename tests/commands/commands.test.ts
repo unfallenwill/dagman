@@ -104,8 +104,6 @@ describe("change command", () => {
       name: "changer",
       description: "test",
       instructions: "test",
-      states: ["success", "failed"],
-      default_state: "pending",
       depends_on: [],
     };
     await fs.mkdir(path.join(TMP_DIR, ".dagman/nodes"), { recursive: true });
@@ -146,8 +144,6 @@ describe("change command", () => {
       name: "strict",
       description: "test",
       instructions: "test",
-      states: ["success"],
-      default_state: "pending",
       depends_on: [],
     };
     await fs.mkdir(path.join(TMP_DIR, ".dagman/nodes"), {
@@ -182,8 +178,6 @@ describe("context commands", () => {
       name: "ctx-node",
       description: "test",
       instructions: "test",
-      states: ["success"],
-      default_state: "pending",
       depends_on: [],
     };
     await fs.mkdir(path.join(TMP_DIR, ".dagman/nodes"), {

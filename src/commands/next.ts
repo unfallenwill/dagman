@@ -1,5 +1,6 @@
 import type { Command } from "commander";
 import * as nextService from "../services/next-service.js";
+import { CHANGEABLE_STATES } from "../models/state.js";
 
 export function registerNextCommand(program: Command): void {
   program
@@ -23,7 +24,7 @@ export function registerNextCommand(program: Command): void {
         console.log(`节点: ${result.node.name}`);
         console.log(`描述: ${result.node.description}`);
         console.log(`指令: ${result.node.instructions}`);
-        console.log(`可用状态: ${result.node.states.join(", ")}`);
+        console.log(`可用状态: ${CHANGEABLE_STATES.join(", ")}`);
 
         if (Object.keys(result.upstreamContext).length > 0) {
           console.log("\n上游上下文:");

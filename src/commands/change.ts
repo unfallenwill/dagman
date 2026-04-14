@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import * as nodeService from "../services/node-service.js";
 import * as stateService from "../services/state-service.js";
+import { CHANGEABLE_STATES } from "../models/state.js";
 import { NodeNotFoundError } from "../errors.js";
 
 export function registerChangeCommand(program: Command): void {
@@ -9,13 +10,21 @@ export function registerChangeCommand(program: Command): void {
     .description("变更节点状态")
     .action(async (name: string, status: string) => {
       try {
-        const node = await nodeService.getNode(name);
-        if (!node.states.includes(status)) {
+        // 验证节点存在
+        await nodeService.getNode(name);
+
+        if (status === "pending") {
+          console.error(`错误: 不可将节点状态回退为 'pending'`);
+          process.exit(1);
+        }
+
+        if (!(CHANGEABLE_STATES as readonly string[]).includes(status)) {
           console.error(
-            `错误: 状态 '${status}' 不在节点 '${name}' 的可用状态中: ${node.states.join(", ")}`
+            `错误: 状态 '${status}' 无效，可用状态: ${CHANGEABLE_STATES.join(", ")}`
           );
           process.exit(1);
         }
+
         await stateService.setState(name, status);
         console.log(`已更新节点 '${name}' 的状态为 '${status}'`);
       } catch (err: unknown) {

@@ -9,8 +9,6 @@ export interface Node {
   name: string;
   description: string;
   instructions: string;
-  states: string[];
-  default_state: string;
   depends_on: Dependency[];
 }
 

@@ -12,13 +12,10 @@ import {
 const makeNode = (
   name: string,
   depends_on: Node["depends_on"] = [],
-  states: string[] = ["success", "failed"]
 ): Node => ({
   name,
   description: `${name} desc`,
   instructions: `${name} instructions`,
-  states,
-  default_state: states[0],
   depends_on,
 });
 

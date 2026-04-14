@@ -1,6 +1,7 @@
 import type { Node } from "../models/node.js";
 import { normalizeDependency } from "../models/node.js";
 import type { StateMap } from "../models/state.js";
+import { DEFAULT_STATE } from "../models/state.js";
 import * as nodeService from "./node-service.js";
 import * as stateService from "./state-service.js";
 
@@ -22,7 +23,7 @@ export function formatGraph(nodes: Node[], states: StateMap): string {
 
   return sorted
     .map((node) => {
-      const status = states[node.name] ?? node.default_state;
+      const status = states[node.name] ?? DEFAULT_STATE;
       const deps = node.depends_on
         .map((dep) => {
           const norm = normalizeDependency(dep);

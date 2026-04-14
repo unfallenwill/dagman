@@ -29,8 +29,6 @@ async function writeNode(name: string, dependsOn: string[] = []): Promise<void> 
     name,
     description: `${name} desc`,
     instructions: `${name} instructions`,
-    states: ["success", "partial", "failed"],
-    default_state: "pending",
     depends_on: dependsOn,
   };
   await fs.mkdir(path.join(TMP_DIR, ".dagman/nodes"), { recursive: true });
@@ -179,5 +177,26 @@ describe("findNextNode", () => {
 
     const result = await nextService.findNextNode("other");
     expect(result!.node.name).toBe("alpha");
+  });
+
+  it("should treat skipped as satisfying success dependency", async () => {
+    await writeNode("alpha");
+    await writeNode("beta", ["alpha"]);
+
+    // Skip alpha instead of success
+    await stateService.setState("alpha", "skipped");
+
+    const result = await nextService.findNextNode();
+    expect(result!.node.name).toBe("beta");
+  });
+
+  it("should not activate downstream when dependency failed", async () => {
+    await writeNode("alpha");
+    await writeNode("beta", ["alpha"]);
+
+    await stateService.setState("alpha", "failed");
+
+    const result = await nextService.findNextNode();
+    expect(result).toBeNull();
   });
 });

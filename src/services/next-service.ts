@@ -21,7 +21,10 @@ function areDependenciesSatisfied(
   return node.depends_on.every((dep) => {
     const norm = normalizeDependency(dep);
     const depState = states[norm.node];
-    return depState === norm.status;
+    if (depState === norm.status) return true;
+    // skipped 等价于 success：依赖期望 success 时，skipped 也视为满足
+    if (norm.status === "success" && depState === "skipped") return true;
+    return false;
   });
 }
 
