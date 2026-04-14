@@ -1,5 +1,7 @@
 # dagman 开发工作流
 
+Co-Authored-By: GLM 5.1 <noreply@z.ai>
+
 本项目使用 dagman 管理开发任务。工作流已预定义，你只需按步骤执行。
 
 ## 启动开发
