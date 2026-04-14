@@ -2,3 +2,8 @@ src/
 tests/
 tsconfig.json
 .gitignore
+.claude/
+.dagman/
+specs/
+*.md
+!README.md
