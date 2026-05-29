@@ -1,8 +1,8 @@
 import type { Command } from 'commander'
-import { getWorkflowManifest } from '../infra/fs/paths.js'
-import { graphExists } from '../domain/graph/graph-service.js'
-import { withErrorHandler, outputJson } from '../slices/_shared/output.js'
-import { readYAML } from '../infra/fs/file-ops.js'
+import { getWorkflowManifest } from '../../infra/fs/paths.js'
+import { graphExists } from '../../domain/graph/graph-service.js'
+import { withErrorHandler, outputJson } from '../_shared/output.js'
+import { readYAML } from '../../infra/fs/file-ops.js'
 
 /** Load manifest for a specific workflow */
 async function loadManifest(name: string) {

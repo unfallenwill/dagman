@@ -1,8 +1,8 @@
 import type { Command } from 'commander'
-import * as nextService from '../domain/scheduling/scheduler.js'
-import { setCommandMeta } from '../slices/_shared/command-meta.js'
-import { withErrorHandler, outputJson } from '../slices/_shared/output.js'
-import { resolveActiveRunId } from '../shared/utils/run-resolver.js'
+import * as nextService from '../../domain/scheduling/scheduler.js'
+import { setCommandMeta } from '../_shared/command-meta.js'
+import { withErrorHandler, outputJson } from '../_shared/output.js'
+import { resolveActiveRunId } from '../../shared/utils/run-resolver.js'
 
 export function registerNextCommand(program: Command): void {
   const nextCmd = program.command('next').summary('Get the next executable task')
@@ -46,7 +46,7 @@ The agent execution loop typically follows: next -> task start ->
           const runId = options.run ?? (await resolveActiveRunId())
 
           if (options.step) {
-            const { getCurrentStep } = await import('../domain/workflow/workflow-engine.js')
+            const { getCurrentStep } = await import('../../domain/workflow/workflow-engine.js')
             const current = await getCurrentStep(runId)
 
             if (options.json) {

@@ -1,7 +1,7 @@
 import type { Command } from 'commander'
-import { compileWorkflow } from '../domain/compiler/compiler.js'
-import { computeTopologicalLayers } from '../shared/utils/topology.js'
-import { withErrorHandler, outputJson } from '../slices/_shared/output.js'
+import { compileWorkflow } from '../../domain/compiler/compiler.js'
+import { computeTopologicalLayers } from '../../shared/utils/topology.js'
+import { withErrorHandler, outputJson } from '../_shared/output.js'
 
 /** Format node name with kind prefix/color hint */
 function formatNodeLabel(name: string, kind?: string): string {

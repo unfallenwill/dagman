@@ -1,7 +1,7 @@
 import type { Command } from 'commander'
-import { compileWorkflow } from '../domain/compiler/compiler.js'
-import * as runService from '../domain/run/run-service.js'
-import { withErrorHandler } from '../slices/_shared/output.js'
+import { compileWorkflow } from '../../domain/compiler/compiler.js'
+import * as runService from '../../domain/run/run-service.js'
+import { withErrorHandler } from '../_shared/output.js'
 
 export function registerStartCommand(program: Command): void {
   program

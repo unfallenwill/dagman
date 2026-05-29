@@ -1,12 +1,12 @@
 import type { Command } from 'commander'
 import { readFileSync } from 'fs'
 import * as path from 'path'
-import { CliError } from '../shared/errors.js'
+import { CliError } from '../../shared/errors.js'
 
 function getVersion(): string {
   try {
-    // Search upward from script directory for package.json (dist/commands/help.js -> package.json)
-    const pkgPath = path.resolve(__dirname, '../../package.json')
+    // Search upward from script directory for package.json (dist/slices/help/index.js -> package.json)
+    const pkgPath = path.resolve(__dirname, '../../../package.json')
     const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'))
     return pkg.version ?? '0.0.0'
   } catch {

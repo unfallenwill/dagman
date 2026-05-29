@@ -1,11 +1,11 @@
 import type { Command } from 'commander'
-import { FsEventRepository } from '../infra/fs/fs-event-repo.js'
-import { resolveCurrentRunId } from '../domain/run/run-service.js'
-import { RunNotFoundError } from '../shared/errors.js'
-import { getRunMetaFile } from '../infra/fs/paths.js'
-import { fileExists } from '../infra/fs/file-ops.js'
-import { setCommandMeta } from '../slices/_shared/command-meta.js'
-import { withErrorHandler, outputJson } from '../slices/_shared/output.js'
+import { FsEventRepository } from '../../infra/fs/fs-event-repo.js'
+import { resolveCurrentRunId } from '../../domain/run/run-service.js'
+import { RunNotFoundError } from '../../shared/errors.js'
+import { getRunMetaFile } from '../../infra/fs/paths.js'
+import { fileExists } from '../../infra/fs/file-ops.js'
+import { setCommandMeta } from '../_shared/command-meta.js'
+import { withErrorHandler, outputJson } from '../_shared/output.js'
 
 function formatEvent(iso: string, node: string, from: string, to: string): string {
   return `[${iso}] ${node}: ${from} -> ${to}`
