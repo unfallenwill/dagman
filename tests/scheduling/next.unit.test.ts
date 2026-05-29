@@ -135,10 +135,10 @@ describe('scheduling/next unit tests (in-memory)', () => {
         { from: 'chat', to: 'cond:classify→route' },
       ]
       const nodes: Node[] = [
-        { name: 'classify', description: '', instructions: '' },
-        { name: 'cond:classify→route', description: '', instructions: '', kind: 'cond' },
-        { name: 'tool', description: '', instructions: '' },
-        { name: 'chat', description: '', instructions: '' },
+        { name: 'classify' },
+        { name: 'cond:classify→route', kind: 'cond' },
+        { name: 'tool' },
+        { name: 'chat' },
       ]
       const { runId, edges: testEdges, workflowDeps } = createTestEnvironment(layers, edges, nodes)
 
@@ -172,10 +172,10 @@ describe('scheduling/next unit tests (in-memory)', () => {
         { from: 'chat', to: 'cond:classify→route' },
       ]
       const nodes: Node[] = [
-        { name: 'classify', description: '', instructions: '' },
-        { name: 'cond:classify→route', description: '', instructions: '', kind: 'cond' },
-        { name: 'tool', description: '', instructions: '' },
-        { name: 'chat', description: '', instructions: '' },
+        { name: 'classify' },
+        { name: 'cond:classify→route', kind: 'cond' },
+        { name: 'tool' },
+        { name: 'chat' },
       ]
       const { runId, edges: testEdges, workflowDeps } = createTestEnvironment(layers, edges, nodes)
 
@@ -206,11 +206,11 @@ describe('scheduling/next unit tests (in-memory)', () => {
         { from: 'email', to: 'classify' }, // not blocked by condEdge
       ]
       const nodes: Node[] = [
-        { name: 'classify', description: '', instructions: '' },
-        { name: 'cond:classify→route', description: '', instructions: '', kind: 'cond' },
-        { name: 'tool', description: '', instructions: '' },
-        { name: 'chat', description: '', instructions: '' },
-        { name: 'email', description: '', instructions: '' },
+        { name: 'classify' },
+        { name: 'cond:classify→route', kind: 'cond' },
+        { name: 'tool' },
+        { name: 'chat' },
+        { name: 'email' },
       ]
       const { runId, edges: testEdges, workflowDeps } = createTestEnvironment(layers, edges, nodes)
 
@@ -244,10 +244,10 @@ describe('scheduling/next unit tests (in-memory)', () => {
         { from: 'chat', to: 'cond:classify→route' },
       ]
       const nodes: Node[] = [
-        { name: 'classify', description: '', instructions: '' },
-        { name: 'cond:classify→route', description: '', instructions: '', kind: 'cond' },
-        { name: 'tool', description: '', instructions: '' },
-        { name: 'chat', description: '', instructions: '' },
+        { name: 'classify' },
+        { name: 'cond:classify→route', kind: 'cond' },
+        { name: 'tool' },
+        { name: 'chat' },
       ]
       const { runId, edges: testEdges, workflowDeps } = createTestEnvironment(layers, edges, nodes)
 
@@ -308,11 +308,7 @@ describe('scheduling/next unit tests (in-memory)', () => {
         { from: 'collect:a', to: 'a' },
         { from: 'b', to: 'collect:a' },
       ]
-      const nodes: Node[] = [
-        { name: 'a', description: '', instructions: '' },
-        { name: 'collect:a', description: '', instructions: '', kind: 'collect' },
-        { name: 'b', description: '', instructions: '' },
-      ]
+      const nodes: Node[] = [{ name: 'a' }, { name: 'collect:a', kind: 'collect' }, { name: 'b' }]
       const { runId, edges: testEdges, workflowDeps } = createTestEnvironment(layers, edges, nodes)
 
       // Complete layer 0
@@ -340,10 +336,10 @@ describe('scheduling/next unit tests (in-memory)', () => {
         { from: 'chat', to: 'cond:classify→route' },
       ]
       const nodes: Node[] = [
-        { name: 'classify', description: '', instructions: '' },
-        { name: 'cond:classify→route', description: '', instructions: '', kind: 'cond' },
-        { name: 'tool', description: '', instructions: '' },
-        { name: 'chat', description: '', instructions: '' },
+        { name: 'classify' },
+        { name: 'cond:classify→route', kind: 'cond' },
+        { name: 'tool' },
+        { name: 'chat' },
       ]
       const { runId, edges: testEdges, workflowDeps } = createTestEnvironment(layers, edges, nodes)
 
@@ -385,10 +381,10 @@ describe('scheduling/next unit tests (in-memory)', () => {
         { from: 'chat', to: 'cond:classify→route' },
       ]
       const nodes: Node[] = [
-        { name: 'classify', description: '', instructions: '' },
-        { name: 'cond:classify→route', description: '', instructions: '', kind: 'cond' },
-        { name: 'tool', description: '', instructions: '' },
-        { name: 'chat', description: '', instructions: '' },
+        { name: 'classify' },
+        { name: 'cond:classify→route', kind: 'cond' },
+        { name: 'tool' },
+        { name: 'chat' },
       ]
       const { runId, edges: testEdges, workflowDeps } = createTestEnvironment(layers, edges, nodes)
 
@@ -440,13 +436,13 @@ describe('scheduling/next unit tests (in-memory)', () => {
         { from: 'sms', to: 'cond:classify→action' },
       ]
       const nodes: Node[] = [
-        { name: 'classify', description: '', instructions: '' },
-        { name: 'cond:classify→route', description: '', instructions: '', kind: 'cond' },
-        { name: 'cond:classify→action', description: '', instructions: '', kind: 'cond' },
-        { name: 'tool', description: '', instructions: '' },
-        { name: 'chat', description: '', instructions: '' },
-        { name: 'email', description: '', instructions: '' },
-        { name: 'sms', description: '', instructions: '' },
+        { name: 'classify' },
+        { name: 'cond:classify→route', kind: 'cond' },
+        { name: 'cond:classify→action', kind: 'cond' },
+        { name: 'tool' },
+        { name: 'chat' },
+        { name: 'email' },
+        { name: 'sms' },
       ]
       const { runId, edges: testEdges, workflowDeps } = createTestEnvironment(layers, edges, nodes)
 
@@ -485,11 +481,11 @@ describe('scheduling/next unit tests (in-memory)', () => {
         { from: 'end', to: 'branch-b' },
       ]
       const nodes: Node[] = [
-        { name: 'start', description: '', instructions: '' },
-        { name: 'cond:start→branch', description: '', instructions: '', kind: 'cond' },
-        { name: 'branch-a', description: '', instructions: '' },
-        { name: 'branch-b', description: '', instructions: '' },
-        { name: 'end', description: '', instructions: '' },
+        { name: 'start' },
+        { name: 'cond:start→branch', kind: 'cond' },
+        { name: 'branch-a' },
+        { name: 'branch-b' },
+        { name: 'end' },
       ]
       const { runId, edges: testEdges, workflowDeps } = createTestEnvironment(layers, edges, nodes)
 
@@ -529,11 +525,7 @@ describe('scheduling/next unit tests (in-memory)', () => {
         { from: 'cond:a→x', to: 'a' },
         { from: 'x', to: 'cond:a→x' },
       ]
-      const nodes: Node[] = [
-        { name: 'a', description: '', instructions: '' },
-        { name: 'cond:a→x', description: '', instructions: '', kind: 'cond' },
-        { name: 'x', description: '', instructions: '' },
-      ]
+      const nodes: Node[] = [{ name: 'a' }, { name: 'cond:a→x', kind: 'cond' }, { name: 'x' }]
       const { runId, edges: testEdges, workflowDeps } = createTestEnvironment(layers, edges, nodes)
 
       await completeTask('a', testEdges, runId, workflowDeps)
@@ -566,11 +558,11 @@ describe('scheduling/next unit tests (in-memory)', () => {
         // z does NOT depend on cond:x→y, so it should pass through
       ]
       const nodes: Node[] = [
-        { name: 'x', description: '', instructions: '' },
-        { name: 'cond:x→y', description: '', instructions: '', kind: 'cond' },
-        { name: 'z', description: '', instructions: '' },
-        { name: 'a', description: '', instructions: '' },
-        { name: 'm', description: '', instructions: '' },
+        { name: 'x' },
+        { name: 'cond:x→y', kind: 'cond' },
+        { name: 'z' },
+        { name: 'a' },
+        { name: 'm' },
       ]
       const { runId, edges: testEdges, workflowDeps } = createTestEnvironment(layers, edges, nodes)
 
@@ -620,10 +612,10 @@ describe('scheduling/next unit tests (in-memory)', () => {
         { from: 'chat', to: 'cond:classify→route' },
       ]
       const nodes: Node[] = [
-        { name: 'classify', description: '', instructions: '' },
-        { name: 'cond:classify→route', description: '', instructions: '', kind: 'cond' },
-        { name: 'tool', description: '', instructions: '' },
-        { name: 'chat', description: '', instructions: '' },
+        { name: 'classify' },
+        { name: 'cond:classify→route', kind: 'cond' },
+        { name: 'tool' },
+        { name: 'chat' },
       ]
       const { runId, edges: testEdges, workflowDeps } = createTestEnvironment(layers, edges, nodes)
 
@@ -714,10 +706,10 @@ describe('scheduling/next coverage edge cases', () => {
       { from: 'chat', to: 'cond:classify→route' },
     ]
     const nodes: Node[] = [
-      { name: 'classify', description: '', instructions: '' },
-      { name: 'cond:classify→route', description: '', instructions: '', kind: 'cond' },
-      { name: 'tool', description: '', instructions: '' },
-      { name: 'chat', description: '', instructions: '' },
+      { name: 'classify' },
+      { name: 'cond:classify→route', kind: 'cond' },
+      { name: 'tool' },
+      { name: 'chat' },
     ]
     const { runId, edges: testEdges, workflowDeps } = createTestEnvironment(layers, edges, nodes)
 
@@ -750,10 +742,10 @@ describe('scheduling/next coverage edge cases', () => {
       { from: 'chat', to: 'cond:classify→route' },
     ]
     const nodes: Node[] = [
-      { name: 'classify', description: '', instructions: '' },
-      { name: 'cond:classify→route', description: '', instructions: '', kind: 'cond' },
-      { name: 'tool', description: '', instructions: '' },
-      { name: 'chat', description: '', instructions: '' },
+      { name: 'classify' },
+      { name: 'cond:classify→route', kind: 'cond' },
+      { name: 'tool' },
+      { name: 'chat' },
     ]
     const { runId, edges: testEdges, workflowDeps } = createTestEnvironment(layers, edges, nodes)
 

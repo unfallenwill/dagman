@@ -36,10 +36,7 @@ describe('graph', () => {
     it('roundtrip: save and load a graph', async () => {
       const originalGraph: Graph = {
         name: 'test-graph',
-        nodes: [
-          { name: 'nodeA', description: 'Test A', instructions: 'Do A', kind: 'user' },
-          { name: 'nodeB', description: 'Test B', instructions: 'Do B', kind: 'user' },
-        ],
+        nodes: [{ name: 'nodeA' }, { name: 'nodeB' }],
         edges: [{ from: 'nodeB', to: 'nodeA' }],
       }
 
@@ -56,16 +53,12 @@ describe('graph', () => {
     it('overwrites existing graph with same name', async () => {
       const graph1: Graph = {
         name: 'test-graph',
-        nodes: [{ name: 'nodeA', description: '', instructions: '', kind: 'user' }],
         edges: [],
       }
 
       const graph2: Graph = {
         name: 'test-graph',
-        nodes: [
-          { name: 'nodeA', description: '', instructions: '', kind: 'user' },
-          { name: 'nodeB', description: '', instructions: '', kind: 'user' },
-        ],
+        nodes: [{ name: 'nodeA' }, { name: 'nodeB' }],
         edges: [{ from: 'nodeB', to: 'nodeA' }],
       }
 
@@ -93,12 +86,8 @@ describe('graph', () => {
     })
 
     it('lists multiple graphs', async () => {
-      await createGraphFile('graph1', [
-        { name: 'nodeA', description: '', instructions: '', kind: 'user' },
-      ])
-      await createGraphFile('graph2', [
-        { name: 'nodeB', description: '', instructions: '', kind: 'user' },
-      ])
+      await createGraphFile('graph1', [{ name: 'a' }])
+      await createGraphFile('graph2', [{ name: 'b' }])
 
       const graphs = await listGraphs()
       expect(graphs).toHaveLength(2)
@@ -109,9 +98,7 @@ describe('graph', () => {
 
     it('skips non-JSON files in graphs directory', async () => {
       await fs.mkdir('.dagman/graphs', { recursive: true })
-      await createGraphFile('graph1', [
-        { name: 'nodeA', description: '', instructions: '', kind: 'user' },
-      ])
+      await createGraphFile('graph1', [{ name: 'a' }])
       // Create a non-JSON file
       await fs.writeFile('.dagman/graphs/readme.txt', 'not a graph', 'utf-8')
 
@@ -122,9 +109,7 @@ describe('graph', () => {
 
     it('skips malformed JSON files silently', async () => {
       await fs.mkdir('.dagman/graphs', { recursive: true })
-      await createGraphFile('graph1', [
-        { name: 'nodeA', description: '', instructions: '', kind: 'user' },
-      ])
+      await createGraphFile('graph1', [{ name: 'a' }])
       // Create a malformed JSON file
       await fs.writeFile('.dagman/graphs/bad.json', '{ invalid json }', 'utf-8')
 
@@ -145,10 +130,7 @@ describe('graph', () => {
     })
 
     it('formats a simple graph without tasks', () => {
-      const nodes: Node[] = [
-        { name: 'nodeA', description: 'A', instructions: '', kind: 'user' },
-        { name: 'nodeB', description: 'B', instructions: '', kind: 'user' },
-      ]
+      const nodes: Node[] = [{ name: 'nodeA' }, { name: 'nodeB' }]
       const edges: Edge[] = [{ from: 'nodeB', to: 'nodeA' }]
       const tasks: Task[] = []
 
@@ -161,10 +143,7 @@ describe('graph', () => {
     })
 
     it('formats a graph with tasks showing status', () => {
-      const nodes: Node[] = [
-        { name: 'nodeA', description: 'A', instructions: '', kind: 'user' },
-        { name: 'nodeB', description: 'B', instructions: '', kind: 'user' },
-      ]
+      const nodes: Node[] = [{ name: 'nodeA' }, { name: 'nodeB' }]
       const edges: Edge[] = [{ from: 'nodeB', to: 'nodeA' }]
       const tasks: Task[] = [
         { nodeId: 'nodeA', status: 'success' } as Task,
@@ -181,10 +160,7 @@ describe('graph', () => {
     })
 
     it('formats edges with expect status', () => {
-      const nodes: Node[] = [
-        { name: 'nodeA', description: 'A', instructions: '', kind: 'user' },
-        { name: 'nodeB', description: 'B', instructions: '', kind: 'user' },
-      ]
+      const nodes: Node[] = [{ name: 'nodeA' }, { name: 'nodeB' }]
       const edges: Edge[] = [{ from: 'nodeB', to: 'nodeA', expect: 'success' }]
       const tasks: Task[] = []
 
@@ -194,11 +170,7 @@ describe('graph', () => {
     })
 
     it('formats multiple edges for a node', () => {
-      const nodes: Node[] = [
-        { name: 'nodeA', description: 'A', instructions: '', kind: 'user' },
-        { name: 'nodeB', description: 'B', instructions: '', kind: 'user' },
-        { name: 'nodeC', description: 'C', instructions: '', kind: 'user' },
-      ]
+      const nodes: Node[] = [{ name: 'nodeA' }, { name: 'nodeB' }, { name: 'nodeC' }]
       const edges: Edge[] = [
         { from: 'nodeA', to: 'nodeB' },
         { from: 'nodeA', to: 'nodeC' },
@@ -215,7 +187,7 @@ describe('graph', () => {
     })
 
     it('formats with timestamps', () => {
-      const nodes: Node[] = [{ name: 'nodeA', description: 'A', instructions: '', kind: 'user' }]
+      const nodes: Node[] = [{ name: 'nodeA' }]
       const edges: Edge[] = []
       const tasks: Task[] = [{ nodeId: 'nodeA', status: 'success' } as Task]
       // Use UTC timestamp to avoid timezone issues
@@ -230,11 +202,7 @@ describe('graph', () => {
     })
 
     it('sorts nodes alphabetically', () => {
-      const nodes: Node[] = [
-        { name: 'nodeZ', description: 'Z', instructions: '', kind: 'user' },
-        { name: 'nodeA', description: 'A', instructions: '', kind: 'user' },
-        { name: 'nodeM', description: 'M', instructions: '', kind: 'user' },
-      ]
+      const nodes: Node[] = [{ name: 'nodeZ' }, { name: 'nodeA' }, { name: 'nodeM' }]
       const edges: Edge[] = []
       const tasks: Task[] = []
 

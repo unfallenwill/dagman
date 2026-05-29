@@ -1,7 +1,5 @@
 export interface Node {
   name: string
-  description: string
-  instructions: string
   /** StateGraph key this node writes to (TS-compiled nodes only) */
   stateKey?: string
   /** Node kind: user (defined by user), collect (auto-generated), cond (conditional edge), fanout (fan-out) */

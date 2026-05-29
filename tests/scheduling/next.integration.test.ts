@@ -62,10 +62,7 @@ describe('findNext (integration)', () => {
   })
 
   it('returns null when no tasks are ready', async () => {
-    const nodes: Node[] = [
-      { name: 'a', description: 'Node a', instructions: 'Do a' },
-      { name: 'b', description: 'Node b', instructions: 'Do b' },
-    ]
+    const nodes: Node[] = [{ name: 'a' }, { name: 'b' }]
     const edges: Edge[] = [{ from: 'b', to: 'a' }]
     const runId = await setupGraphAndRun(nodes, edges)
 
@@ -80,11 +77,7 @@ describe('findNext (integration)', () => {
   })
 
   it('returns the first ready task sorted alphabetically', async () => {
-    const nodes: Node[] = [
-      { name: 'a', description: 'Node a', instructions: 'Do a' },
-      { name: 'b', description: 'Node b', instructions: 'Do b' },
-      { name: 'c', description: 'Node c', instructions: 'Do c' },
-    ]
+    const nodes: Node[] = [{ name: 'a' }, { name: 'b' }, { name: 'c' }]
     const edges: Edge[] = [
       { from: 'b', to: 'a' },
       { from: 'c', to: 'a' },
@@ -99,12 +92,11 @@ describe('findNext (integration)', () => {
     expect(result).not.toBeNull()
     expect(result!.task.nodeId).toBe('b')
     expect(result!.node.name).toBe('b')
-    expect(result!.instructions).toBe('Do b')
     expect(result!.channels).toBeDefined()
   })
 
   it('returns the single root task when no edges', async () => {
-    const nodes: Node[] = [{ name: 'solo', description: 'Solo node', instructions: 'Do solo' }]
+    const nodes: Node[] = [{ name: 'solo' }]
     const edges: Edge[] = []
     const runId = await setupGraphAndRun(nodes, edges)
 
@@ -116,10 +108,10 @@ describe('findNext (integration)', () => {
 
   it('returns null when all ready tasks are filtered by condEdge', async () => {
     const nodes: Node[] = [
-      { name: 'classify', description: 'Classify', instructions: '' },
-      { name: 'cond:classify→route', description: 'Cond', instructions: '', kind: 'cond' },
-      { name: 'tool', description: 'Tool', instructions: '' },
-      { name: 'chat', description: 'Chat', instructions: '' },
+      { name: 'classify' },
+      { name: 'cond:classify→route', kind: 'cond', targets: ['tool', 'chat'] },
+      { name: 'tool' },
+      { name: 'chat' },
     ]
     const edges: Edge[] = [
       { from: 'cond:classify→route', to: 'classify' },
@@ -139,10 +131,10 @@ describe('findNext (integration)', () => {
 
   it('skips cond-blocked tasks and returns the passing one', async () => {
     const nodes: Node[] = [
-      { name: 'classify', description: 'Classify', instructions: '' },
-      { name: 'cond:classify→route', description: 'Cond', instructions: '', kind: 'cond' },
-      { name: 'tool', description: 'Tool', instructions: 'Use tool' },
-      { name: 'chat', description: 'Chat', instructions: 'Use chat' },
+      { name: 'classify' },
+      { name: 'cond:classify→route', kind: 'cond', targets: ['tool', 'chat'] },
+      { name: 'tool' },
+      { name: 'chat' },
     ]
     const edges: Edge[] = [
       { from: 'cond:classify→route', to: 'classify' },
@@ -164,7 +156,7 @@ describe('findNext (integration)', () => {
   })
 
   it('executes user node via loader and completes it', async () => {
-    const nodes: Node[] = [{ name: 'a', description: 'Node a', instructions: 'Do a', kind: 'user' }]
+    const nodes: Node[] = [{ name: 'a', kind: 'user' }]
     const edges: Edge[] = []
     const runId = await setupGraphAndRun(nodes, edges)
 
@@ -198,10 +190,10 @@ describe('findNext (integration)', () => {
 
   it('executes cond node via loader and sets cond channel', async () => {
     const nodes: Node[] = [
-      { name: 'classify', description: 'Classify', instructions: '' },
-      { name: 'cond:classify→route', description: 'Cond', instructions: '', kind: 'cond' },
-      { name: 'tool', description: 'Tool', instructions: '' },
-      { name: 'chat', description: 'Chat', instructions: '' },
+      { name: 'classify' },
+      { name: 'cond:classify→route', kind: 'cond', targets: ['tool', 'chat'] },
+      { name: 'tool' },
+      { name: 'chat' },
     ]
     const edges: Edge[] = [
       { from: 'cond:classify→route', to: 'classify' },
@@ -243,11 +235,9 @@ describe('findNext (integration)', () => {
 
   it('executes fanout node via loader and sets fanout channel', async () => {
     const nodes: Node[] = [
-      { name: 'source', description: 'Source', instructions: '' },
+      { name: 'source' },
       {
         name: 'fanout:source→process',
-        description: 'FanOut',
-        instructions: '',
         kind: 'fanout',
         templateNode: 'process',
       },
@@ -287,7 +277,7 @@ describe('findNext (integration)', () => {
   })
 
   it('throws when user node fn is not found in workflow definition', async () => {
-    const nodes: Node[] = [{ name: 'a', description: 'Node a', instructions: 'Do a', kind: 'user' }]
+    const nodes: Node[] = [{ name: 'a', kind: 'user' }]
     const edges: Edge[] = []
     const runId = await setupGraphAndRun(nodes, edges)
 
@@ -308,8 +298,8 @@ describe('findNext (integration)', () => {
 
   it('throws when cond node fn is not found in workflow definition', async () => {
     const nodes: Node[] = [
-      { name: 'classify', description: 'Classify', instructions: '' },
-      { name: 'cond:classify→route', description: 'Cond', instructions: '', kind: 'cond' },
+      { name: 'classify' },
+      { name: 'cond:classify→route', kind: 'cond', targets: ['tool'] },
     ]
     const edges: Edge[] = [{ from: 'cond:classify→route', to: 'classify' }]
     const runId = await setupGraphAndRun(nodes, edges)
@@ -334,11 +324,9 @@ describe('findNext (integration)', () => {
 
   it('throws when fanout node fn is not found in workflow definition', async () => {
     const nodes: Node[] = [
-      { name: 'source', description: 'Source', instructions: '' },
+      { name: 'source' },
       {
         name: 'fanout:source→process',
-        description: 'FanOut',
-        instructions: '',
         kind: 'fanout',
       },
     ]
@@ -364,7 +352,7 @@ describe('findNext (integration)', () => {
   })
 
   it('fails task when user node fn throws an error', async () => {
-    const nodes: Node[] = [{ name: 'a', description: 'Node a', instructions: 'Do a', kind: 'user' }]
+    const nodes: Node[] = [{ name: 'a', kind: 'user' }]
     const edges: Edge[] = []
     const runId = await setupGraphAndRun(nodes, edges)
 
@@ -396,8 +384,8 @@ describe('findNext (integration)', () => {
 
   it('fails task when cond node fn throws an error', async () => {
     const nodes: Node[] = [
-      { name: 'classify', description: 'Classify', instructions: '' },
-      { name: 'cond:classify→route', description: 'Cond', instructions: '', kind: 'cond' },
+      { name: 'classify' },
+      { name: 'cond:classify→route', kind: 'cond', targets: ['tool'] },
     ]
     const edges: Edge[] = [{ from: 'cond:classify→route', to: 'classify' }]
     const runId = await setupGraphAndRun(nodes, edges)
@@ -434,11 +422,9 @@ describe('findNext (integration)', () => {
 
   it('fails task when fanout node fn throws an error', async () => {
     const nodes: Node[] = [
-      { name: 'source', description: 'Source', instructions: '' },
+      { name: 'source' },
       {
         name: 'fanout:source→process',
-        description: 'FanOut',
-        instructions: '',
         kind: 'fanout',
       },
     ]
@@ -477,7 +463,7 @@ describe('findNext (integration)', () => {
 
   it('throws when node is not found in graph definition', async () => {
     // Create a graph where the ready task's node name is missing from the graph's node list
-    const nodes: Node[] = [{ name: 'a', description: 'Node a', instructions: 'Do a' }]
+    const nodes: Node[] = [{ name: 'a' }]
     const edges: Edge[] = []
     // We set up a run with node 'a', then manipulate the graph to remove it
     const runId = await setupGraphAndRun(nodes, edges)
@@ -492,77 +478,17 @@ describe('findNext (integration)', () => {
     await expect(next.findNext(runId)).rejects.toThrow("node 'a' not found in graph")
   })
 
-  it('renders instructions with self variable references', async () => {
-    const nodes: Node[] = [{ name: 'a', description: 'Node a', instructions: 'Result: {{output}}' }]
-    const edges: Edge[] = []
-    const runId = await setupGraphAndRun(nodes, edges)
-
-    // Set a node channel that instructions will reference
-    await workflowService.setChannel('a.output', 'hello-world', runId)
-
-    const result = await next.findNext(runId)
-    expect(result).not.toBeNull()
-    expect(result!.instructions).toBe('Result: hello-world')
-  })
-
-  it('renders instructions with global variable references', async () => {
-    const nodes: Node[] = [
-      { name: 'a', description: 'Node a', instructions: 'Global: {{global.config}}' },
-    ]
-    const edges: Edge[] = []
-    const runId = await setupGraphAndRun(nodes, edges)
-
-    // Set a global channel
-    await workflowService.setChannel('_global.config', 'production', runId)
-
-    const result = await next.findNext(runId)
-    expect(result).not.toBeNull()
-    expect(result!.instructions).toBe('Global: production')
-  })
-
-  it('renders instructions with node variable references', async () => {
-    const nodes: Node[] = [
-      { name: 'a', description: 'Node a', instructions: '' },
-      { name: 'b', description: 'Node b', instructions: 'Upstream: {{a.result}}' },
-    ]
-    const edges: Edge[] = [{ from: 'b', to: 'a' }]
-    const runId = await setupGraphAndRun(nodes, edges)
-
-    // Set a node channel for 'a' and complete 'a'
-    await workflowService.setChannel('a.result', 'upstream-data', runId)
-    await completeTask('a', edges, runId)
-
-    const result = await next.findNext(runId)
-    expect(result).not.toBeNull()
-    expect(result!.task.nodeId).toBe('b')
-    expect(result!.instructions).toBe('Upstream: upstream-data')
-  })
-
-  it('throws on unresolved variable references in instructions', async () => {
-    const nodes: Node[] = [
-      { name: 'a', description: 'Node a', instructions: 'Missing: {{nonexistent}}' },
-    ]
-    const edges: Edge[] = []
-    const runId = await setupGraphAndRun(nodes, edges)
-
-    await expect(next.findNext(runId)).rejects.toThrow(
-      'unresolved variables in node instructions: {{nonexistent}}',
-    )
-  })
-
   it('handles agent/collect nodes without executing them', async () => {
     // 'collect' kind nodes are not handled by executeWorkflowNode/executeCondEdge/executeFanOutNode
     // They should just pass through to buildResult
     const nodes: Node[] = [
-      { name: 'a', description: 'Node a', instructions: '' },
+      { name: 'a' },
+      { name: 'b' },
       {
         name: 'collect:a',
-        description: 'Collect a',
-        instructions: '',
         kind: 'collect',
         parentNodeId: 'a',
       },
-      { name: 'b', description: 'Node b', instructions: 'Do b' },
     ]
     const edges: Edge[] = [
       { from: 'collect:a', to: 'a' },
@@ -590,7 +516,7 @@ describe('findAllNext (integration)', () => {
   })
 
   it('returns empty array when no tasks are ready', async () => {
-    const nodes: Node[] = [{ name: 'a', description: 'Node a', instructions: 'Do a' }]
+    const nodes: Node[] = [{ name: 'a' }]
     const edges: Edge[] = []
     const runId = await setupGraphAndRun(nodes, edges)
 
@@ -602,11 +528,7 @@ describe('findAllNext (integration)', () => {
   })
 
   it('returns all ready tasks sorted alphabetically', async () => {
-    const nodes: Node[] = [
-      { name: 'a', description: 'Node a', instructions: '' },
-      { name: 'b', description: 'Node b', instructions: '' },
-      { name: 'c', description: 'Node c', instructions: '' },
-    ]
+    const nodes: Node[] = [{ name: 'a' }, { name: 'b' }, { name: 'c' }]
     const edges: Edge[] = []
     const runId = await setupGraphAndRun(nodes, edges)
 
@@ -617,10 +539,10 @@ describe('findAllNext (integration)', () => {
 
   it('returns empty array when all tasks are filtered by condEdge', async () => {
     const nodes: Node[] = [
-      { name: 'classify', description: 'Classify', instructions: '' },
-      { name: 'cond:classify→route', description: 'Cond', instructions: '', kind: 'cond' },
-      { name: 'tool', description: 'Tool', instructions: '' },
-      { name: 'chat', description: 'Chat', instructions: '' },
+      { name: 'classify' },
+      { name: 'cond:classify→route', kind: 'cond', targets: ['tool', 'chat'] },
+      { name: 'tool' },
+      { name: 'chat' },
     ]
     const edges: Edge[] = [
       { from: 'cond:classify→route', to: 'classify' },
@@ -639,10 +561,10 @@ describe('findAllNext (integration)', () => {
 
   it('returns only cond-passing tasks', async () => {
     const nodes: Node[] = [
-      { name: 'classify', description: 'Classify', instructions: '' },
-      { name: 'cond:classify→route', description: 'Cond', instructions: '', kind: 'cond' },
-      { name: 'tool', description: 'Tool', instructions: 'Use tool' },
-      { name: 'chat', description: 'Chat', instructions: 'Use chat' },
+      { name: 'classify' },
+      { name: 'cond:classify→route', kind: 'cond', targets: ['tool', 'chat'] },
+      { name: 'tool' },
+      { name: 'chat' },
     ]
     const edges: Edge[] = [
       { from: 'cond:classify→route', to: 'classify' },
@@ -663,8 +585,8 @@ describe('findAllNext (integration)', () => {
 
   it('executes user nodes for each task', async () => {
     const nodes: Node[] = [
-      { name: 'a', description: 'Node a', instructions: 'Do a', kind: 'user' },
-      { name: 'b', description: 'Node b', instructions: 'Do b', kind: 'user' },
+      { name: 'a', kind: 'user' },
+      { name: 'b', kind: 'user' },
     ]
     const edges: Edge[] = []
     const runId = await setupGraphAndRun(nodes, edges)
@@ -702,11 +624,9 @@ describe('findAllNext (integration)', () => {
 
   it('executes multiple node kinds in one call', async () => {
     const nodes: Node[] = [
-      { name: 'source', description: 'Source', instructions: '' },
+      { name: 'source' },
       {
         name: 'fanout:source→process',
-        description: 'FanOut',
-        instructions: '',
         kind: 'fanout',
       },
     ]
@@ -741,25 +661,8 @@ describe('findAllNext (integration)', () => {
     expect(fanoutCh!.value).toEqual(['x', 'y'])
   })
 
-  it('returns results with rendered instructions for each task', async () => {
-    const nodes: Node[] = [
-      { name: 'a', description: 'Node a', instructions: 'Task {{self_key}}' },
-      { name: 'b', description: 'Node b', instructions: 'Other {{global.val}}' },
-    ]
-    const edges: Edge[] = []
-    const runId = await setupGraphAndRun(nodes, edges)
-
-    await workflowService.setChannel('a.self_key', 'my-task', runId)
-    await workflowService.setChannel('_global.val', 'global-val', runId)
-
-    const results = await next.findAllNext(runId)
-    expect(results).toHaveLength(2)
-    expect(results.find((r) => r.task.nodeId === 'a')!.instructions).toBe('Task my-task')
-    expect(results.find((r) => r.task.nodeId === 'b')!.instructions).toBe('Other global-val')
-  })
-
   it('throws when node not found in graph', async () => {
-    const nodes: Node[] = [{ name: 'a', description: 'A', instructions: '' }]
+    const nodes: Node[] = [{ name: 'a' }]
     const edges: Edge[] = []
     const runId = await setupGraphAndRun(nodes, edges)
 
@@ -775,9 +678,9 @@ describe('findAllNext (integration)', () => {
 
   it('executes cond nodes for each task in findAllNext', async () => {
     const nodes: Node[] = [
-      { name: 'start', description: 'Start', instructions: '' },
-      { name: 'cond:start→branch', description: 'Cond', instructions: '', kind: 'cond' },
-      { name: 'branch-a', description: 'Branch A', instructions: '' },
+      { name: 'start' },
+      { name: 'cond:start→branch', kind: 'cond', targets: ['branch-a'] },
+      { name: 'branch-a' },
     ]
     const edges: Edge[] = [
       { from: 'cond:start→branch', to: 'start' },

@@ -79,8 +79,6 @@ The agent execution loop typically follows: next -> task start ->
 
             for (const result of results) {
               console.log(`Node: ${result.node.name}`)
-              console.log(`Description: ${result.node.description}`)
-              console.log(`Instructions: ${result.instructions}`)
               console.log('---')
             }
             return
@@ -102,8 +100,6 @@ The agent execution loop typically follows: next -> task start ->
           }
 
           console.log(`Node: ${result.node.name}`)
-          console.log(`Description: ${result.node.description}`)
-          console.log(`Instructions: ${result.instructions}`)
           console.log(`Step: ${result.task.step}`)
           console.log(`Status: ${result.task.status}`)
 

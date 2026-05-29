@@ -45,8 +45,6 @@ function expandCollectNodes(definition: WorkflowDefinition) {
     // User node
     nodes.push({
       name: nodeDef.name,
-      description: '',
-      instructions: '',
       kind: 'user',
       stateKey: nodeDef.stateKey,
     })
@@ -56,8 +54,6 @@ function expandCollectNodes(definition: WorkflowDefinition) {
       const collectName = `collect-${nodeDef.name}`
       nodes.push({
         name: collectName,
-        description: `Collect '${nodeDef.stateKey}' for ${nodeDef.name}`,
-        instructions: `Collect result for '${nodeDef.name}' (state key: '${nodeDef.stateKey}')`,
         kind: 'collect',
         parentNodeId: nodeDef.name,
         stateKey: nodeDef.stateKey,
@@ -98,8 +94,6 @@ function expandCondEdges(condEdgeDefs: CondEdgeDef[]) {
     // Virtual routing node
     condNodes.push({
       name: condDef.nodeName,
-      description: `Route: ${condDef.from} → [${condDef.targets.join(', ')}]`,
-      instructions: `Conditional route from ${condDef.from}`,
       kind: 'cond',
       targets: condDef.targets,
     })
@@ -126,8 +120,6 @@ function expandFanOutNodes(fanOutDefs: FanOutDef[]): { fanoutNodes: Node[]; fano
     // Virtual fan-out node
     fanoutNodes.push({
       name: fanDef.nodeName,
-      description: `Fan-out: ${fanDef.from} → ${fanDef.templateNode} × N`,
-      instructions: `Dynamic fan-out from ${fanDef.from} to ${fanDef.templateNode}`,
       kind: 'fanout',
       templateNode: fanDef.templateNode,
     })

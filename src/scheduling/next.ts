@@ -4,12 +4,7 @@ import type { Edge } from '../models/graph.js'
 import type { Task } from '../models/task.js'
 import type { Channel } from '../models/channel.js'
 import type { WorkflowDefinition } from '../models/workflow-def.js'
-import {
-  condChannelName,
-  fanoutChannelName,
-  nodeChannelName,
-  globalChannelName,
-} from '../models/channel.js'
+import { condChannelName, fanoutChannelName } from '../models/channel.js'
 import * as graphService from '../graph/graph.js'
 import * as runService from '../runtime/run.js'
 import * as workflowService from '../workflow/workflow.js'
@@ -18,7 +13,6 @@ import type { WorkflowLoader } from '../utils/loader.js'
 import type { Clock } from '../utils/clock.js'
 import { getWorkflowTsFile } from '../constants.js'
 import { buildGraphState } from '../utils/state.js'
-import { renderTemplate } from '../utils/template.js'
 
 export interface SchedulingDeps {
   loader?: WorkflowLoader
@@ -55,7 +49,6 @@ function createDefaultLoader(): WorkflowLoader {
 export interface NextResult {
   node: Node
   task: Task
-  instructions: string
   channels: Record<string, Channel>
 }
 
@@ -340,7 +333,7 @@ async function loadGraphForRun(graphName: string): Promise<{ edges: Edge[] }> {
 
 async function buildResult(
   task: Task,
-  edges: Edge[],
+  _edges: Edge[],
   runId: string,
   nodes: Node[],
   deps?: SchedulingDeps,
@@ -352,46 +345,5 @@ async function buildResult(
 
   const state = await workflowService.loadState(runId, deps?.workflowDeps)
 
-  const instructions = renderInstructions(node.instructions, task.nodeId, edges, state.channels)
-
-  return { node, task, instructions, channels: state.channels }
-}
-
-/**
- * Render variable references in node instructions from workflow channels.
- * {{key}} -> channel {currentNode}.{key}
- * {{global.key}} -> channel _global.{key}
- * {{node-name.key}} -> channel {node-name}.{key}
- */
-function renderInstructions(
-  raw: string,
-  currentNode: string,
-  _edges: Edge[],
-  channels: Record<string, Channel>,
-): string {
-  const { text, missing } = renderTemplate(raw, (source, key, nodeName) => {
-    let channelName: string
-    switch (source) {
-      case 'self':
-        channelName = nodeChannelName(currentNode, key)
-        break
-      case 'global':
-        channelName = globalChannelName(key)
-        break
-      case 'node':
-        channelName = nodeChannelName(nodeName!, key)
-        break
-    }
-
-    const ch = channels[channelName]
-    // version = 0 means never written (missing)
-    if (!ch || ch.version === 0) return undefined
-    return String(ch.value)
-  })
-
-  if (missing.length > 0) {
-    throw new Error(`unresolved variables in node instructions: ${missing.join(', ')}`)
-  }
-
-  return text
+  return { node, task, channels: state.channels }
 }
