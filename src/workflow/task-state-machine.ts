@@ -1,5 +1,5 @@
-import type { Task, TaskStatus } from '../models/task.js'
-import { canTransition } from '../models/task.js'
+import type { Task, TaskStatus } from '../shared/models/task.js'
+import { canTransition } from '../shared/models/task.js'
 
 /**
  * Check if a task can start (transition to 'running')

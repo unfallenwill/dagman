@@ -1,6 +1,6 @@
 import type { Command } from 'commander'
 import { compileWorkflow } from '../compiler/compiler.js'
-import { computeTopologicalLayers } from '../utils/topology.js'
+import { computeTopologicalLayers } from '../shared/utils/topology.js'
 import { withErrorHandler, outputJson } from '../utils/output.js'
 
 /** Format node name with kind prefix/color hint */

@@ -1,5 +1,5 @@
-import type { Edge } from '../models/graph.js'
-import type { CondEdgeDef, FanOutDef } from '../models/workflow-def.js'
+import type { Edge } from '../shared/models/graph.js'
+import type { CondEdgeDef, FanOutDef } from '../shared/models/workflow-def.js'
 
 /**
  * Internal builder state for a node created by node(fn, stateKey?)

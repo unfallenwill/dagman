@@ -1,7 +1,7 @@
 import type { Command } from 'commander'
 import { readFileSync } from 'fs'
 import * as path from 'path'
-import { CliError } from '../errors.js'
+import { CliError } from '../shared/errors.js'
 
 function getVersion(): string {
   try {

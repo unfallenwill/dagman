@@ -1,5 +1,10 @@
-import type { Edge } from '../models/graph.js'
-import { hasCycle, findCyclePaths, findMissingTargets, findOrphanNodes } from '../utils/topology.js'
+import type { Edge } from '../shared/models/graph.js'
+import {
+  hasCycle,
+  findCyclePaths,
+  findMissingTargets,
+  findOrphanNodes,
+} from '../shared/utils/topology.js'
 
 export interface ValidationResult {
   rule: string

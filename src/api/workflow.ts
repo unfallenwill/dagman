@@ -1,5 +1,5 @@
-import type { Edge } from '../models/graph.js'
-import type { WorkflowDefinition } from '../models/workflow-def.js'
+import type { Edge } from '../shared/models/graph.js'
+import type { WorkflowDefinition } from '../shared/models/workflow-def.js'
 import type { NodeBuilder } from './node.js'
 import type { WorkflowBuilderState } from './types.js'
 

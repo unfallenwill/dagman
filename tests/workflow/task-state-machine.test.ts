@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { createTask } from '../../src/models/task.js'
+import { createTask } from '../../src/shared/models/task.js'
 import {
   canStart,
   canComplete,

@@ -3,7 +3,7 @@ import * as path from 'path'
 import * as os from 'os'
 import * as fs from 'fs/promises'
 import { expandWorkflow } from '../../src/compiler/node-gen.js'
-import type { WorkflowDefinition } from '../../src/models/workflow-def.js'
+import type { WorkflowDefinition } from '../../src/shared/models/workflow-def.js'
 
 describe('expandWorkflow (node-gen)', () => {
   it('converts user nodes without collect', () => {

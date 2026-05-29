@@ -6,12 +6,12 @@ import {
   listGraphs,
   formatGraph,
 } from '../../src/graph/graph.js'
-import { GraphNotFoundError } from '../../src/errors.js'
+import { GraphNotFoundError } from '../../src/shared/errors.js'
 import { initTmpDir, cleanupTmpDir } from '../helpers/setup.js'
-import type { Graph } from '../../src/models/graph.js'
-import type { Node } from '../../src/models/node.js'
-import type { Edge } from '../../src/models/graph.js'
-import type { Task } from '../../src/models/task.js'
+import type { Graph } from '../../src/shared/models/graph.js'
+import type { Node } from '../../src/shared/models/node.js'
+import type { Edge } from '../../src/shared/models/graph.js'
+import type { Task } from '../../src/shared/models/task.js'
 
 async function createGraphFile(name: string, nodes?: Node[], edges?: Edge[]): Promise<void> {
   await fs.mkdir('.dagman/graphs', { recursive: true })

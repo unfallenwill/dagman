@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import type { Edge } from '../../src/models/graph.js'
+import type { Edge } from '../../src/shared/models/graph.js'
 import {
   checkMissingDeps,
   checkInvalidStatus,

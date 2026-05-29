@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs'
 import * as path from 'path'
-import type { WorkflowRepository } from '../models/repository.js'
-import type { WorkflowRecord } from '../models/superstep.js'
+import type { WorkflowRepository } from '../shared/models/repository.js'
+import type { WorkflowRecord } from '../shared/models/superstep.js'
 import { getWorkflowJsonlFile } from '../constants.js'
 import { ensureDir } from '../utils/file.js'
 

@@ -4,7 +4,7 @@ import * as fs from 'fs/promises'
 import { mkdtempSync } from 'fs'
 import { setBasePath } from '../../src/constants.js'
 import * as runService from '../../src/runtime/run.js'
-import type { Edge } from '../../src/models/graph.js'
+import type { Edge } from '../../src/shared/models/graph.js'
 
 let tmpDir: string
 

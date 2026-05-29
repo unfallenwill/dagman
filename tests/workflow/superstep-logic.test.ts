@@ -5,8 +5,8 @@ import {
   getFanoutItemsForNode,
   createTasksForLayer,
 } from '../../src/workflow/superstep-logic.js'
-import { createTask } from '../../src/models/task.js'
-import type { Channel } from '../../src/models/channel.js'
+import { createTask } from '../../src/shared/models/task.js'
+import type { Channel } from '../../src/shared/models/channel.js'
 
 function makeChannel(name: string, value: unknown, version: number): Channel {
   return { name, value, version, updatedAt: '2025-01-01T00:00:00.000Z' }

@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import * as workflow from '../../src/workflow/workflow.js'
 import { createTestWorkflowDeps } from '../helpers/in-memory-repository.js'
-import type { RunInfo } from '../../src/models/superstep.js'
-import type { Edge } from '../../src/models/graph.js'
+import type { RunInfo } from '../../src/shared/models/superstep.js'
+import type { Edge } from '../../src/shared/models/graph.js'
 
 function seedRunInfo(
   runRepo: ReturnType<typeof createTestWorkflowDeps>['runRepo'],

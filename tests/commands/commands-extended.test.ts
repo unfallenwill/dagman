@@ -12,7 +12,7 @@ import { registerShowCommand } from '../../src/commands/show.js'
 import { registerGraphCommand } from '../../src/commands/graph.js'
 import { registerCompileCommand } from '../../src/commands/compile.js'
 import * as runService from '../../src/runtime/run.js'
-import { CliError } from '../../src/errors.js'
+import { CliError } from '../../src/shared/errors.js'
 
 const TMP_DIR = path.join(os.tmpdir(), `dagman-cmd-ext-test-${Date.now()}`)
 

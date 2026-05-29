@@ -4,12 +4,16 @@ import * as os from 'os'
 import * as fs from 'fs/promises'
 import * as workflowService from '../../src/workflow/workflow.js'
 import * as runService from '../../src/runtime/run.js'
-import { condChannelName, stateChannelName, fanoutChannelName } from '../../src/models/channel.js'
+import {
+  condChannelName,
+  stateChannelName,
+  fanoutChannelName,
+} from '../../src/shared/models/channel.js'
 import { filterByCondEdge } from '../../src/scheduling/next.js'
-import type { Edge } from '../../src/models/graph.js'
-import type { Task } from '../../src/models/task.js'
-import type { Channel } from '../../src/models/channel.js'
-import { createTask } from '../../src/models/task.js'
+import type { Edge } from '../../src/shared/models/graph.js'
+import type { Task } from '../../src/shared/models/task.js'
+import type { Channel } from '../../src/shared/models/channel.js'
+import { createTask } from '../../src/shared/models/task.js'
 
 const TMP_DIR = path.join(os.tmpdir(), `dagman-phase3-test-${Date.now()}`)
 

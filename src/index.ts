@@ -8,22 +8,22 @@ export * from './graph/graph.js'
 export * from './graph/validator.js'
 
 // Models
-export * from './models/node.js'
-export * from './models/graph.js'
-export * from './models/channel.js'
-export * from './models/task.js'
-export * from './models/superstep.js'
-export * from './models/event.js'
-export * from './models/context.js'
-export * from './models/state.js'
-export * from './models/workflow-def.js'
+export * from './shared/models/node.js'
+export * from './shared/models/graph.js'
+export * from './shared/models/channel.js'
+export * from './shared/models/task.js'
+export * from './shared/models/superstep.js'
+export * from './shared/models/event.js'
+export * from './shared/models/context.js'
+export * from './shared/models/state.js'
+export * from './shared/models/workflow-def.js'
 
 // API builders
 export * from './api/index.js'
 
 // Utilities
-export * from './utils/run-resolver.js'
-export * from './utils/state.js'
+export * from './shared/utils/run-resolver.js'
+export * from './shared/utils/state.js'
 
 // Shared
-export * from './errors.js'
+export * from './shared/errors.js'

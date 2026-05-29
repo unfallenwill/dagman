@@ -1,16 +1,16 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import * as path from 'path'
 import * as fs from 'fs/promises'
-import { initTmpDir, cleanupTmpDir } from '../helpers/setup.js'
+import { initTmpDir, cleanupTmpDir } from '../../helpers/setup.js'
 import {
   getCurrentRunId,
   setCurrentRunId,
   resolveCurrentRunId,
   listRunIds,
   resolveActiveRunId,
-} from '../../src/utils/run-resolver.js'
-import { getDagmanDir, getRunDir, getRunMetaFile, getRunsDir } from '../../src/constants.js'
-import { ensureDir } from '../../src/utils/file.js'
+} from '../../../src/shared/utils/run-resolver.js'
+import { getDagmanDir, getRunDir, getRunMetaFile, getRunsDir } from '../../../src/constants.js'
+import { ensureDir } from '../../../src/utils/file.js'
 
 describe('run-resolver', () => {
   let tmpDir: string

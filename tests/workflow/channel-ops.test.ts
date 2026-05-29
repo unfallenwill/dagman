@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { aggregateChannels, computeEdgeChannelUpdates } from '../../src/workflow/channel-ops.js'
-import type { WorkflowRecord } from '../../src/models/superstep.js'
-import type { Edge } from '../../src/models/graph.js'
-import type { Channel } from '../../src/models/channel.js'
+import type { WorkflowRecord } from '../../src/shared/models/superstep.js'
+import type { Edge } from '../../src/shared/models/graph.js'
+import type { Channel } from '../../src/shared/models/channel.js'
 
 function makeChannel(name: string, value: unknown, version: number): Channel {
   return { name, value, version, updatedAt: '2025-01-01T00:00:00.000Z' }

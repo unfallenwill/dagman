@@ -5,7 +5,7 @@ import {
   parseNodeRef,
   sequentialIdGenerator,
   systemIdGenerator,
-} from '../../src/utils/id.js'
+} from '../../../src/shared/utils/id.js'
 
 describe('generateInstanceId', () => {
   it('should produce format <name>@<8-char-hex>', () => {

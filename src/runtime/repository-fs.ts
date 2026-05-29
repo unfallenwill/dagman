@@ -1,8 +1,8 @@
 import { promises as fs } from 'fs'
 import * as path from 'path'
-import type { EventRepository, RunRepository } from '../models/repository.js'
-import type { Event } from '../models/event.js'
-import type { RunInfo } from '../models/superstep.js'
+import type { EventRepository, RunRepository } from '../shared/models/repository.js'
+import type { Event } from '../shared/models/event.js'
+import type { RunInfo } from '../shared/models/superstep.js'
 import {
   getEventsFile,
   getRunMetaFile,

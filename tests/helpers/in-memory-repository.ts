@@ -2,10 +2,10 @@ import type {
   WorkflowRepository,
   EventRepository,
   RunRepository,
-} from '../../src/models/repository.js'
-import type { WorkflowRecord, RunInfo } from '../../src/models/superstep.js'
-import type { Event } from '../../src/models/event.js'
-import { fixedClock } from '../../src/utils/clock.js'
+} from '../../src/shared/models/repository.js'
+import type { WorkflowRecord, RunInfo } from '../../src/shared/models/superstep.js'
+import type { Event } from '../../src/shared/models/event.js'
+import { fixedClock } from '../../src/shared/utils/clock.js'
 import type { WorkflowDeps } from '../../src/workflow/workflow.js'
 
 export class InMemoryWorkflowRepository implements WorkflowRepository {

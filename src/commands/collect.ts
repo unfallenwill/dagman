@@ -6,10 +6,10 @@ import { setCommandMeta } from '../utils/command-meta.js'
 import * as runService from '../runtime/run.js'
 import * as graphService from '../graph/graph.js'
 import * as workflowService from '../workflow/workflow.js'
-import { stateChannelName } from '../models/channel.js'
-import { ValidationError } from '../errors.js'
-import { parseNodeRef } from '../utils/id.js'
-import { listRunIds } from '../utils/run-resolver.js'
+import { stateChannelName } from '../shared/models/channel.js'
+import { ValidationError } from '../shared/errors.js'
+import { parseNodeRef } from '../shared/utils/id.js'
+import { listRunIds } from '../shared/utils/run-resolver.js'
 
 export function registerCollectCommand(program: Command): void {
   const collectCmd = program.command('collect').summary('Collect results for a workflow node')

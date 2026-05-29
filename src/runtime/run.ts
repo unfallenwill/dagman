@@ -2,14 +2,14 @@ import { promises as fs } from 'fs'
 import * as path from 'path'
 import { getRunDir, getRunMetaFile, getRunsDir } from '../constants.js'
 import { ensureDir, readJSON, writeJSON, fileExists } from '../utils/file.js'
-import { RunNotFoundError, RunExistsError } from '../errors.js'
-import type { RunInfo, RunStatus } from '../models/superstep.js'
-import type { Node } from '../models/node.js'
+import { RunNotFoundError, RunExistsError } from '../shared/errors.js'
+import type { RunInfo, RunStatus } from '../shared/models/superstep.js'
+import type { Node } from '../shared/models/node.js'
 import * as graphService from '../graph/graph.js'
 import * as workflowService from '../workflow/workflow.js'
-import { computeTopologicalLayers } from '../utils/topology.js'
-import { generateInstanceId } from '../utils/id.js'
-import { setCurrentRunId, resolveCurrentRunId } from '../utils/run-resolver.js'
+import { computeTopologicalLayers } from '../shared/utils/topology.js'
+import { generateInstanceId } from '../shared/utils/id.js'
+import { setCurrentRunId, resolveCurrentRunId } from '../shared/utils/run-resolver.js'
 
 export type { RunInfo, RunStatus }
 export {
@@ -18,7 +18,7 @@ export {
   resolveCurrentRunId,
   resolveActiveRunId,
   listRunIds,
-} from '../utils/run-resolver.js'
+} from '../shared/utils/run-resolver.js'
 
 async function createRunInternal(
   runId: string,

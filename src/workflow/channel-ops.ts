@@ -1,7 +1,7 @@
-import type { Channel } from '../models/channel.js'
-import type { Edge } from '../models/graph.js'
-import type { WorkflowRecord } from '../models/superstep.js'
-import { edgeChannelName } from '../models/channel.js'
+import type { Channel } from '../shared/models/channel.js'
+import type { Edge } from '../shared/models/graph.js'
+import type { WorkflowRecord } from '../shared/models/superstep.js'
+import { edgeChannelName } from '../shared/models/channel.js'
 
 /**
  * Aggregate channel changes from all workflow records into a single channel map.

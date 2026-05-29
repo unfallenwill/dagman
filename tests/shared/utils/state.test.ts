@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { buildGraphState } from '../../src/utils/state.js'
-import type { Channel } from '../../src/models/channel.js'
+import { buildGraphState } from '../../../src/shared/utils/state.js'
+import type { Channel } from '../../../src/shared/models/channel.js'
 
 function makeChannel(value: unknown, version = 1): Channel {
   return {

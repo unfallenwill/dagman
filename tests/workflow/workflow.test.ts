@@ -4,8 +4,8 @@ import * as os from 'os'
 import * as fs from 'fs/promises'
 import * as workflowService from '../../src/workflow/workflow.js'
 import * as runService from '../../src/runtime/run.js'
-import { computeTopologicalLayers } from '../../src/utils/topology.js'
-import type { Edge } from '../../src/models/graph.js'
+import { computeTopologicalLayers } from '../../src/shared/utils/topology.js'
+import type { Edge } from '../../src/shared/models/graph.js'
 
 const TMP_DIR = path.join(os.tmpdir(), `dagman-workflow-test-${Date.now()}`)
 

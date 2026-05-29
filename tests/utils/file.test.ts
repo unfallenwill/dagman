@@ -11,7 +11,7 @@ import {
   deleteFile,
   listFiles,
 } from '../../src/utils/file.js'
-import { NodeNotFoundError, ValidationError } from '../../src/errors.js'
+import { NodeNotFoundError, ValidationError } from '../../src/shared/errors.js'
 
 describe('file utilities', () => {
   let tmpDir: string
