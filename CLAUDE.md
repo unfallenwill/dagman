@@ -118,30 +118,16 @@ Co-Authored-By: GLM 5.1 <noreply@z.ai>
 
 ## CLI Commands
 
-### Nodes and Graphs (Definition Layer)
-- `node create/list/remove` — Node definition management
-- `graph list/show/validate` — Graph definition management
-
-### Workflow (TypeScript Builder API)
-- `workflow ls` — List discovered workflows
-- `workflow show <name>` — Show workflow info
-- `workflow graph <name>` — Display layered topology
-- `workflow start <name>` — Compile + create run instance
-- `workflow compile <name>` — Dry-run compile (validate without persisting)
-
-### Runs and Workflow (Execution Layer)
-- `run create [label] --graph <name> -s` — Create a run (auto-computes topological layers)
-- `run list/switch/show` — Run instance management
+### Workflow
+- `ls` — List discovered workflows
+- `show <name>` — Show workflow info
+- `graph <name>` — Display layered topology
+- `compile <name>` — Dry-run compile (validate without persisting)
+- `start <name>` — Compile + create run instance
+- `ps` — List workflow instances
 
 ### Task Lifecycle
-- `task list/show/start/complete/fail/skip/retry` — Task lifecycle management
 - `collect <node@id>` — Collect and validate results for a node with stateKey
-
-### Channel Management
-- `channel list/get/set/clear` — Channel read/write (version auto-increments)
-
-### Superstep
-- `step show/advance/history` — Superstep view and manual advance
 
 ### Scheduling
 - `next [--all] [--step] [--json]` — Returns ready task(s) in the current superstep

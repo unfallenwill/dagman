@@ -4,7 +4,7 @@ import * as os from "os";
 import * as fs from "fs/promises";
 import { Command } from "commander";
 import { registerHelpCommand } from "../../src/commands/help.js";
-import { registerWorkflowCommand } from "../../src/commands/workflow.js";
+import { registerLsCommand } from "../../src/commands/ls.js";
 import * as runService from "../../src/runtime/run.js";
 import * as workflowService from "../../src/workflow/workflow.js";
 
@@ -30,14 +30,14 @@ function createProgram(): Command {
     writeErr: () => {},
   });
   registerHelpCommand(program);
-  registerWorkflowCommand(program);
+  registerLsCommand(program);
   return program;
 }
 
 describe("workflow commands", () => {
   it("should list empty workflows", async () => {
     const program = createProgram();
-    await program.parseAsync(["node", "dagman", "workflow", "ls"]);
+    await program.parseAsync(["node", "dagman", "ls"]);
   });
 });
 
@@ -68,4 +68,3 @@ describe("task commands", () => {
     expect(tasks[0].status).toBe("ready");
   });
 });
-

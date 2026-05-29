@@ -76,8 +76,8 @@ function buildCommandReference(program: Command): string {
   const groups: Record<string, Array<{ usage: string; summary: string }>> = {};
 
   // Categorize commands into groups
-  const definitionCommands = ["node", "graph"];
-  const executionCommands = ["run"];
+  const workflowCommands = ["ls", "show", "compile", "graph"];
+  const executionCommands = ["start", "ps"];
   const schedulingCommands = ["next", "task"];
 
   for (const cmd of program.commands) {
@@ -85,8 +85,8 @@ function buildCommandReference(program: Command): string {
     if (cmdName === "help") continue;
 
     let category: string;
-    if (definitionCommands.includes(cmdName)) {
-      category = "Definitions";
+    if (workflowCommands.includes(cmdName)) {
+      category = "Workflow";
     } else if (executionCommands.includes(cmdName)) {
       category = "Execution";
     } else if (schedulingCommands.includes(cmdName)) {
@@ -99,24 +99,13 @@ function buildCommandReference(program: Command): string {
       groups[category] = [];
     }
 
-    if (cmd.commands && cmd.commands.length > 0) {
-      // Command group with subcommands
-      for (const sub of cmd.commands) {
-        const args = sub.usage().replace(sub.name(), "").trim();
-        const usage = `${cmdName} ${sub.name()}${args ? " " + args : ""}`;
-        const summary = sub.summary() || sub.description().split("\n")[0];
-        groups[category].push({ usage: usage.padEnd(32), summary });
-      }
-    } else {
-      // Top-level command
-      const args = cmd.usage().replace(cmdName, "").trim();
-      const usage = `${cmdName}${args ? " " + args : ""}`;
-      const summary = cmd.summary() || cmd.description().split("\n")[0];
-      groups[category].push({ usage: usage.padEnd(32), summary });
-    }
+    const args = cmd.usage().replace(cmdName, "").trim();
+    const usage = `${cmdName}${args ? " " + args : ""}`;
+    const summary = cmd.summary() || cmd.description().split("\n")[0];
+    groups[category].push({ usage: usage.padEnd(32), summary });
   }
 
-  const categoryOrder = ["Definitions", "Execution", "Scheduling (core)", "Data"];
+  const categoryOrder = ["Workflow", "Execution", "Scheduling (core)", "Data"];
   const lines: string[] = ["━━━ Command Reference ━━━\n"];
 
   for (const category of categoryOrder) {
