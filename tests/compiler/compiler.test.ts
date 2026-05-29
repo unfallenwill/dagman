@@ -202,32 +202,149 @@ describe('expandWorkflow (node-gen)', () => {
   })
 })
 
-describe('workflow CLI', () => {
+describe('compileWorkflow error handling', () => {
   let tmpDir: string
   let origCwd: string
 
   beforeEach(async () => {
     origCwd = process.cwd()
-    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'dagman-workflow-test-'))
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'dagman-compile-test-'))
     process.chdir(tmpDir)
-    await fs.mkdir('.dagman/workflows/test-wf', { recursive: true })
+    const { setBasePath } = await import('../../src/constants.js')
+    setBasePath(tmpDir)
   })
 
   afterEach(async () => {
+    const { setBasePath } = await import('../../src/constants.js')
+    setBasePath('')
     process.chdir(origCwd)
     await fs.rm(tmpDir, { recursive: true, force: true })
   })
 
-  it('discovers a workflow with manifest.yaml', async () => {
+  it('throws ValidationError for non-existent workflow', async () => {
+    const { compileWorkflow } = await import('../../src/compiler/compiler.js')
+    await expect(compileWorkflow('non-existent')).rejects.toThrow('manifest not found')
+  })
+
+  it('throws ValidationError for invalid manifest without name field', async () => {
+    await fs.mkdir('.dagman/workflows/test-workflow', { recursive: true })
+    await fs.writeFile('.dagman/workflows/test-workflow/index.ts', 'export default {}', 'utf-8')
     await fs.writeFile(
-      '.dagman/workflows/test-wf/manifest.yaml',
-      ['name: test-wf', 'version: 1.0.0', 'description: A test workflow'].join('\n'),
+      '.dagman/workflows/test-workflow/manifest.yaml',
+      'version: 1.0.0\ndescription: No name',
+      'utf-8',
     )
 
-    // Use the CLI
-    const { run: _run } = await import('../../src/cli.js')
-    // Just verify the file structure is correct
-    const content = await fs.readFile('.dagman/workflows/test-wf/manifest.yaml', 'utf-8')
-    expect(content).toContain('name: test-wf')
+    const { compileWorkflow } = await import('../../src/compiler/compiler.js')
+    await expect(compileWorkflow('test-workflow')).rejects.toThrow(
+      "manifest must have a 'name' field",
+    )
+  })
+
+  it('throws ValidationError for workflow without default export', async () => {
+    await fs.mkdir('.dagman/workflows/test-workflow', { recursive: true })
+    await fs.writeFile('.dagman/workflows/test-workflow/index.ts', 'const foo = 1', 'utf-8')
+    await fs.writeFile(
+      '.dagman/workflows/test-workflow/manifest.yaml',
+      'name: test-workflow\nversion: 1.0.0',
+      'utf-8',
+    )
+
+    const { compileWorkflow } = await import('../../src/compiler/compiler.js')
+    await expect(compileWorkflow('test-workflow')).rejects.toThrow(
+      'workflow file must export a default WorkflowDefinition',
+    )
+  })
+
+  it('throws ValidationError for workflow name mismatch', async () => {
+    // Create a mock workflow definition with wrong name
+    await fs.mkdir('.dagman/workflows/test-workflow', { recursive: true })
+    await fs.writeFile(
+      '.dagman/workflows/test-workflow/index.ts',
+      'export default { name: "wrong-name", stateSchema: {}, nodes: [], edges: [], condEdges: [], fanOuts: [] }',
+      'utf-8',
+    )
+    await fs.writeFile(
+      '.dagman/workflows/test-workflow/manifest.yaml',
+      'name: test-workflow\nversion: 1.0.0',
+      'utf-8',
+    )
+
+    const { compileWorkflow } = await import('../../src/compiler/compiler.js')
+    await expect(compileWorkflow('test-workflow')).rejects.toThrow(
+      "workflow name mismatch: file exports 'wrong-name' but expected 'test-workflow'",
+    )
+  })
+
+  it('throws ValidationError for cycle detection', async () => {
+    // Create a workflow definition with a cycle
+    await fs.mkdir('.dagman/workflows/test-workflow', { recursive: true })
+    await fs.writeFile(
+      '.dagman/workflows/test-workflow/index.ts',
+      'export default { name: "test-workflow", stateSchema: {}, nodes: [], edges: [{ from: "a", to: "b" }, { from: "b", to: "a" }], condEdges: [], fanOuts: [] }',
+      'utf-8',
+    )
+    await fs.writeFile(
+      '.dagman/workflows/test-workflow/manifest.yaml',
+      'name: test-workflow\nversion: 1.0.0',
+      'utf-8',
+    )
+
+    const { compileWorkflow } = await import('../../src/compiler/compiler.js')
+    await expect(compileWorkflow('test-workflow')).rejects.toThrow(
+      'compiled graph contains cycle dependency',
+    )
+  })
+
+  it('persists compiled graph to filesystem', async () => {
+    // Create a simple workflow definition
+    await fs.mkdir('.dagman/workflows/test-workflow', { recursive: true })
+    await fs.writeFile(
+      '.dagman/workflows/test-workflow/index.ts',
+      'export default { name: "test-workflow", stateSchema: {}, nodes: [], edges: [], condEdges: [], fanOuts: [] }',
+      'utf-8',
+    )
+    await fs.writeFile(
+      '.dagman/workflows/test-workflow/manifest.yaml',
+      'name: test-workflow\nversion: 1.0.0',
+      'utf-8',
+    )
+
+    const { compileWorkflow } = await import('../../src/compiler/compiler.js')
+    await compileWorkflow('test-workflow')
+
+    // Check that graph file was created
+    const exists = await fs
+      .access('.dagman/graphs/test-workflow.json')
+      .then(() => true)
+      .catch(() => false)
+    expect(exists).toBe(true)
+
+    // Load and verify content
+    const content = await fs.readFile('.dagman/graphs/test-workflow.json', 'utf-8')
+    const graph = JSON.parse(content)
+    expect(graph.name).toBe('test-workflow')
+    expect(graph.edges).toBeDefined()
+  })
+
+  it('returns manifest from workflow', async () => {
+    await fs.mkdir('.dagman/workflows/test-workflow', { recursive: true })
+    await fs.writeFile(
+      '.dagman/workflows/test-workflow/index.ts',
+      'export default { name: "test-workflow", stateSchema: {}, nodes: [], edges: [], condEdges: [], fanOuts: [] }',
+      'utf-8',
+    )
+    await fs.writeFile(
+      '.dagman/workflows/test-workflow/manifest.yaml',
+      'name: test-workflow\nversion: 2.0.0\ndescription: Test description',
+      'utf-8',
+    )
+
+    const { compileWorkflow } = await import('../../src/compiler/compiler.js')
+    const result = await compileWorkflow('test-workflow')
+
+    expect(result.manifest.name).toBe('test-workflow')
+    expect(result.manifest.version).toBe('2.0.0')
+    expect(result.manifest.description).toBe('Test description')
   })
 })

@@ -2,11 +2,40 @@ import * as path from 'path'
 import type { Graph } from '../models/graph.js'
 import type { Node } from '../models/node.js'
 import type { WorkflowDefinition, WorkflowManifest } from '../models/workflow-def.js'
+import type { WorkflowLoader } from '../utils/loader.js'
 import { getWorkflowTsFile, getWorkflowManifest } from '../constants.js'
 import { hasCycle } from '../utils/topology.js'
 import { ValidationError } from '../errors.js'
 import { saveCompiledGraph } from '../graph/graph.js'
 import { expandWorkflow } from './node-gen.js'
+
+export interface CompilerDeps {
+  loader?: WorkflowLoader
+}
+
+function createDefaultLoader(): WorkflowLoader {
+  return {
+    async load(workflowPath: string): Promise<WorkflowDefinition> {
+      const absPath = path.resolve(workflowPath)
+
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { register } = require('tsx/esm') as { register: () => void }
+        register()
+      } catch {
+        // tsx may already be registered or not needed
+      }
+
+      const mod = await import(absPath)
+
+      if (!mod.default || typeof mod.default !== 'object') {
+        throw new ValidationError('workflow file must export a default WorkflowDefinition')
+      }
+
+      return mod.default as WorkflowDefinition
+    },
+  }
+}
 
 export interface CompileResult {
   graph: Graph
@@ -17,7 +46,10 @@ export interface CompileResult {
 /**
  * Compile a TS workflow: tsx import → expand collect/condEdge nodes → persist.
  */
-export async function compileWorkflow(workflowName: string): Promise<CompileResult> {
+export async function compileWorkflow(
+  workflowName: string,
+  deps?: CompilerDeps,
+): Promise<CompileResult> {
   const tsFile = getWorkflowTsFile(workflowName)
   const manifestFile = getWorkflowManifest(workflowName)
 
@@ -25,7 +57,8 @@ export async function compileWorkflow(workflowName: string): Promise<CompileResu
   const manifest = await loadManifest(manifestFile)
 
   // 2. tsx dynamic import → execute TS file → get WorkflowDefinition
-  const definition = await importAndBuild(tsFile)
+  const loader = deps?.loader ?? createDefaultLoader()
+  const definition = await loader.load(tsFile)
 
   // 3. Validate definition name matches workflow name
   if (definition.name !== workflowName) {
@@ -59,33 +92,6 @@ export async function compileWorkflow(workflowName: string): Promise<CompileResu
   await persistCompiledGraph(graph, allNodes)
 
   return { graph, nodes: allNodes, manifest }
-}
-
-/**
- * tsx dynamic import the TS workflow file and call build().
- * Uses tsx register to handle .ts files at runtime.
- */
-async function importAndBuild(tsFile: string): Promise<WorkflowDefinition> {
-  const absPath = path.resolve(tsFile)
-
-  // Register tsx for .ts support, then import
-  // tsx/esm is a dev dependency; we use dynamic import to avoid
-  // requiring it at build time
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { register } = require('tsx/esm') as { register: () => void }
-    register()
-  } catch {
-    // tsx may already be registered or not needed
-  }
-
-  const mod = await import(absPath)
-
-  if (!mod.default || typeof mod.default !== 'object') {
-    throw new ValidationError('workflow file must export a default WorkflowDefinition')
-  }
-
-  return mod.default as WorkflowDefinition
 }
 
 /**

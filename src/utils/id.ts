@@ -1,6 +1,21 @@
 import { randomBytes } from 'crypto'
 
 /**
+ * ID generator function — returns a unique string.
+ * Inject to make ID-dependent logic deterministic in tests.
+ */
+export type IdGenerator = () => string
+
+/** System ID generator — uses crypto-random hex suffixes. */
+export const systemIdGenerator: IdGenerator = () => randomBytes(4).toString('hex')
+
+/** Sequential ID generator — produces predictable IDs for testing. */
+export const sequentialIdGenerator = (prefix = 'test'): IdGenerator => {
+  let n = 0
+  return () => `${prefix}-${String(n++).padStart(4, '0')}`
+}
+
+/**
  * Generate instance ID: <workflowName>@<8-char-hex>
  * @example generateInstanceId("demo") → "demo@1a2b3c4d"
  */

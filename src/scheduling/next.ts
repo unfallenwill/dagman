@@ -13,9 +13,44 @@ import {
 import * as graphService from '../graph/graph.js'
 import * as runService from '../runtime/run.js'
 import * as workflowService from '../workflow/workflow.js'
+import type { WorkflowDeps } from '../workflow/workflow.js'
+import type { WorkflowLoader } from '../utils/loader.js'
+import type { Clock } from '../utils/clock.js'
 import { getWorkflowTsFile } from '../constants.js'
 import { buildGraphState } from '../utils/state.js'
 import { renderTemplate } from '../utils/template.js'
+
+export interface SchedulingDeps {
+  loader?: WorkflowLoader
+  clock?: Clock
+  workflowDeps?: WorkflowDeps
+}
+
+function createDefaultLoader(): WorkflowLoader {
+  return {
+    async load(workflowPath: string): Promise<WorkflowDefinition> {
+      const absPath = path.resolve(workflowPath)
+
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { register } = require('tsx/esm') as { register: () => void }
+        register()
+      } catch {
+        // tsx may already be registered
+      }
+
+      // Bust cache for repeated imports during development
+      const timestamp = Date.now()
+      const mod = await import(`${absPath}?t=${timestamp}`)
+
+      if (!mod.default || typeof mod.default !== 'object') {
+        throw new Error('workflow file must export a default WorkflowDefinition')
+      }
+
+      return mod.default as WorkflowDefinition
+    },
+  }
+}
 
 export interface NextResult {
   node: Node
@@ -60,6 +95,7 @@ export async function filterByCondEdge(
   edges: Edge[],
   channels: Record<string, Channel>,
   runId: string,
+  deps?: SchedulingDeps,
 ): Promise<Task[]> {
   const result: Task[] = []
 
@@ -82,7 +118,7 @@ export async function filterByCondEdge(
         blocked = true
         // Auto-skip blocked tasks
         if (task.status === 'ready') {
-          await workflowService.skipTask(task.nodeId, edges, runId)
+          await workflowService.skipTask(task.nodeId, edges, runId, deps?.workflowDeps)
         }
         break
       }
@@ -96,15 +132,15 @@ export async function filterByCondEdge(
   return result
 }
 
-export async function findNext(runId?: string): Promise<NextResult | null> {
+export async function findNext(runId?: string, deps?: SchedulingDeps): Promise<NextResult | null> {
   const { runId: rid, edges, nodes, graphName } = await resolveRunContext(runId)
-  const readyTasks = await workflowService.findReadyTasks(rid)
+  const readyTasks = await workflowService.findReadyTasks(rid, deps?.workflowDeps)
   if (readyTasks.length === 0) return null
 
-  const state = await workflowService.loadState(rid)
+  const state = await workflowService.loadState(rid, deps?.workflowDeps)
 
   // Filter tasks blocked by condEdges
-  const filtered = await filterByCondEdge(readyTasks, edges, state.channels, rid)
+  const filtered = await filterByCondEdge(readyTasks, edges, state.channels, rid, deps)
   if (filtered.length === 0) return null
 
   // Pick the first by node name alphabetical order
@@ -118,26 +154,26 @@ export async function findNext(runId?: string): Promise<NextResult | null> {
 
   // Execute based on node kind
   if (node.kind === 'user') {
-    await executeWorkflowNode(node, state.channels, rid, graphName)
+    await executeWorkflowNode(node, state.channels, rid, graphName, deps)
   } else if (node.kind === 'cond') {
-    await executeCondEdge(node, state.channels, rid, graphName, edges)
+    await executeCondEdge(node, state.channels, rid, graphName, edges, deps)
   } else if (node.kind === 'fanout') {
-    await executeFanOutNode(node, state.channels, rid, graphName, edges)
+    await executeFanOutNode(node, state.channels, rid, graphName, edges, deps)
   }
   // collect nodes: agent handles, dagman doesn't execute
 
-  return await buildResult(task, edges, rid, nodes)
+  return await buildResult(task, edges, rid, nodes, deps)
 }
 
-export async function findAllNext(runId?: string): Promise<NextResult[]> {
+export async function findAllNext(runId?: string, deps?: SchedulingDeps): Promise<NextResult[]> {
   const { runId: rid, edges, nodes, graphName } = await resolveRunContext(runId)
-  const readyTasks = await workflowService.findReadyTasks(rid)
+  const readyTasks = await workflowService.findReadyTasks(rid, deps?.workflowDeps)
   if (readyTasks.length === 0) return []
 
-  const state = await workflowService.loadState(rid)
+  const state = await workflowService.loadState(rid, deps?.workflowDeps)
 
   // Filter tasks blocked by condEdges
-  const filtered = await filterByCondEdge(readyTasks, edges, state.channels, rid)
+  const filtered = await filterByCondEdge(readyTasks, edges, state.channels, rid, deps)
   if (filtered.length === 0) return []
 
   const sorted = [...filtered].sort((a, b) => a.nodeId.localeCompare(b.nodeId))
@@ -151,14 +187,14 @@ export async function findAllNext(runId?: string): Promise<NextResult[]> {
 
     // Execute based on node kind
     if (node.kind === 'user') {
-      await executeWorkflowNode(node, state.channels, rid, graphName)
+      await executeWorkflowNode(node, state.channels, rid, graphName, deps)
     } else if (node.kind === 'cond') {
-      await executeCondEdge(node, state.channels, rid, graphName, edges)
+      await executeCondEdge(node, state.channels, rid, graphName, edges, deps)
     } else if (node.kind === 'fanout') {
-      await executeFanOutNode(node, state.channels, rid, graphName, edges)
+      await executeFanOutNode(node, state.channels, rid, graphName, edges, deps)
     }
 
-    results.push(await buildResult(task, edges, rid, nodes))
+    results.push(await buildResult(task, edges, rid, nodes, deps))
   }
   return results
 }
@@ -172,11 +208,14 @@ async function executeWorkflowNode(
   channels: Record<string, Channel>,
   runId: string,
   graphName: string,
+  deps?: SchedulingDeps,
 ): Promise<void> {
-  await workflowService.startTask(node.name, runId)
+  await workflowService.startTask(node.name, runId, deps?.workflowDeps)
 
   try {
-    const definition = await importWorkflowDefinition(graphName)
+    const loader = deps?.loader ?? createDefaultLoader()
+    const tsFile = getWorkflowTsFile(graphName)
+    const definition = await loader.load(tsFile)
     const nodeDef = definition.nodes.find((n) => n.name === node.name)
     if (!nodeDef) {
       throw new Error(`node '${node.name}' not found in workflow definition`)
@@ -186,9 +225,14 @@ async function executeWorkflowNode(
     nodeDef.fn(graphState)
 
     const graph = await loadGraphForRun(graphName)
-    await workflowService.completeTask(node.name, graph.edges, runId)
+    await workflowService.completeTask(node.name, graph.edges, runId, deps?.workflowDeps)
   } catch (err) {
-    await workflowService.failTask(node.name, runId, String((err as Error).message))
+    await workflowService.failTask(
+      node.name,
+      runId,
+      String((err as Error).message),
+      deps?.workflowDeps,
+    )
     throw err
   }
 }
@@ -204,11 +248,14 @@ async function executeCondEdge(
   runId: string,
   graphName: string,
   _edges: Edge[],
+  deps?: SchedulingDeps,
 ): Promise<void> {
-  await workflowService.startTask(node.name, runId)
+  await workflowService.startTask(node.name, runId, deps?.workflowDeps)
 
   try {
-    const definition = await importWorkflowDefinition(graphName)
+    const loader = deps?.loader ?? createDefaultLoader()
+    const tsFile = getWorkflowTsFile(graphName)
+    const definition = await loader.load(tsFile)
     const condDef = definition.condEdges.find((c) => c.nodeName === node.name)
     if (!condDef) {
       throw new Error(`condEdge '${node.name}' not found in workflow definition`)
@@ -218,12 +265,22 @@ async function executeCondEdge(
     const targetNode = condDef.fn(graphState)
 
     // Write condEdge channel: value = target node name
-    await workflowService.setChannel(condChannelName(node.name), targetNode, runId)
+    await workflowService.setChannel(
+      condChannelName(node.name),
+      targetNode,
+      runId,
+      deps?.workflowDeps,
+    )
 
     const graph = await loadGraphForRun(graphName)
-    await workflowService.completeTask(node.name, graph.edges, runId)
+    await workflowService.completeTask(node.name, graph.edges, runId, deps?.workflowDeps)
   } catch (err) {
-    await workflowService.failTask(node.name, runId, String((err as Error).message))
+    await workflowService.failTask(
+      node.name,
+      runId,
+      String((err as Error).message),
+      deps?.workflowDeps,
+    )
     throw err
   }
 }
@@ -238,11 +295,14 @@ async function executeFanOutNode(
   runId: string,
   graphName: string,
   _edges: Edge[],
+  deps?: SchedulingDeps,
 ): Promise<void> {
-  await workflowService.startTask(node.name, runId)
+  await workflowService.startTask(node.name, runId, deps?.workflowDeps)
 
   try {
-    const definition = await importWorkflowDefinition(graphName)
+    const loader = deps?.loader ?? createDefaultLoader()
+    const tsFile = getWorkflowTsFile(graphName)
+    const definition = await loader.load(tsFile)
     const fanDef = definition.fanOuts.find((f) => f.nodeName === node.name)
     if (!fanDef) {
       throw new Error(`fanOut '${node.name}' not found in workflow definition`)
@@ -252,40 +312,19 @@ async function executeFanOutNode(
     const items = fanDef.fn(graphState)
 
     // Write fanout channel: value = items array
-    await workflowService.setChannel(fanoutChannelName(node.name), items, runId)
+    await workflowService.setChannel(fanoutChannelName(node.name), items, runId, deps?.workflowDeps)
 
     const graph = await loadGraphForRun(graphName)
-    await workflowService.completeTask(node.name, graph.edges, runId)
+    await workflowService.completeTask(node.name, graph.edges, runId, deps?.workflowDeps)
   } catch (err) {
-    await workflowService.failTask(node.name, runId, String((err as Error).message))
+    await workflowService.failTask(
+      node.name,
+      runId,
+      String((err as Error).message),
+      deps?.workflowDeps,
+    )
     throw err
   }
-}
-
-/**
- * tsx dynamic import the TS workflow file and get the WorkflowDefinition.
- */
-async function importWorkflowDefinition(graphName: string) {
-  const tsFile = getWorkflowTsFile(graphName)
-  const absPath = path.resolve(tsFile)
-
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { register } = require('tsx/esm') as { register: () => void }
-    register()
-  } catch {
-    // tsx may already be registered
-  }
-
-  // Bust cache for repeated imports during development
-  const timestamp = Date.now()
-  const mod = await import(`${absPath}?t=${timestamp}`)
-
-  if (!mod.default || typeof mod.default !== 'object') {
-    throw new Error('workflow file must export a default WorkflowDefinition')
-  }
-
-  return mod.default as WorkflowDefinition
 }
 
 /**
@@ -304,13 +343,14 @@ async function buildResult(
   edges: Edge[],
   runId: string,
   nodes: Node[],
+  deps?: SchedulingDeps,
 ): Promise<NextResult> {
   const node = nodes.find((n) => n.name === task.nodeId)
   if (!node) {
     throw new Error(`node '${task.nodeId}' not found in graph`)
   }
 
-  const state = await workflowService.loadState(runId)
+  const state = await workflowService.loadState(runId, deps?.workflowDeps)
 
   const instructions = renderInstructions(node.instructions, task.nodeId, edges, state.channels)
 

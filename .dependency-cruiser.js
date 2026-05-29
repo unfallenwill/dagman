@@ -103,6 +103,7 @@ module.exports = {
       to: {
         path: "^src/",
         pathNot: [
+          "^src/workflow/",
           "^src/runtime/",
           "^src/models/",
           "^src/utils/",

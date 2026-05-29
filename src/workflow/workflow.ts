@@ -1,5 +1,3 @@
-import { promises as fs } from 'fs'
-import * as path from 'path'
 import type { Channel } from '../models/channel.js'
 import {
   globalChannelName,
@@ -10,77 +8,83 @@ import {
 } from '../models/channel.js'
 import type { Task } from '../models/task.js'
 import { createTask, isTerminalStatus, canTransition } from '../models/task.js'
-import type {
-  WorkflowRecord,
-  WorkflowState,
-  SuperstepStatus,
-  RunInfo,
-} from '../models/superstep.js'
+import type { WorkflowRecord, WorkflowState, SuperstepStatus } from '../models/superstep.js'
 import type { Edge } from '../models/graph.js'
-import { getWorkflowJsonlFile } from '../constants.js'
-import { ensureDir } from '../utils/file.js'
+import type { WorkflowRepository, EventRepository, RunRepository } from '../models/repository.js'
+import type { Clock } from '../utils/clock.js'
+import { systemClock } from '../utils/clock.js'
+import { aggregateChannels, computeEdgeChannelUpdates } from './channel-ops.js'
+import { createTasksForLayer, getFanoutItemsForNode } from './superstep-logic.js'
 import { computeTopologicalLayers } from '../utils/topology.js'
-import { appendEvent } from '../runtime/event.js'
+import { FsWorkflowRepository } from './repository-fs.js'
+import { FsEventRepository, FsRunRepository } from '../runtime/repository-fs.js'
 
-// ===== JSONL Read/Write =====
+// ===== Dependency Injection =====
 
-async function readRecords(runId: string): Promise<WorkflowRecord[]> {
-  const filePath = getWorkflowJsonlFile(runId)
-  try {
-    const content = await fs.readFile(path.resolve(filePath), 'utf-8')
-    return content
-      .trim()
-      .split('\n')
-      .filter((line: string) => line.length > 0)
-      .map((line: string) => JSON.parse(line) as WorkflowRecord)
-  } catch (err: unknown) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-      return []
-    }
-    throw err
-  }
+export interface WorkflowDeps {
+  clock?: Clock
+  repo?: WorkflowRepository
+  eventRepo?: EventRepository
+  runRepo?: RunRepository
 }
 
-async function appendRecord(record: WorkflowRecord, runId: string): Promise<void> {
-  const filePath = getWorkflowJsonlFile(runId)
-  await ensureDir(path.dirname(path.resolve(filePath)))
-  const line = JSON.stringify(record) + '\n'
-  await fs.appendFile(path.resolve(filePath), line, 'utf-8')
+const defaultDeps: Required<WorkflowDeps> = {
+  clock: systemClock,
+  repo: new FsWorkflowRepository(),
+  eventRepo: new FsEventRepository(),
+  runRepo: new FsRunRepository(),
+}
+
+function resolveDeps(deps?: WorkflowDeps): Required<WorkflowDeps> {
+  return {
+    clock: deps?.clock ?? defaultDeps.clock,
+    repo: deps?.repo ?? defaultDeps.repo,
+    eventRepo: deps?.eventRepo ?? defaultDeps.eventRepo,
+    runRepo: deps?.runRepo ?? defaultDeps.runRepo,
+  }
 }
 
 // ===== State Loading =====
 
-export async function loadState(runId: string): Promise<WorkflowState> {
-  const records = await readRecords(runId)
+export async function loadState(runId: string, deps?: WorkflowDeps): Promise<WorkflowState> {
+  const { repo } = resolveDeps(deps)
+  const records = await repo.readRecords(runId)
   if (records.length === 0) {
     throw new Error('workflow not initialized')
   }
 
-  const channels: Record<string, Channel> = {}
-  for (const record of records) {
-    Object.assign(channels, record.channelChanges)
-  }
-
   return {
-    channels,
+    channels: aggregateChannels(records),
     currentRecord: records[records.length - 1]!,
   }
 }
 
 // ===== Channel Operations =====
 
-export async function getChannel(name: string, runId: string): Promise<Channel | null> {
-  const state = await loadState(runId)
+export async function getChannel(
+  name: string,
+  runId: string,
+  deps?: WorkflowDeps,
+): Promise<Channel | null> {
+  const state = await loadState(runId, deps)
   return state.channels[name] ?? null
 }
 
-export async function getChannelVersion(name: string, runId: string): Promise<number> {
-  const ch = await getChannel(name, runId)
+export async function getChannelVersion(
+  name: string,
+  runId: string,
+  deps?: WorkflowDeps,
+): Promise<number> {
+  const ch = await getChannel(name, runId, deps)
   return ch?.version ?? 0
 }
 
-export async function listChannels(runId: string, nodeName?: string): Promise<Channel[]> {
-  const state = await loadState(runId)
+export async function listChannels(
+  runId: string,
+  nodeName?: string,
+  deps?: WorkflowDeps,
+): Promise<Channel[]> {
+  const state = await loadState(runId, deps)
   const all = Object.values(state.channels)
   if (!nodeName) return all
 
@@ -90,10 +94,16 @@ export async function listChannels(runId: string, nodeName?: string): Promise<Ch
   return all.filter((ch) => isNodeChannel(ch.name, nodeName))
 }
 
-export async function setChannel(name: string, value: unknown, runId: string): Promise<Channel> {
-  const state = await loadState(runId)
+export async function setChannel(
+  name: string,
+  value: unknown,
+  runId: string,
+  deps?: WorkflowDeps,
+): Promise<Channel> {
+  const { clock, repo } = resolveDeps(deps)
+  const state = await loadState(runId, deps)
   const existing = state.channels[name]
-  const now = new Date().toISOString()
+  const now = clock()
 
   const channel: Channel = {
     name,
@@ -102,7 +112,6 @@ export async function setChannel(name: string, value: unknown, runId: string): P
     updatedAt: now,
   }
 
-  // Update current record's channelChanges and append
   const record: WorkflowRecord = {
     ...state.currentRecord,
     channelChanges: {
@@ -111,13 +120,18 @@ export async function setChannel(name: string, value: unknown, runId: string): P
     },
   }
 
-  await appendRecord(record, runId)
+  await repo.appendRecord(runId, record)
   return channel
 }
 
-export async function clearChannels(nodeName: string, runId: string): Promise<void> {
-  const state = await loadState(runId)
-  const now = new Date().toISOString()
+export async function clearChannels(
+  nodeName: string,
+  runId: string,
+  deps?: WorkflowDeps,
+): Promise<void> {
+  const { clock, repo } = resolveDeps(deps)
+  const state = await loadState(runId, deps)
+  const now = clock()
 
   const changes: Record<string, Channel> = {}
   for (const [name, ch] of Object.entries(state.channels)) {
@@ -133,25 +147,35 @@ export async function clearChannels(nodeName: string, runId: string): Promise<vo
     channelChanges: { ...state.currentRecord.channelChanges, ...changes },
   }
 
-  await appendRecord(record, runId)
+  await repo.appendRecord(runId, record)
 }
 
-export async function getGlobalChannel(key: string, runId: string): Promise<Channel | null> {
-  return getChannel(globalChannelName(key), runId)
+export async function getGlobalChannel(
+  key: string,
+  runId: string,
+  deps?: WorkflowDeps,
+): Promise<Channel | null> {
+  return getChannel(globalChannelName(key), runId, deps)
 }
 
 export async function setGlobalChannel(
   key: string,
   value: unknown,
   runId: string,
+  deps?: WorkflowDeps,
 ): Promise<Channel> {
-  return setChannel(globalChannelName(key), value, runId)
+  return setChannel(globalChannelName(key), value, runId, deps)
 }
 
 // ===== Edge Channel Initialization =====
 
-export async function initEdgeChannels(edges: Edge[], runId: string): Promise<void> {
-  const now = new Date().toISOString()
+export async function initEdgeChannels(
+  edges: Edge[],
+  runId: string,
+  deps?: WorkflowDeps,
+): Promise<void> {
+  const { clock, repo } = resolveDeps(deps)
+  const now = clock()
   const changes: Record<string, Channel> = {}
 
   for (const edge of edges) {
@@ -159,46 +183,18 @@ export async function initEdgeChannels(edges: Edge[], runId: string): Promise<vo
     changes[name] ??= { name, value: null, version: 0, updatedAt: now }
   }
 
-  // Edge channels are written when the first record is initialized
-  const records = await readRecords(runId)
+  const records = await repo.readRecords(runId)
   if (records.length > 0) {
     records[0]!.channelChanges = { ...records[0]!.channelChanges, ...changes }
-    // Rewrite the entire file
-    const filePath = getWorkflowJsonlFile(runId)
-    const content = records.map((r) => JSON.stringify(r)).join('\n') + '\n'
-    await fs.writeFile(path.resolve(filePath), content, 'utf-8')
+    await repo.rewriteRecords(runId, records)
   }
-}
-
-function updateEdgeChannelsForNode(
-  nodeId: string,
-  taskStatus: string,
-  edges: Edge[],
-  existingChannels: Record<string, Channel>,
-): Record<string, Channel> {
-  const now = new Date().toISOString()
-  const changes: Record<string, Channel> = {}
-
-  for (const edge of edges) {
-    if (edge.to === nodeId) {
-      const name = edgeChannelName(edge.to, edge.from)
-      const existing = existingChannels[name]
-      changes[name] = {
-        name,
-        value: taskStatus,
-        version: (existing?.version ?? 0) + 1,
-        updatedAt: now,
-      }
-    }
-  }
-
-  return changes
 }
 
 // ===== Task Lifecycle =====
 
-export async function startTask(nodeId: string, runId: string): Promise<Task> {
-  const state = await loadState(runId)
+export async function startTask(nodeId: string, runId: string, deps?: WorkflowDeps): Promise<Task> {
+  const { clock, repo, eventRepo } = resolveDeps(deps)
+  const state = await loadState(runId, deps)
   const task = findTaskInRecord(state.currentRecord, nodeId)
 
   if (!task) {
@@ -208,7 +204,7 @@ export async function startTask(nodeId: string, runId: string): Promise<Task> {
     throw new Error(`task '${nodeId}' is '${task.status}', cannot start (expected 'ready')`)
   }
 
-  const now = new Date().toISOString()
+  const now = clock()
   task.status = 'running'
   task.startedAt = now
 
@@ -217,8 +213,13 @@ export async function startTask(nodeId: string, runId: string): Promise<Task> {
     status: 'running' as SuperstepStatus,
   }
 
-  await appendRecord(record, runId)
-  await appendEvent(nodeId, 'ready', 'running', runId)
+  await repo.appendRecord(runId, record)
+  await eventRepo.appendEvent(runId, {
+    timestamp: now,
+    node: nodeId,
+    from: 'ready',
+    to: 'running',
+  })
   return task
 }
 
@@ -226,8 +227,10 @@ export async function completeTask(
   nodeId: string,
   edges: Edge[],
   runId: string,
+  deps?: WorkflowDeps,
 ): Promise<{ task: Task; advanced: boolean }> {
-  const state = await loadState(runId)
+  const { clock, repo, eventRepo } = resolveDeps(deps)
+  const state = await loadState(runId, deps)
   const task = findTaskInRecord(state.currentRecord, nodeId)
 
   if (!task) {
@@ -237,20 +240,17 @@ export async function completeTask(
     throw new Error(`task '${nodeId}' is '${task.status}', cannot complete (expected 'running')`)
   }
 
-  const now = new Date().toISOString()
+  const now = clock()
   task.status = 'success'
   task.completedAt = now
 
-  // Update edge channels
-  const edgeChanges = updateEdgeChannelsForNode(nodeId, 'success', edges, state.channels)
+  const edgeChanges = computeEdgeChannelUpdates(nodeId, 'success', edges, state.channels, now)
 
-  // Check if superstep is complete
   const allTerminal = state.currentRecord.tasks.every((t) => isTerminalStatus(t.status))
 
   let advanced = false
 
   if (allTerminal) {
-    // Superstep complete: collect all channelChanges, take snapshot
     const record: WorkflowRecord = {
       ...state.currentRecord,
       status: 'completed' as SuperstepStatus,
@@ -258,27 +258,41 @@ export async function completeTask(
       channelChanges: { ...state.currentRecord.channelChanges, ...edgeChanges },
     }
 
-    await appendRecord(record, runId)
-    await appendEvent(nodeId, 'running', 'success', runId)
+    await repo.appendRecord(runId, record)
+    await eventRepo.appendEvent(runId, {
+      timestamp: now,
+      node: nodeId,
+      from: 'running',
+      to: 'success',
+    })
 
-    // Auto-advance to next layer
-    advanced = await tryAdvanceStep(runId)
+    advanced = await tryAdvanceStep(runId, deps)
   } else {
-    // Still has incomplete tasks
     const record: WorkflowRecord = {
       ...state.currentRecord,
       channelChanges: { ...state.currentRecord.channelChanges, ...edgeChanges },
     }
 
-    await appendRecord(record, runId)
-    await appendEvent(nodeId, 'running', 'success', runId)
+    await repo.appendRecord(runId, record)
+    await eventRepo.appendEvent(runId, {
+      timestamp: now,
+      node: nodeId,
+      from: 'running',
+      to: 'success',
+    })
   }
 
   return { task, advanced }
 }
 
-export async function failTask(nodeId: string, runId: string, error?: string): Promise<Task> {
-  const state = await loadState(runId)
+export async function failTask(
+  nodeId: string,
+  runId: string,
+  error?: string,
+  deps?: WorkflowDeps,
+): Promise<Task> {
+  const { clock, repo, eventRepo } = resolveDeps(deps)
+  const state = await loadState(runId, deps)
   const task = findTaskInRecord(state.currentRecord, nodeId)
 
   if (!task) {
@@ -288,7 +302,7 @@ export async function failTask(nodeId: string, runId: string, error?: string): P
     throw new Error(`task '${nodeId}' is '${task.status}', cannot fail (expected 'running')`)
   }
 
-  const now = new Date().toISOString()
+  const now = clock()
   task.status = 'failed'
   task.completedAt = now
   task.error = error
@@ -298,8 +312,13 @@ export async function failTask(nodeId: string, runId: string, error?: string): P
     status: 'failed' as SuperstepStatus,
   }
 
-  await appendRecord(record, runId)
-  await appendEvent(nodeId, 'running', 'failed', runId)
+  await repo.appendRecord(runId, record)
+  await eventRepo.appendEvent(runId, {
+    timestamp: now,
+    node: nodeId,
+    from: 'running',
+    to: 'failed',
+  })
   return task
 }
 
@@ -307,8 +326,10 @@ export async function skipTask(
   nodeId: string,
   edges: Edge[],
   runId: string,
+  deps?: WorkflowDeps,
 ): Promise<{ task: Task; advanced: boolean }> {
-  const state = await loadState(runId)
+  const { clock, repo, eventRepo } = resolveDeps(deps)
+  const state = await loadState(runId, deps)
   const task = findTaskInRecord(state.currentRecord, nodeId)
 
   if (!task) {
@@ -319,12 +340,11 @@ export async function skipTask(
   }
 
   const fromStatus = task.status
-  const now = new Date().toISOString()
+  const now = clock()
   task.status = 'skipped'
   task.completedAt = now
 
-  // Update edge channels
-  const edgeChanges = updateEdgeChannelsForNode(nodeId, 'skipped', edges, state.channels)
+  const edgeChanges = computeEdgeChannelUpdates(nodeId, 'skipped', edges, state.channels, now)
 
   const allTerminal = state.currentRecord.tasks.every((t) => isTerminalStatus(t.status))
 
@@ -339,32 +359,47 @@ export async function skipTask(
         completedAt: now,
         channelChanges: { ...state.currentRecord.channelChanges, ...edgeChanges },
       }
-      await appendRecord(record, runId)
-      await appendEvent(nodeId, fromStatus, 'skipped', runId)
-      advanced = await tryAdvanceStep(runId)
+      await repo.appendRecord(runId, record)
+      await eventRepo.appendEvent(runId, {
+        timestamp: now,
+        node: nodeId,
+        from: fromStatus,
+        to: 'skipped',
+      })
+      advanced = await tryAdvanceStep(runId, deps)
     } else {
-      // Still has failed tasks, remain paused
       const record: WorkflowRecord = {
         ...state.currentRecord,
         channelChanges: { ...state.currentRecord.channelChanges, ...edgeChanges },
       }
-      await appendRecord(record, runId)
-      await appendEvent(nodeId, fromStatus, 'skipped', runId)
+      await repo.appendRecord(runId, record)
+      await eventRepo.appendEvent(runId, {
+        timestamp: now,
+        node: nodeId,
+        from: fromStatus,
+        to: 'skipped',
+      })
     }
   } else {
     const record: WorkflowRecord = {
       ...state.currentRecord,
       channelChanges: { ...state.currentRecord.channelChanges, ...edgeChanges },
     }
-    await appendRecord(record, runId)
-    await appendEvent(nodeId, fromStatus, 'skipped', runId)
+    await repo.appendRecord(runId, record)
+    await eventRepo.appendEvent(runId, {
+      timestamp: now,
+      node: nodeId,
+      from: fromStatus,
+      to: 'skipped',
+    })
   }
 
   return { task, advanced }
 }
 
-export async function retryTask(nodeId: string, runId: string): Promise<Task> {
-  const state = await loadState(runId)
+export async function retryTask(nodeId: string, runId: string, deps?: WorkflowDeps): Promise<Task> {
+  const { clock, repo, eventRepo } = resolveDeps(deps)
+  const state = await loadState(runId, deps)
   const task = findTaskInRecord(state.currentRecord, nodeId)
 
   if (!task) {
@@ -374,9 +409,8 @@ export async function retryTask(nodeId: string, runId: string): Promise<Task> {
     throw new Error(`task '${nodeId}' is '${task.status}', cannot retry (expected 'failed')`)
   }
 
-  const now = new Date().toISOString()
+  const now = clock()
 
-  // Clear output channels for this task
   const changes: Record<string, Channel> = {}
   for (const [name, ch] of Object.entries(state.channels)) {
     if (isNodeChannel(name, nodeId)) {
@@ -395,16 +429,26 @@ export async function retryTask(nodeId: string, runId: string): Promise<Task> {
     channelChanges: { ...state.currentRecord.channelChanges, ...changes },
   }
 
-  await appendRecord(record, runId)
-  await appendEvent(nodeId, 'failed', 'ready', runId)
+  await repo.appendRecord(runId, record)
+  await eventRepo.appendEvent(runId, {
+    timestamp: now,
+    node: nodeId,
+    from: 'failed',
+    to: 'ready',
+  })
   return task
 }
 
-export async function getTask(nodeId: string, runId: string, step?: number): Promise<Task | null> {
-  const records = await readRecords(runId)
+export async function getTask(
+  nodeId: string,
+  runId: string,
+  step?: number,
+  deps?: WorkflowDeps,
+): Promise<Task | null> {
+  const { repo } = resolveDeps(deps)
+  const records = await repo.readRecords(runId)
   if (records.length === 0) return null
 
-  // Find latest record
   let record: WorkflowRecord
   if (step !== undefined) {
     record = records.find((r) => r.step === step) ?? records[records.length - 1]!
@@ -415,8 +459,13 @@ export async function getTask(nodeId: string, runId: string, step?: number): Pro
   return record.tasks.find((t) => t.nodeId === nodeId) ?? null
 }
 
-export async function listTasks(runId: string, step?: number): Promise<Task[]> {
-  const records = await readRecords(runId)
+export async function listTasks(
+  runId: string,
+  step?: number,
+  deps?: WorkflowDeps,
+): Promise<Task[]> {
+  const { repo } = resolveDeps(deps)
+  const records = await repo.readRecords(runId)
   if (records.length === 0) return []
 
   if (step !== undefined) {
@@ -427,8 +476,8 @@ export async function listTasks(runId: string, step?: number): Promise<Task[]> {
   return records[records.length - 1]!.tasks
 }
 
-export async function findReadyTasks(runId: string): Promise<Task[]> {
-  const state = await loadState(runId)
+export async function findReadyTasks(runId: string, deps?: WorkflowDeps): Promise<Task[]> {
+  const state = await loadState(runId, deps)
   if (state.currentRecord.status === 'failed') return []
   return state.currentRecord.tasks.filter((t) => t.status === 'ready')
 }
@@ -445,17 +494,17 @@ export async function initWorkflow(
   runId: string,
   layers: Map<number, string[]>,
   edges: Edge[],
+  deps?: WorkflowDeps,
 ): Promise<void> {
-  const now = new Date().toISOString()
+  const { clock, repo } = resolveDeps(deps)
+  const now = clock()
 
-  // Initialize edge channels
   const edgeChanges: Record<string, Channel> = {}
   for (const edge of edges) {
     const name = edgeChannelName(edge.to, edge.from)
     edgeChanges[name] ??= { name, value: null, version: 0, updatedAt: now }
   }
 
-  // Create tasks for Layer 0
   const layer0Nodes = layers.get(0) ?? []
   const tasks = layer0Nodes.map((nodeId) => createTask(nodeId, 0))
 
@@ -467,20 +516,18 @@ export async function initWorkflow(
     startedAt: now,
   }
 
-  await appendRecord(record, runId)
+  await repo.appendRecord(runId, record)
 }
 
-async function tryAdvanceStep(runId: string): Promise<boolean> {
-  const { readJSON, writeJSON } = await import('../utils/file.js')
-  const { getRunMetaFile } = await import('../constants.js')
-  const runInfo: RunInfo = await readJSON(getRunMetaFile(runId))
+async function tryAdvanceStep(runId: string, deps?: WorkflowDeps): Promise<boolean> {
+  const { clock, repo, runRepo } = resolveDeps(deps)
+  const runInfo = await runRepo.readRunInfo(runId)
 
   if (!runInfo.layerAssignment) return false
 
   const currentStep = runInfo.currentStep
   const nextStep = currentStep + 1
 
-  // Find nodes in the next layer
   const nextLayerNodes: string[] = []
   for (const [node, layer] of Object.entries(runInfo.layerAssignment)) {
     if (layer === nextStep) {
@@ -489,39 +536,16 @@ async function tryAdvanceStep(runId: string): Promise<boolean> {
   }
 
   if (nextLayerNodes.length === 0) {
-    // Workflow complete
     runInfo.status = 'completed'
     runInfo.currentStep = currentStep
-    await writeJSON(getRunMetaFile(runId), runInfo)
+    await runRepo.writeRunInfo(runId, runInfo)
     return false
   }
 
-  // Load current state to read fanout channels
-  const state = await loadState(runId)
+  const state = await loadState(runId, deps)
 
-  // Create tasks, expanding fanout template nodes into dynamic tasks
-  const now = new Date().toISOString()
-  const tasks: Task[] = []
-
-  for (const nodeId of nextLayerNodes) {
-    // Check if this node is a fanout template node by looking for upstream fanout channels
-    const fanoutItems = await getFanoutItemsForNode(nodeId, state.channels)
-
-    if (fanoutItems && fanoutItems.length > 0) {
-      // Dynamic task creation: one task per item
-      for (let i = 0; i < fanoutItems.length; i++) {
-        tasks.push({
-          ...createTask(nodeId, nextStep, 'dynamic'),
-          id: `${nodeId}#${i}@step${nextStep}`,
-          fanOutIndex: i,
-          fanOutParam: fanoutItems[i],
-        })
-      }
-    } else {
-      // Normal task
-      tasks.push(createTask(nodeId, nextStep))
-    }
-  }
+  const now = clock()
+  const tasks = createTasksForLayer(nextLayerNodes, nextStep, state.channels)
 
   const record: WorkflowRecord = {
     step: nextStep,
@@ -531,47 +555,28 @@ async function tryAdvanceStep(runId: string): Promise<boolean> {
     startedAt: now,
   }
 
-  await appendRecord(record, runId)
+  await repo.appendRecord(runId, record)
 
-  // Update run.json
   runInfo.currentStep = nextStep
   runInfo.status = 'running'
-  await writeJSON(getRunMetaFile(runId), runInfo)
+  await runRepo.writeRunInfo(runId, runInfo)
 
   return true
 }
 
-/**
- * Check if a node is the template target of a fanout, and return the items.
- * Returns null if this node is not a fanout template.
- */
-export async function getFanoutItemsForNode(
-  nodeId: string,
-  channels: Record<string, Channel>,
-): Promise<any[] | null> {
-  // Look through all channels for fanout channels that target this node
-  for (const [name, ch] of Object.entries(channels)) {
-    if (!name.startsWith('_fanout.')) continue
-    // The fanout channel name encodes the template: fanout:<from>→<templateNode>
-    const fanoutNodeName = name.slice('_fanout.'.length)
-    // Check if the templateNode part matches nodeId
-    const arrowIndex = fanoutNodeName.indexOf('→')
-    if (arrowIndex === -1) continue
-    const templateNode = fanoutNodeName.slice(arrowIndex + '→'.length)
-    if (templateNode === nodeId && Array.isArray(ch.value)) {
-      return ch.value as any[]
-    }
-  }
-  return null
-}
+export { getFanoutItemsForNode }
 
-export async function getCurrentStep(runId: string): Promise<WorkflowRecord> {
-  const state = await loadState(runId)
+export async function getCurrentStep(runId: string, deps?: WorkflowDeps): Promise<WorkflowRecord> {
+  const state = await loadState(runId, deps)
   return state.currentRecord
 }
 
-export async function advanceStep(runId: string, _edges?: Edge[]): Promise<WorkflowRecord | null> {
-  const state = await loadState(runId)
+export async function advanceStep(
+  runId: string,
+  _edges?: Edge[],
+  deps?: WorkflowDeps,
+): Promise<WorkflowRecord | null> {
+  const state = await loadState(runId, deps)
 
   if (state.currentRecord.status !== 'completed') {
     throw new Error(
@@ -579,26 +584,30 @@ export async function advanceStep(runId: string, _edges?: Edge[]): Promise<Workf
     )
   }
 
-  const advanced = await tryAdvanceStep(runId)
+  const advanced = await tryAdvanceStep(runId, deps)
   if (!advanced) return null
 
-  const newState = await loadState(runId)
+  const newState = await loadState(runId, deps)
   return newState.currentRecord
 }
 
-export async function isStepComplete(runId: string): Promise<boolean> {
-  const state = await loadState(runId)
+export async function isStepComplete(runId: string, deps?: WorkflowDeps): Promise<boolean> {
+  const state = await loadState(runId, deps)
   return state.currentRecord.status === 'completed'
 }
 
-export async function isWorkflowComplete(runId: string): Promise<boolean> {
-  const state = await loadState(runId)
+export async function isWorkflowComplete(runId: string, deps?: WorkflowDeps): Promise<boolean> {
+  const state = await loadState(runId, deps)
   return (
     state.currentRecord.status === 'completed' &&
     state.currentRecord.tasks.every((t) => t.status === 'success' || t.status === 'skipped')
   )
 }
 
-export async function getStepHistory(runId: string): Promise<WorkflowRecord[]> {
-  return readRecords(runId)
+export async function getStepHistory(
+  runId: string,
+  deps?: WorkflowDeps,
+): Promise<WorkflowRecord[]> {
+  const { repo } = resolveDeps(deps)
+  return repo.readRecords(runId)
 }
