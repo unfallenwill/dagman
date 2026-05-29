@@ -1,5 +1,5 @@
 import * as path from 'path'
-import { fileExists } from './utils/file.js'
+import { fileExists } from './file-ops.js'
 
 // --- Path constants (relative, never exported directly for path resolution) ---
 

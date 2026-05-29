@@ -9,8 +9,8 @@ import {
   listRunIds,
   resolveActiveRunId,
 } from '../../../src/shared/utils/run-resolver.js'
-import { getDagmanDir, getRunDir, getRunMetaFile, getRunsDir } from '../../../src/constants.js'
-import { ensureDir } from '../../../src/utils/file.js'
+import { getDagmanDir, getRunDir, getRunMetaFile, getRunsDir } from '../../../src/infra/fs/paths.js'
+import { ensureDir } from '../../../src/infra/fs/file-ops.js'
 
 describe('run-resolver', () => {
   let tmpDir: string

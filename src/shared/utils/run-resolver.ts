@@ -6,9 +6,9 @@ import {
   getCurrentRunFilePath,
   getRunsDir,
   getDagmanDir,
-} from '../../constants.js'
-import { ensureDir, fileExists } from '../../utils/file.js'
-import { readJSON } from '../../utils/file.js'
+} from '../../infra/fs/paths.js'
+import { ensureDir, fileExists } from '../../infra/fs/file-ops.js'
+import { readJSON } from '../../infra/fs/file-ops.js'
 import type { RunStatus } from '../models/superstep.js'
 
 export async function getCurrentRunId(): Promise<string | null> {

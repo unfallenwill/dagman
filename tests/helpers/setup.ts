@@ -2,7 +2,7 @@ import * as path from 'path'
 import * as os from 'os'
 import * as fs from 'fs/promises'
 import { mkdtempSync } from 'fs'
-import { setBasePath } from '../../src/constants.js'
+import { setBasePath } from '../../src/infra/fs/paths.js'
 import * as runService from '../../src/runtime/run.js'
 import type { Edge } from '../../src/shared/models/graph.js'
 

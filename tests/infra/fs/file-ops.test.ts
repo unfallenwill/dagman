@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import * as path from 'path'
 import * as fs from 'fs/promises'
-import { initTmpDir, cleanupTmpDir } from '../helpers/setup.js'
+import { initTmpDir, cleanupTmpDir } from '../../helpers/setup.js'
 import {
   ensureDir,
   readJSON,
@@ -10,8 +10,8 @@ import {
   fileExists,
   deleteFile,
   listFiles,
-} from '../../src/utils/file.js'
-import { NodeNotFoundError, ValidationError } from '../../src/shared/errors.js'
+} from '../../../src/infra/fs/file-ops.js'
+import { NodeNotFoundError, ValidationError } from '../../../src/shared/errors.js'
 
 describe('file utilities', () => {
   let tmpDir: string

@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs'
 import * as path from 'path'
 import * as yaml from 'js-yaml'
-import { NodeNotFoundError, ValidationError } from '../shared/errors.js'
+import { NodeNotFoundError, ValidationError } from '../../shared/errors.js'
 
 export async function ensureDir(dirPath: string): Promise<void> {
   const abs = path.resolve(dirPath)

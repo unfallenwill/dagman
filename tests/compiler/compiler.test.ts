@@ -210,12 +210,12 @@ describe('compileWorkflow error handling', () => {
     origCwd = process.cwd()
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'dagman-compile-test-'))
     process.chdir(tmpDir)
-    const { setBasePath } = await import('../../src/constants.js')
+    const { setBasePath } = await import('../../src/infra/fs/paths.js')
     setBasePath(tmpDir)
   })
 
   afterEach(async () => {
-    const { setBasePath } = await import('../../src/constants.js')
+    const { setBasePath } = await import('../../src/infra/fs/paths.js')
     setBasePath('')
     process.chdir(origCwd)
     await fs.rm(tmpDir, { recursive: true, force: true })

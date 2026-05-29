@@ -1,9 +1,9 @@
 import type { Command } from 'commander'
-import { FsEventRepository } from '../runtime/repository-fs.js'
+import { FsEventRepository } from '../infra/fs/fs-event-repo.js'
 import { resolveCurrentRunId } from '../runtime/run.js'
 import { RunNotFoundError } from '../shared/errors.js'
-import { getRunMetaFile } from '../constants.js'
-import { fileExists } from '../utils/file.js'
+import { getRunMetaFile } from '../infra/fs/paths.js'
+import { fileExists } from '../infra/fs/file-ops.js'
 import { setCommandMeta } from '../utils/command-meta.js'
 import { withErrorHandler, outputJson } from '../utils/output.js'
 

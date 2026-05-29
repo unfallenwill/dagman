@@ -11,7 +11,7 @@ import * as workflowService from '../workflow/workflow.js'
 import type { WorkflowDeps } from '../workflow/workflow.js'
 import type { WorkflowLoader } from '../shared/utils/loader.js'
 import type { Clock } from '../shared/utils/clock.js'
-import { getWorkflowTsFile } from '../constants.js'
+import { getWorkflowTsFile } from '../infra/fs/paths.js'
 import { buildGraphState } from '../shared/utils/state.js'
 
 export interface SchedulingDeps {

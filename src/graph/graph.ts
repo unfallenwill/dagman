@@ -1,8 +1,8 @@
 import type { Node } from '../shared/models/node.js'
 import type { Edge, Graph } from '../shared/models/graph.js'
 import type { Task } from '../shared/models/task.js'
-import { getGraphsDir } from '../constants.js'
-import { ensureDir, writeJSON, fileExists, listFiles } from '../utils/file.js'
+import { getGraphsDir } from '../infra/fs/paths.js'
+import { ensureDir, writeJSON, fileExists, listFiles } from '../infra/fs/file-ops.js'
 import { GraphNotFoundError } from '../shared/errors.js'
 import * as path from 'path'
 

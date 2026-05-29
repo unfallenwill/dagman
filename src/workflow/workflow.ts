@@ -20,8 +20,9 @@ import { systemClock } from '../shared/utils/clock.js'
 import { aggregateChannels, computeEdgeChannelUpdates } from './channel-ops.js'
 import { createTasksForLayer, getFanoutItemsForNode } from './superstep-logic.js'
 import { computeTopologicalLayers } from '../shared/utils/topology.js'
-import { FsWorkflowRepository } from './repository-fs.js'
-import { FsEventRepository, FsRunRepository } from '../runtime/repository-fs.js'
+import { FsWorkflowRepository } from '../infra/fs/fs-workflow-repo.js'
+import { FsEventRepository } from '../infra/fs/fs-event-repo.js'
+import { FsRunRepository } from '../infra/fs/fs-run-repo.js'
 
 // ===== Dependency Injection =====
 
