@@ -4,7 +4,6 @@ import * as os from "os";
 import * as fs from "fs/promises";
 import { Command } from "commander";
 import { registerHelpCommand } from "../../src/commands/help.js";
-import { registerChannelCommand } from "../../src/commands/channel.js";
 import { registerWorkflowCommand } from "../../src/commands/workflow.js";
 import * as runService from "../../src/runtime/run.js";
 import * as workflowService from "../../src/workflow/workflow.js";
@@ -31,7 +30,6 @@ function createProgram(): Command {
     writeErr: () => {},
   });
   registerHelpCommand(program);
-  registerChannelCommand(program);
   registerWorkflowCommand(program);
   return program;
 }
@@ -71,32 +69,3 @@ describe("task commands", () => {
   });
 });
 
-describe("channel commands", () => {
-  it("should set and get a channel", async () => {
-    // Setup: create a compiled graph and run
-    await fs.mkdir(path.join(TMP_DIR, ".dagman/graphs"), { recursive: true });
-    const graphData = {
-      name: "single",
-      edges: [],
-      nodes: [
-        { name: "test-node", description: "test", instructions: "test", kind: "user" }
-      ]
-    };
-    await fs.writeFile(
-      path.join(TMP_DIR, ".dagman/graphs/single.json"),
-      JSON.stringify(graphData, null, 2)
-    );
-
-    const info = await runService.createRun("ch-test", "single", true);
-
-    // Set channel
-    const ch = await workflowService.setChannel("test-node.mykey", "myvalue", info.id);
-    expect(ch.version).toBe(1);
-    expect(ch.value).toBe("myvalue");
-
-    // Get channel
-    const retrieved = await workflowService.getChannel("test-node.mykey", info.id);
-    expect(retrieved?.value).toBe("myvalue");
-    expect(retrieved?.version).toBe(1);
-  });
-});

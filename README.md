@@ -28,60 +28,58 @@ npm link
 
 ## Quick Start
 
-### 1. Write a plan file
+### 1. Write a TypeScript workflow
 
-Create a YAML file with `---` separators. Nodes (`kind: Node`) define "what to do", graphs (`kind: Graph`) define "how they connect":
+Create `.dagman/workflows/ci/manifest.yaml`:
 
 ```yaml
-kind: Node
-name: setup
-description: Initialize project environment
-instructions: Install dependencies and create config files
----
-kind: Node
-name: lint
-description: Code check
-instructions: Run ESLint on all source files
----
-kind: Node
-name: test
-description: Run tests
-instructions: Execute the full test suite
----
-kind: Node
-name: deploy
-description: Deploy to production
-instructions: Build and deploy to production server
----
-kind: Graph
 name: ci
-edges:
-  - from: lint
-    to: setup
-  - from: test
-    to: setup
-  - from: deploy
-    to: lint
-  - from: deploy
-    to: test
+version: 1.0.0
+description: CI pipeline
 ```
 
-### 2. Import nodes and graph
+Create `.dagman/workflows/ci/index.ts` using the builder API:
+
+```typescript
+import { node, workflow, START, END } from "dagman";
+
+const setup = node((state: any) => {
+  // Install dependencies and create config files
+}, "output");
+
+const lint = node((state: any) => {
+  // Run ESLint on all source files
+});
+
+const test = node((state: any) => {
+  // Execute the full test suite
+});
+
+const deploy = node((state: any) => {
+  // Build and deploy to production server
+});
+
+export default workflow("ci", { state: {} })
+  .add("setup", setup)
+  .add("lint", lint)
+  .add("test", test)
+  .add("deploy", deploy)
+  .edge("lint", "setup")
+  .edge("test", "setup")
+  .edge("deploy", "lint")
+  .edge("deploy", "test")
+  .build();
+```
+
+### 2. Start the workflow
 
 ```bash
-dagman import plan.yaml
-
-# Or from stdin
-cat plan.yaml | dagman import
+dagman workflow start ci
 ```
 
-### 3. Create a run
+This compiles the TypeScript workflow, persists the graph, and creates a run instance.
 
-```bash
-dagman run create my-deploy --graph ci --switch
-```
-
-### 4. Drive execution
+### 3. Drive execution
 
 ```bash
 # Get the next executable task
@@ -93,8 +91,8 @@ dagman task start setup
 # After executing, mark as complete
 dagman task complete setup
 
-# Store output for downstream nodes (optional)
-dagman channel set setup output-path /tmp/build
+# Collect the result (for nodes with stateKey)
+dagman collect setup@<run-id> -f result.json
 
 # Get the next task
 dagman next
@@ -102,49 +100,28 @@ dagman next
 # ... repeat until no executable tasks
 ```
 
-### 5. Export
-
-```bash
-# Export to stdout
-dagman export
-
-# Export a specific graph and its referenced nodes
-dagman export --graph ci > plan.yaml
-
-# Export to a file
-dagman export plan.yaml
-```
-
 ## Command Reference
 
-### `dagman import [file]`
+### `dagman workflow`
 
-Import nodes and graphs from a YAML file or stdin. Supports multi-document YAML with `kind: Node` and `kind: Graph`. Skips already-existing names.
+Manage TypeScript workflow definitions. Workflows are defined using the builder API in `.dagman/workflows/<name>/index.ts` with a `manifest.yaml` metadata file.
 
 ```bash
-dagman import plan.yaml    # Import from file
-dagman import < plan.yaml  # Import from stdin
+dagman workflow ls                 # List discovered workflows
+dagman workflow show <name>        # Show workflow info
+dagman workflow graph <name>       # Display layered topology
+dagman workflow start <name>       # Compile + create run instance
+dagman workflow compile <name>     # Dry-run compile (validate without persisting)
+dagman workflow ps [-a] [--json]   # List workflow instances
 ```
 
-### `dagman export [file]`
+### `dagman collect`
 
-Export nodes and graphs as YAML. Defaults to stdout.
-
-```bash
-dagman export                    # Export all nodes and graphs
-dagman export --graph ci         # Export specific graph and its nodes
-dagman export > plan.yaml        # Export to stdout
-dagman export plan.yaml          # Export to file
-```
-
-### `dagman node`
-
-Node definition management.
+Collect and validate results for a node that has a `stateKey`. Used by the agent to submit results after node execution.
 
 ```bash
-dagman node create <name>            # Create a node
-dagman node list                     # List all nodes
-dagman node remove <name> [--force]  # Remove a node
+dagman collect <node@run-id> -f result.json    # Collect from file
+dagman collect <node@run-id> --value '{"key":"val"}'  # Inline value
 ```
 
 ### `dagman task`
@@ -229,37 +206,36 @@ dagman log --run <id>     # Specify run instance
 
 ## Edges and Dependencies
 
-Nodes do not contain dependency information. Dependencies are declared via edges in the graph:
+Nodes do not contain dependency information. Dependencies are declared via edges in the workflow definition:
 
-```yaml
-kind: Graph
-name: ci
-edges:
-  # Shorthand: lint depends on setup, expects setup status to be success
-  - from: lint
-    to: setup
-
-  # Full form: specify expected upstream status
-  - from: optional-check
-    to: setup
-    expect: skipped
+```typescript
+export default workflow("ci", { state: {} })
+  .add("setup", node(fn))
+  .add("lint", node(fn))
+  .add("test", node(fn))
+  // lint depends on setup
+  .edge("lint", "setup")
+  // test depends on setup
+  .edge("test", "setup")
+  .build();
 ```
 
-`expect` defaults to `"success"`. When expecting `"success"`, an upstream node with `"skipped"` status also satisfies the dependency (skipped equals success).
+`Edge { from, to }` means `from` depends on `to` (i.e. `to` executes first). `expect` defaults to `"success"`; when expecting `"success"`, an upstream node with `"skipped"` status also satisfies the dependency (skipped equals success).
 
 ## Variable References
 
 Node instructions support Handlebars templates to reference upstream outputs:
 
-```yaml
-kind: Node
-name: build
-description: Build the project
-instructions: Build using config from {{setup.config-path}}
+```typescript
+const build = node((state: any) => {
+  // Access upstream output via state channels
+}, "result");
 ```
 
+Templates in node instructions:
+
 - `{{key}}` — current node's own channel
-- `{{node-name.key}}` — upstream node channel (validated at import time)
+- `{{node-name.key}}` — upstream node channel
 - `{{global.key}}` — global channel
 
 ## Data Storage
@@ -272,7 +248,11 @@ All data is stored in `.dagman/` under the project directory:
   nodes/
     <name>.yaml             # Node definitions (kind: Node)
   graphs/
-    <name>.yaml             # Graph definitions (kind: Graph)
+    <name>.json             # Graph definitions (compiled from TypeScript workflow)
+  workflows/
+    <name>/
+      index.ts              # TypeScript workflow definition (builder API)
+      manifest.yaml         # Workflow metadata (name, version, description)
   runs/
     <run-id>/
       run.json              # Run metadata (graphName, currentStep, status, layerAssignment)
@@ -280,7 +260,7 @@ All data is stored in `.dagman/` under the project directory:
       events.jsonl          # Task event log (append-only)
 ```
 
-Node definitions are globally shared, graph definitions declare topology, and state/channels are isolated per run.
+Node definitions are globally shared, graph definitions are compiled from TypeScript workflows and declare topology, and state/channels are isolated per run.
 
 ## Development
 

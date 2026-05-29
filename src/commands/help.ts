@@ -21,7 +21,7 @@ function getVersion(): string {
   }
 }
 
-/** Static overview content — concepts, workflow, YAML format, edge semantics, variables. */
+/** Static overview content — concepts, workflow, edge semantics, variables. */
 function buildOverview(version: string): string {
   return `dagman v${version} — DAG-based agent task orchestration CLI
 
@@ -45,35 +45,13 @@ Channel   Versioned key-value store for passing data between nodes:
 
 ━━━ Workflow ━━━
 
-1. Write YAML definition files (see format below)
-2. dagman import plan.yaml                # Import node and graph definitions
-3. dagman run create --graph <name> -s    # Create a run and switch to it
-4. dagman next                            # Get the next executable task
-5. dagman task start <node>               # Mark task as running
-6. (agent performs the actual work)
-7. dagman channel set <node> <key> <val>  # Store output (optional)
-8. dagman task complete <node>            # Mark task as completed
-9. Go back to step 4, repeat until "No executable tasks"
-
-━━━ YAML Import Format ━━━
-
-Separate multiple documents with \`---\`, can mix Node and Graph:
-
-  kind: Node
-  name: setup
-  description: Initialize project environment
-  instructions: Install dependencies and create config files
-  ---
-  kind: Node
-  name: build
-  description: Build
-  instructions: Run build command
-  ---
-  kind: Graph
-  name: pipeline
-  edges:
-    - from: build
-      to: setup
+1. Write a TypeScript workflow definition using the builder API
+2. dagman run create --graph <name> -s    # Create a run and switch to it
+3. dagman next                            # Get the next executable task
+4. dagman task start <node>               # Mark task as running
+5. (agent performs the actual work)
+6. dagman task complete <node>            # Mark task as completed
+7. Go back to step 3, repeat until "No executable tasks"
 
 ━━━ Edge Semantics ━━━
 
@@ -99,7 +77,7 @@ function buildCommandReference(program: Command): string {
 
   // Categorize commands into groups
   const definitionCommands = ["node", "graph"];
-  const executionCommands = ["import", "export", "run"];
+  const executionCommands = ["run"];
   const schedulingCommands = ["next", "task"];
 
   for (const cmd of program.commands) {
@@ -163,7 +141,7 @@ export function registerHelpCommand(program: Command): void {
     .description(`Show the full usage guide, or detailed help for a specific subcommand.
 
 Without arguments, displays the complete guide including core concepts,
-workflow, YAML format, and command reference.
+workflow, and command reference.
 With a subcommand name, shows man page style help for that command.`)
     .action((subcommand?: string) => {
       if (subcommand) {

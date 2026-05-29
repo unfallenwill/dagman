@@ -32,7 +32,7 @@ async function resolveRunContext(runId?: string): Promise<RunContext> {
     throw new Error("current run is not bound to a graph, use run create --graph <name>");
   }
 
-  // Try compiled JSON graph first (from TS workflow), fall back to YAML
+  // Try compiled JSON graph first (from TS workflow), then YAML manifest graph
   let graph;
   try {
     graph = await graphService.loadCompiledGraph(graphName);
@@ -295,7 +295,7 @@ async function importWorkflowDefinition(graphName: string) {
 }
 
 /**
- * Load graph for a run, trying compiled JSON first then YAML.
+ * Load graph for a run, trying compiled JSON first then manifest YAML.
  */
 async function loadGraphForRun(graphName: string): Promise<{ edges: Edge[] }> {
   try {

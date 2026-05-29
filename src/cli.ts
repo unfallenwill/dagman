@@ -1,7 +1,6 @@
 import { Command } from "commander";
 import { registerHelpCommand } from "./commands/help.js";
 import { registerNextCommand } from "./commands/next.js";
-import { registerChannelCommand } from "./commands/channel.js";
 import { registerLogCommand } from "./commands/log.js";
 import { registerWorkflowCommand } from "./commands/workflow.js";
 import { registerCollectCommand } from "./commands/collect.js";
@@ -21,7 +20,6 @@ export function run(): void {
   registerWorkflowCommand(program);
   registerNextCommand(program);
   registerCollectCommand(program);
-  registerChannelCommand(program);
   registerLogCommand(program);
 
   // Attach man page style after-help to all commands that have metadata

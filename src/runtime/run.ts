@@ -47,7 +47,7 @@ async function createRunInternal(
 
   // If bound to a graph, compute layers and initialize workflow
   if (graphName) {
-    // Try compiled JSON graph first (from TS workflow), fall back to YAML
+    // Try compiled JSON graph first (from TS workflow), then manifest YAML
     let graph;
     try {
       graph = await graphService.loadCompiledGraph(graphName);

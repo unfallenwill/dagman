@@ -51,13 +51,6 @@ export async function readYAML<T>(filePath: string): Promise<T> {
   }
 }
 
-export async function writeYAML<T>(filePath: string, data: T): Promise<void> {
-  const abs = path.resolve(filePath);
-  await ensureDir(path.dirname(abs));
-  const content = yaml.dump(data, { lineWidth: -1 }) + "\n";
-  await fs.writeFile(abs, content, "utf-8");
-}
-
 export async function fileExists(filePath: string): Promise<boolean> {
   try {
     await fs.access(path.resolve(filePath));

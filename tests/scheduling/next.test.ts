@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import * as path from "path";
 import * as os from "os";
 import * as fs from "fs/promises";
-import * as yaml from "js-yaml";
 import * as workflowService from "../../src/workflow/workflow.js";
 import * as runService from "../../src/runtime/run.js";
 import { condChannelName, stateChannelName, fanoutChannelName } from "../../src/models/channel.js";

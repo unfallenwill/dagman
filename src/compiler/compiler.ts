@@ -51,7 +51,7 @@ export async function compileWorkflow(workflowName: string): Promise<CompileResu
     throw new ValidationError("compiled graph contains cycle dependency");
   }
 
-  // 7. Persist: graph as JSON, nodes as YAML
+  // 7. Persist: graph as compiled JSON (nodes embedded)
   await persistCompiledGraph(graph, allNodes);
 
   return { graph, nodes: allNodes, manifest };

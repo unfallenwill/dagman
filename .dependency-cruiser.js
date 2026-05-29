@@ -47,7 +47,7 @@ module.exports = {
       to: {
         path: "^src/",
         pathNot: [
-          "^src/(workflow|scheduling|runtime|graph|io|compiler)/",
+          "^src/(workflow|scheduling|runtime|graph|compiler)/",
           "^src/models/",
           "^src/utils/",
           "^src/constants\\.ts$",
@@ -82,32 +82,14 @@ module.exports = {
       name: "graph-no-upward-deps",
       severity: "error",
       comment:
-        "graph/ is the innermost domain — must not depend on workflow/, runtime/, scheduling/, io/",
+        "graph/ is the innermost domain — must not depend on workflow/, runtime/, scheduling/",
       from: { path: "^src/graph/" },
       to: {
         path: [
           "^src/workflow/",
           "^src/runtime/",
           "^src/scheduling/",
-          "^src/io/",
           "^src/commands/",
-        ],
-      },
-    },
-
-    {
-      name: "io-only-to-graph-and-shared",
-      severity: "error",
-      comment: "io/ should only import from graph/, models/, utils/, constants, errors",
-      from: { path: "^src/io/" },
-      to: {
-        path: "^src/",
-        pathNot: [
-          "^src/graph/",
-          "^src/models/",
-          "^src/utils/",
-          "^src/constants\\.ts$",
-          "^src/errors\\.ts$",
         ],
       },
     },
@@ -178,7 +160,7 @@ module.exports = {
       from: { path: "^src/models/" },
       to: {
         path: [
-          "^src/(workflow|scheduling|runtime|graph|io|commands|compiler)/",
+          "^src/(workflow|scheduling|runtime|graph|commands|compiler)/",
         ],
       },
     },
@@ -190,7 +172,7 @@ module.exports = {
       from: { path: "^src/utils/" },
       to: {
         path: [
-          "^src/(workflow|scheduling|runtime|graph|io|commands|compiler)/",
+          "^src/(workflow|scheduling|runtime|graph|commands|compiler)/",
         ],
       },
     },
