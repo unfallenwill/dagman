@@ -1,15 +1,25 @@
 {
   "name": "@unfallenwill/dagman",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "dagman - 通用 agent 任务编排 CLI 工具",
   "main": "dist/index.js",
   "bin": {
-    "dagman": "./dist/index.js"
+    "dagman": "dist/index.js"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",
-    "test": "vitest"
+    "test": "vitest",
+    "prepublishOnly": "npm run build"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "commander": "^12.1.0",
