@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { aggregateChannels, computeEdgeChannelUpdates } from '../../src/workflow/channel-ops.js'
+import {
+  aggregateChannels,
+  computeEdgeChannelUpdates,
+} from '../../src/domain/workflow/channel-ops.js'
 import type { WorkflowRecord } from '../../src/shared/models/superstep.js'
 import type { Edge } from '../../src/shared/models/graph.js'
 import type { Channel } from '../../src/shared/models/channel.js'

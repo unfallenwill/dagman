@@ -1,11 +1,11 @@
 // dagman — public API surface for programmatic use
 
 // Core domain
-export * from './workflow/workflow.js'
-export * from './scheduling/next.js'
-export * from './runtime/run.js'
-export * from './graph/graph.js'
-export * from './graph/validator.js'
+export * from './domain/workflow/workflow-engine.js'
+export * from './domain/scheduling/scheduler.js'
+export * from './domain/run/run-service.js'
+export * from './domain/graph/graph-service.js'
+export * from './domain/graph/validator.js'
 
 // Models
 export * from './shared/models/node.js'

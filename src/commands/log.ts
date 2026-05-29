@@ -1,6 +1,6 @@
 import type { Command } from 'commander'
 import { FsEventRepository } from '../infra/fs/fs-event-repo.js'
-import { resolveCurrentRunId } from '../runtime/run.js'
+import { resolveCurrentRunId } from '../domain/run/run-service.js'
 import { RunNotFoundError } from '../shared/errors.js'
 import { getRunMetaFile } from '../infra/fs/paths.js'
 import { fileExists } from '../infra/fs/file-ops.js'

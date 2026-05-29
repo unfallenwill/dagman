@@ -1,5 +1,5 @@
 import type { Command } from 'commander'
-import { compileWorkflow } from '../compiler/compiler.js'
+import { compileWorkflow } from '../domain/compiler/compiler.js'
 import { withErrorHandler } from '../slices/_shared/output.js'
 
 export function registerCompileCommand(program: Command): void {

@@ -4,7 +4,7 @@ import {
   isWorkflowComplete,
   getFanoutItemsForNode,
   createTasksForLayer,
-} from '../../src/workflow/superstep-logic.js'
+} from '../../src/domain/workflow/superstep-logic.js'
 import { createTask } from '../../src/shared/models/task.js'
 import type { Channel } from '../../src/shared/models/channel.js'
 

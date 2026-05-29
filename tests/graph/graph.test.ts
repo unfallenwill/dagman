@@ -5,7 +5,7 @@ import {
   saveCompiledGraph,
   listGraphs,
   formatGraph,
-} from '../../src/graph/graph.js'
+} from '../../src/domain/graph/graph-service.js'
 import { GraphNotFoundError } from '../../src/shared/errors.js'
 import { initTmpDir, cleanupTmpDir } from '../helpers/setup.js'
 import type { Graph } from '../../src/shared/models/graph.js'

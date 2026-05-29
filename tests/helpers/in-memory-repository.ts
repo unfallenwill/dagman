@@ -6,7 +6,7 @@ import type {
 import type { WorkflowRecord, RunInfo } from '../../src/shared/models/superstep.js'
 import type { Event } from '../../src/shared/models/event.js'
 import { fixedClock } from '../../src/shared/utils/clock.js'
-import type { WorkflowDeps } from '../../src/workflow/workflow.js'
+import type { WorkflowDeps } from '../../src/domain/workflow/workflow-engine.js'
 
 export class InMemoryWorkflowRepository implements WorkflowRepository {
   private store = new Map<string, WorkflowRecord[]>()

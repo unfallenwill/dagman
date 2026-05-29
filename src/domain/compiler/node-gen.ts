@@ -1,11 +1,11 @@
-import type { Node } from '../shared/models/node.js'
-import type { Edge } from '../shared/models/graph.js'
+import type { Node } from '../../shared/models/node.js'
+import type { Edge } from '../../shared/models/graph.js'
 import type {
   NodeDef,
   CondEdgeDef,
   FanOutDef,
   WorkflowDefinition,
-} from '../shared/models/workflow-def.js'
+} from '../../shared/models/workflow-def.js'
 
 interface ExpandedResult {
   allNodes: Node[]

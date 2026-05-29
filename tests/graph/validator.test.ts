@@ -6,7 +6,7 @@ import {
   checkCycles,
   checkOrphans,
   formatValidationResults,
-} from '../../src/graph/validator.js'
+} from '../../src/domain/graph/validator.js'
 
 describe('checkMissingDeps', () => {
   it('should pass when all edge targets exist', () => {

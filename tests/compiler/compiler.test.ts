@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import * as path from 'path'
 import * as os from 'os'
 import * as fs from 'fs/promises'
-import { expandWorkflow } from '../../src/compiler/node-gen.js'
+import { expandWorkflow } from '../../src/domain/compiler/node-gen.js'
 import type { WorkflowDefinition } from '../../src/shared/models/workflow-def.js'
 
 describe('expandWorkflow (node-gen)', () => {
@@ -222,7 +222,7 @@ describe('compileWorkflow error handling', () => {
   })
 
   it('throws ValidationError for non-existent workflow', async () => {
-    const { compileWorkflow } = await import('../../src/compiler/compiler.js')
+    const { compileWorkflow } = await import('../../src/domain/compiler/compiler.js')
     await expect(compileWorkflow('non-existent')).rejects.toThrow('manifest not found')
   })
 
@@ -235,7 +235,7 @@ describe('compileWorkflow error handling', () => {
       'utf-8',
     )
 
-    const { compileWorkflow } = await import('../../src/compiler/compiler.js')
+    const { compileWorkflow } = await import('../../src/domain/compiler/compiler.js')
     await expect(compileWorkflow('test-workflow')).rejects.toThrow(
       "manifest must have a 'name' field",
     )
@@ -250,7 +250,7 @@ describe('compileWorkflow error handling', () => {
       'utf-8',
     )
 
-    const { compileWorkflow } = await import('../../src/compiler/compiler.js')
+    const { compileWorkflow } = await import('../../src/domain/compiler/compiler.js')
     await expect(compileWorkflow('test-workflow')).rejects.toThrow(
       'workflow file must export a default WorkflowDefinition',
     )
@@ -270,7 +270,7 @@ describe('compileWorkflow error handling', () => {
       'utf-8',
     )
 
-    const { compileWorkflow } = await import('../../src/compiler/compiler.js')
+    const { compileWorkflow } = await import('../../src/domain/compiler/compiler.js')
     await expect(compileWorkflow('test-workflow')).rejects.toThrow(
       "workflow name mismatch: file exports 'wrong-name' but expected 'test-workflow'",
     )
@@ -290,7 +290,7 @@ describe('compileWorkflow error handling', () => {
       'utf-8',
     )
 
-    const { compileWorkflow } = await import('../../src/compiler/compiler.js')
+    const { compileWorkflow } = await import('../../src/domain/compiler/compiler.js')
     await expect(compileWorkflow('test-workflow')).rejects.toThrow(
       'compiled graph contains cycle dependency',
     )
@@ -310,7 +310,7 @@ describe('compileWorkflow error handling', () => {
       'utf-8',
     )
 
-    const { compileWorkflow } = await import('../../src/compiler/compiler.js')
+    const { compileWorkflow } = await import('../../src/domain/compiler/compiler.js')
     await compileWorkflow('test-workflow')
 
     // Check that graph file was created
@@ -340,7 +340,7 @@ describe('compileWorkflow error handling', () => {
       'utf-8',
     )
 
-    const { compileWorkflow } = await import('../../src/compiler/compiler.js')
+    const { compileWorkflow } = await import('../../src/domain/compiler/compiler.js')
     const result = await compileWorkflow('test-workflow')
 
     expect(result.manifest.name).toBe('test-workflow')

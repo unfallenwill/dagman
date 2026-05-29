@@ -1,6 +1,6 @@
 import type { Command } from 'commander'
 import { getWorkflowManifest } from '../infra/fs/paths.js'
-import { graphExists } from '../graph/graph.js'
+import { graphExists } from '../domain/graph/graph-service.js'
 import { withErrorHandler, outputJson } from '../slices/_shared/output.js'
 import { readYAML } from '../infra/fs/file-ops.js'
 

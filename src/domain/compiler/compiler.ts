@@ -1,14 +1,14 @@
 import * as path from 'path'
-import type { Graph } from '../shared/models/graph.js'
-import type { Node } from '../shared/models/node.js'
-import type { WorkflowManifest } from '../shared/models/workflow-def.js'
-import type { WorkflowLoader } from '../shared/utils/loader.js'
-import { getWorkflowTsFile, getWorkflowManifest } from '../infra/fs/paths.js'
-import { hasCycle } from '../shared/utils/topology.js'
-import { ValidationError } from '../shared/errors.js'
-import { saveCompiledGraph } from '../graph/graph.js'
+import type { Graph } from '../../shared/models/graph.js'
+import type { Node } from '../../shared/models/node.js'
+import type { WorkflowManifest } from '../../shared/models/workflow-def.js'
+import type { WorkflowLoader } from '../../shared/utils/loader.js'
+import { getWorkflowTsFile, getWorkflowManifest } from '../../infra/fs/paths.js'
+import { hasCycle } from '../../shared/utils/topology.js'
+import { ValidationError } from '../../shared/errors.js'
+import { saveCompiledGraph } from '../graph/graph-service.js'
 import { expandWorkflow } from './node-gen.js'
-import { createDefaultLoader } from '../infra/loader/tsx-loader.js'
+import { createDefaultLoader } from '../../infra/loader/tsx-loader.js'
 
 export interface CompilerDeps {
   loader?: WorkflowLoader

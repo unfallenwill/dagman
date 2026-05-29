@@ -3,7 +3,7 @@ import * as os from 'os'
 import * as fs from 'fs/promises'
 import { mkdtempSync } from 'fs'
 import { setBasePath } from '../../src/infra/fs/paths.js'
-import * as runService from '../../src/runtime/run.js'
+import * as runService from '../../src/domain/run/run-service.js'
 import type { Edge } from '../../src/shared/models/graph.js'
 
 let tmpDir: string

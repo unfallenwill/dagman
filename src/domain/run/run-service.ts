@@ -1,15 +1,15 @@
 import { promises as fs } from 'fs'
 import * as path from 'path'
-import { getRunDir, getRunMetaFile, getRunsDir } from '../infra/fs/paths.js'
-import { ensureDir, readJSON, writeJSON, fileExists } from '../infra/fs/file-ops.js'
-import { RunNotFoundError, RunExistsError } from '../shared/errors.js'
-import type { RunInfo, RunStatus } from '../shared/models/superstep.js'
-import type { Node } from '../shared/models/node.js'
-import * as graphService from '../graph/graph.js'
-import * as workflowService from '../workflow/workflow.js'
-import { computeTopologicalLayers } from '../shared/utils/topology.js'
-import { generateInstanceId } from '../shared/utils/id.js'
-import { setCurrentRunId, resolveCurrentRunId } from '../shared/utils/run-resolver.js'
+import { getRunDir, getRunMetaFile, getRunsDir } from '../../infra/fs/paths.js'
+import { ensureDir, readJSON, writeJSON, fileExists } from '../../infra/fs/file-ops.js'
+import { RunNotFoundError, RunExistsError } from '../../shared/errors.js'
+import type { RunInfo, RunStatus } from '../../shared/models/superstep.js'
+import type { Node } from '../../shared/models/node.js'
+import * as graphService from '../graph/graph-service.js'
+import * as workflowService from '../workflow/workflow-engine.js'
+import { computeTopologicalLayers } from '../../shared/utils/topology.js'
+import { generateInstanceId } from '../../shared/utils/id.js'
+import { setCurrentRunId, resolveCurrentRunId } from '../../shared/utils/run-resolver.js'
 
 export type { RunInfo, RunStatus }
 export {
@@ -18,7 +18,7 @@ export {
   resolveCurrentRunId,
   resolveActiveRunId,
   listRunIds,
-} from '../shared/utils/run-resolver.js'
+} from '../../shared/utils/run-resolver.js'
 
 // ===== Dependency Injection =====
 

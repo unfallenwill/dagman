@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import * as next from '../../src/scheduling/next.js'
-import * as workflow from '../../src/workflow/workflow.js'
+import * as next from '../../src/domain/scheduling/scheduler.js'
+import * as workflow from '../../src/domain/workflow/workflow-engine.js'
 import type { Edge } from '../../src/shared/models/graph.js'
 import type { Node } from '../../src/shared/models/node.js'
 import type { Task } from '../../src/shared/models/task.js'
 import { createTestWorkflowDeps } from '../helpers/in-memory-repository.js'
 import { condChannelName } from '../../src/shared/models/channel.js'
-import type { WorkflowDeps } from '../../src/workflow/workflow.js'
+import type { WorkflowDeps } from '../../src/domain/workflow/workflow-engine.js'
 
 // ===== Test Helpers =====
 

@@ -3,14 +3,14 @@ import * as path from 'path'
 import * as os from 'os'
 import * as fs from 'fs/promises'
 import '../../src/engine/default-deps.js'
-import * as workflowService from '../../src/workflow/workflow.js'
-import * as runService from '../../src/runtime/run.js'
+import * as workflowService from '../../src/domain/workflow/workflow-engine.js'
+import * as runService from '../../src/domain/run/run-service.js'
 import {
   condChannelName,
   stateChannelName,
   fanoutChannelName,
 } from '../../src/shared/models/channel.js'
-import { filterByCondEdge } from '../../src/scheduling/next.js'
+import { filterByCondEdge } from '../../src/domain/scheduling/scheduler.js'
 import type { Edge } from '../../src/shared/models/graph.js'
 import type { Task } from '../../src/shared/models/task.js'
 import type { Channel } from '../../src/shared/models/channel.js'
@@ -261,7 +261,7 @@ describe('collect workflow', () => {
 
 describe('fanout dynamic task creation', () => {
   it('creates dynamic tasks from fanout channel', async () => {
-    const { getFanoutItemsForNode } = await import('../../src/workflow/workflow.js')
+    const { getFanoutItemsForNode } = await import('../../src/domain/workflow/workflow-engine.js')
 
     // Simulate fanout channel with 3 items
     const channels: Record<string, Channel> = {
@@ -278,7 +278,7 @@ describe('fanout dynamic task creation', () => {
   })
 
   it('returns null for non-fanout nodes', async () => {
-    const { getFanoutItemsForNode } = await import('../../src/workflow/workflow.js')
+    const { getFanoutItemsForNode } = await import('../../src/domain/workflow/workflow-engine.js')
 
     const channels: Record<string, Channel> = {}
     const items = await getFanoutItemsForNode('some-node', channels)
