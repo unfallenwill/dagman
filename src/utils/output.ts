@@ -1,4 +1,4 @@
-import { ValidationError, CliError } from "../errors.js";
+import { ValidationError } from '../errors.js'
 
 /**
  * Higher-order function that wraps a command action with unified error handling.
@@ -14,22 +14,22 @@ export function withErrorHandler<T extends unknown[]>(
 ): (...args: T) => Promise<void> {
   return async (...args: T) => {
     try {
-      await fn(...args);
+      await fn(...args)
     } catch (err: unknown) {
       if (err instanceof ValidationError) {
-        console.error(`Error: ${err.message}`);
+        console.error(`Error: ${err.message}`)
         for (const e of err.errors) {
-          console.error(`  - ${e}`);
+          console.error(`  - ${e}`)
         }
       } else {
-        console.error(`Error: ${(err as Error).message}`);
+        console.error(`Error: ${(err as Error).message}`)
       }
-      process.exit(1);
+      process.exit(1)
     }
-  };
+  }
 }
 
 /** Output data as formatted JSON to stdout. */
 export function outputJson(data: unknown): void {
-  console.log(JSON.stringify(data, null, 2));
+  console.log(JSON.stringify(data, null, 2))
 }

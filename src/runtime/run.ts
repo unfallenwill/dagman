@@ -1,71 +1,62 @@
-import { promises as fs } from "fs";
-import * as path from "path";
-import {
-  RUNS_DIR,
-  DEFAULT_RUN_ID,
-  getRunDir,
-  getRunMetaFile,
-} from "../constants.js";
-import { ensureDir, readJSON, writeJSON, fileExists } from "../utils/file.js";
-import { RunNotFoundError, RunExistsError } from "../errors.js";
-import type { RunInfo, RunStatus } from "../models/superstep.js";
-import type { Node } from "../models/node.js";
-import * as graphService from "../graph/graph.js";
-import * as workflowService from "../workflow/workflow.js";
-import { computeTopologicalLayers } from "../utils/topology.js";
-import { generateInstanceId } from "../utils/id.js";
-import {
-  setCurrentRunId,
-  resolveCurrentRunId,
-  resolveActiveRunId,
-} from "../utils/run-resolver.js";
+import { promises as fs } from 'fs'
+import * as path from 'path'
+import { RUNS_DIR, getRunDir, getRunMetaFile } from '../constants.js'
+import { ensureDir, readJSON, writeJSON, fileExists } from '../utils/file.js'
+import { RunNotFoundError, RunExistsError } from '../errors.js'
+import type { RunInfo, RunStatus } from '../models/superstep.js'
+import type { Node } from '../models/node.js'
+import * as graphService from '../graph/graph.js'
+import * as workflowService from '../workflow/workflow.js'
+import { computeTopologicalLayers } from '../utils/topology.js'
+import { generateInstanceId } from '../utils/id.js'
+import { setCurrentRunId, resolveCurrentRunId } from '../utils/run-resolver.js'
 
-export type { RunInfo, RunStatus };
+export type { RunInfo, RunStatus }
 export {
   getCurrentRunId,
   setCurrentRunId,
   resolveCurrentRunId,
   resolveActiveRunId,
   listRunIds,
-} from "../utils/run-resolver.js";
+} from '../utils/run-resolver.js'
 
 async function createRunInternal(
   runId: string,
   label?: string,
-  graphName?: string
+  graphName?: string,
 ): Promise<RunInfo> {
-  const runDir = getRunDir(runId);
+  const runDir = getRunDir(runId)
   if (await fileExists(getRunMetaFile(runId))) {
-    throw new RunExistsError(runId);
+    throw new RunExistsError(runId)
   }
 
-  await ensureDir(runDir);
+  await ensureDir(runDir)
 
-  let layerAssignment: Record<string, number> | undefined;
-  let currentStep = 0;
-  let status: RunStatus = "idle";
+  let layerAssignment: Record<string, number> | undefined
+  let currentStep = 0
+  let status: RunStatus = 'idle'
 
   // If bound to a graph, compute layers and initialize workflow
   if (graphName) {
     // Try compiled JSON graph first (from TS workflow), then manifest YAML
-    let graph;
+    let graph
     try {
-      graph = await graphService.loadCompiledGraph(graphName);
+      graph = await graphService.loadCompiledGraph(graphName)
     } catch {
-      graph = await graphService.loadGraph(graphName);
+      graph = await graphService.loadGraph(graphName)
     }
-    const nodes: Node[] = graph.nodes ?? [];
-    const nodeNames = nodes.map((n: Node) => n.name);
-    const layers = computeTopologicalLayers(graph.edges, nodeNames);
+    const nodes: Node[] = graph.nodes ?? []
+    const nodeNames = nodes.map((n: Node) => n.name)
+    const layers = computeTopologicalLayers(graph.edges, nodeNames)
 
-    layerAssignment = {};
+    layerAssignment = {}
     for (const [layer, names] of layers.entries()) {
       for (const name of names) {
-        layerAssignment[name] = layer;
+        layerAssignment[name] = layer
       }
     }
 
-    status = "running";
+    status = 'running'
 
     const info: RunInfo = {
       id: runId,
@@ -75,13 +66,13 @@ async function createRunInternal(
       currentStep,
       status,
       layerAssignment,
-    };
-    await writeJSON(getRunMetaFile(runId), info);
+    }
+    await writeJSON(getRunMetaFile(runId), info)
 
     // Initialize workflow.jsonl
-    await workflowService.initWorkflow(runId, layers, graph.edges);
+    await workflowService.initWorkflow(runId, layers, graph.edges)
 
-    return info;
+    return info
   }
 
   const info: RunInfo = {
@@ -92,57 +83,57 @@ async function createRunInternal(
     currentStep,
     status,
     layerAssignment,
-  };
-  await writeJSON(getRunMetaFile(runId), info);
-  return info;
+  }
+  await writeJSON(getRunMetaFile(runId), info)
+  return info
 }
 
 export async function createRun(
   label?: string,
   graphName?: string,
-  switchTo?: boolean
+  switchTo?: boolean,
 ): Promise<RunInfo> {
-  let runId: string;
+  let runId: string
 
   if (graphName) {
     // When bound to a graph/workflow, generate <name>@<suffix>
-    runId = generateInstanceId(graphName);
+    runId = generateInstanceId(graphName)
   } else if (label) {
     // Otherwise use sanitized label
     runId = label
       .toLowerCase()
-      .replace(/[^a-z0-9-]/g, "-")
-      .replace(/-+/g, "-")
-      .replace(/^-|-$/g, "");
+      .replace(/[^a-z0-9-]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
     if (!runId) {
-      throw new Error("could not generate valid run ID from label");
+      throw new Error('could not generate valid run ID from label')
     }
   } else {
     // Fallback to timestamp-based ID
-    runId = `run-${Date.now()}`;
+    runId = `run-${Date.now()}`
   }
 
-  const info = await createRunInternal(runId, label, graphName);
+  const info = await createRunInternal(runId, label, graphName)
 
   if (switchTo) {
-    await setCurrentRunId(runId);
+    await setCurrentRunId(runId)
   }
 
-  return info;
+  return info
 }
 
 export async function listRuns(): Promise<RunInfo[]> {
-  const runs: RunInfo[] = [];
-  const abs = path.resolve(RUNS_DIR);
+  const runs: RunInfo[] = []
+  const abs = path.resolve(RUNS_DIR)
 
   try {
-    const entries = await fs.readdir(abs);
+    const entries = await fs.readdir(abs)
     for (const entry of entries) {
       try {
-        const metaFile = getRunMetaFile(entry);
+        const metaFile = getRunMetaFile(entry)
         if (await fileExists(metaFile)) {
-          const info = await readJSON<RunInfo>(metaFile);
-          runs.push(info);
+          const info = await readJSON<RunInfo>(metaFile)
+          runs.push(info)
         }
       } catch {
         // skip invalid runs
@@ -152,48 +143,48 @@ export async function listRuns(): Promise<RunInfo[]> {
     // runs dir doesn't exist
   }
 
-  return runs.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  return runs.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
 }
 
 export async function switchRun(runId: string): Promise<void> {
   if (!(await fileExists(getRunMetaFile(runId)))) {
-    throw new RunNotFoundError(runId);
+    throw new RunNotFoundError(runId)
   }
-  await setCurrentRunId(runId);
+  await setCurrentRunId(runId)
 }
 
 export async function getGraphForRun(runId: string): Promise<string | null> {
-  const meta = await readJSON<RunInfo>(getRunMetaFile(runId));
-  return meta.graphName ?? null;
+  const meta = await readJSON<RunInfo>(getRunMetaFile(runId))
+  return meta.graphName ?? null
 }
 
 export async function resolveRunId(runId?: string): Promise<string> {
-  if (runId) return runId;
-  return resolveCurrentRunId();
+  if (runId) return runId
+  return resolveCurrentRunId()
 }
 
 export async function showRun(
-  runId: string
+  runId: string,
 ): Promise<RunInfo & { taskCount: number; completedTasks: number }> {
-  const metaFile = getRunMetaFile(runId);
+  const metaFile = getRunMetaFile(runId)
   if (!(await fileExists(metaFile))) {
-    throw new RunNotFoundError(runId);
+    throw new RunNotFoundError(runId)
   }
 
-  const info = await readJSON<RunInfo>(metaFile);
+  const info = await readJSON<RunInfo>(metaFile)
 
-  let taskCount = 0;
-  let completedTasks = 0;
+  let taskCount = 0
+  let completedTasks = 0
 
   try {
-    const currentStep = await workflowService.getCurrentStep(runId);
-    taskCount = currentStep.tasks.length;
+    const currentStep = await workflowService.getCurrentStep(runId)
+    taskCount = currentStep.tasks.length
     completedTasks = currentStep.tasks.filter(
-      (t) => t.status === "success" || t.status === "skipped"
-    ).length;
+      (t) => t.status === 'success' || t.status === 'skipped',
+    ).length
   } catch {
     // workflow not initialized
   }
 
-  return { ...info, taskCount, completedTasks };
+  return { ...info, taskCount, completedTasks }
 }

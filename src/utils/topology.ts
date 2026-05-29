@@ -1,17 +1,17 @@
-import type { Edge } from "../models/graph.js";
+import type { Edge } from '../models/graph.js'
 
 /**
  * Build forward adjacency map: from -> [to, ...]
  * Represents dependency direction: from depends on to
  */
 export function buildAdjacencyMap(edges: Edge[]): Map<string, string[]> {
-  const adj = new Map<string, string[]>();
+  const adj = new Map<string, string[]>()
   for (const edge of edges) {
-    const neighbors = adj.get(edge.from) ?? [];
-    neighbors.push(edge.to);
-    adj.set(edge.from, neighbors);
+    const neighbors = adj.get(edge.from) ?? []
+    neighbors.push(edge.to)
+    adj.set(edge.from, neighbors)
   }
-  return adj;
+  return adj
 }
 
 /**
@@ -19,54 +19,54 @@ export function buildAdjacencyMap(edges: Edge[]): Map<string, string[]> {
  * Represents influence direction: who depends on to
  */
 export function buildReverseAdjacencyMap(edges: Edge[]): Map<string, string[]> {
-  const adj = new Map<string, string[]>();
+  const adj = new Map<string, string[]>()
   for (const edge of edges) {
-    const neighbors = adj.get(edge.to) ?? [];
-    neighbors.push(edge.from);
-    adj.set(edge.to, neighbors);
+    const neighbors = adj.get(edge.to) ?? []
+    neighbors.push(edge.from)
+    adj.set(edge.to, neighbors)
   }
-  return adj;
+  return adj
 }
 
 /**
  * Detect whether the edge list contains a cycle (DFS three-color marking).
  */
 export function hasCycle(edges: Edge[]): boolean {
-  const adj = buildAdjacencyMap(edges);
-  const allNodes = new Set<string>();
+  const adj = buildAdjacencyMap(edges)
+  const allNodes = new Set<string>()
   for (const edge of edges) {
-    allNodes.add(edge.from);
-    allNodes.add(edge.to);
+    allNodes.add(edge.from)
+    allNodes.add(edge.to)
   }
 
-  const WHITE = 0;
-  const GRAY = 1;
-  const BLACK = 2;
-  const color = new Map<string, number>();
+  const WHITE = 0
+  const GRAY = 1
+  const BLACK = 2
+  const color = new Map<string, number>()
   for (const node of allNodes) {
-    color.set(node, WHITE);
+    color.set(node, WHITE)
   }
 
   function dfs(node: string): boolean {
-    color.set(node, GRAY);
-    const neighbors = adj.get(node) ?? [];
+    color.set(node, GRAY)
+    const neighbors = adj.get(node) ?? []
     for (const neighbor of neighbors) {
-      if (!color.has(neighbor)) continue;
-      const c = color.get(neighbor)!;
-      if (c === GRAY) return true;
-      if (c === WHITE && dfs(neighbor)) return true;
+      if (!color.has(neighbor)) continue
+      const c = color.get(neighbor)!
+      if (c === GRAY) return true
+      if (c === WHITE && dfs(neighbor)) return true
     }
-    color.set(node, BLACK);
-    return false;
+    color.set(node, BLACK)
+    return false
   }
 
   for (const node of allNodes) {
     if (color.get(node) === WHITE) {
-      if (dfs(node)) return true;
+      if (dfs(node)) return true
     }
   }
 
-  return false;
+  return false
 }
 
 /**
@@ -77,19 +77,19 @@ export function hasCycle(edges: Edge[]): boolean {
 export function areDepsSatisfied(
   nodeName: string,
   edges: Edge[],
-  states: Record<string, string>
+  states: Record<string, string>,
 ): boolean {
-  const deps = edges.filter((e) => e.from === nodeName);
-  if (deps.length === 0) return true;
+  const deps = edges.filter((e) => e.from === nodeName)
+  if (deps.length === 0) return true
 
   return deps.every((edge) => {
-    const expect = edge.expect ?? "success";
-    const depState = states[edge.to];
-    if (depState === expect) return true;
+    const expect = edge.expect ?? 'success'
+    const depState = states[edge.to]
+    if (depState === expect) return true
     // skipped is equivalent to success
-    if (expect === "success" && depState === "skipped") return true;
-    return false;
-  });
+    if (expect === 'success' && depState === 'skipped') return true
+    return false
+  })
 }
 
 /**
@@ -97,7 +97,7 @@ export function areDepsSatisfied(
  * from depends on to, so nodeName's upstreams are the to values of edges[from === nodeName].
  */
 export function collectUpstream(nodeName: string, edges: Edge[]): string[] {
-  return edges.filter((e) => e.from === nodeName).map((e) => e.to);
+  return edges.filter((e) => e.from === nodeName).map((e) => e.to)
 }
 
 /**
@@ -105,7 +105,7 @@ export function collectUpstream(nodeName: string, edges: Edge[]): string[] {
  * to is depended on, so nodeName's downstreams are the from values of edges[to === nodeName].
  */
 export function collectDownstream(nodeName: string, edges: Edge[]): string[] {
-  return edges.filter((e) => e.to === nodeName).map((e) => e.from);
+  return edges.filter((e) => e.to === nodeName).map((e) => e.from)
 }
 
 /**
@@ -113,87 +113,84 @@ export function collectDownstream(nodeName: string, edges: Edge[]): string[] {
  */
 export function findMissingTargets(
   edges: Edge[],
-  nodeNames: Set<string>
-): { edge: Edge; side: "from" | "to" }[] {
-  const missing: { edge: Edge; side: "from" | "to" }[] = [];
+  nodeNames: Set<string>,
+): { edge: Edge; side: 'from' | 'to' }[] {
+  const missing: { edge: Edge; side: 'from' | 'to' }[] = []
   for (const edge of edges) {
-    if (!nodeNames.has(edge.from)) missing.push({ edge, side: "from" });
-    if (!nodeNames.has(edge.to)) missing.push({ edge, side: "to" });
+    if (!nodeNames.has(edge.from)) missing.push({ edge, side: 'from' })
+    if (!nodeNames.has(edge.to)) missing.push({ edge, side: 'to' })
   }
-  return missing;
+  return missing
 }
 
 /**
  * Find orphan nodes (not connected to any edge).
  */
-export function findOrphanNodes(
-  edges: Edge[],
-  nodeNames: Set<string>
-): string[] {
-  const connected = new Set<string>();
+export function findOrphanNodes(edges: Edge[], nodeNames: Set<string>): string[] {
+  const connected = new Set<string>()
   for (const edge of edges) {
-    connected.add(edge.from);
-    connected.add(edge.to);
+    connected.add(edge.from)
+    connected.add(edge.to)
   }
-  return [...nodeNames].filter((name) => !connected.has(name));
+  return [...nodeNames].filter((name) => !connected.has(name))
 }
 
 /**
  * Find cycle paths (used for error messages).
  */
 export function findCyclePaths(edges: Edge[]): string[][] {
-  const adj = buildAdjacencyMap(edges);
-  const allNodes = new Set<string>();
+  const adj = buildAdjacencyMap(edges)
+  const allNodes = new Set<string>()
   for (const edge of edges) {
-    allNodes.add(edge.from);
-    allNodes.add(edge.to);
+    allNodes.add(edge.from)
+    allNodes.add(edge.to)
   }
 
-  const WHITE = 0;
-  const GRAY = 1;
-  const BLACK = 2;
-  const color = new Map<string, number>();
+  const WHITE = 0
+  const GRAY = 1
+  const BLACK = 2
+  const color = new Map<string, number>()
   for (const node of allNodes) {
-    color.set(node, WHITE);
+    color.set(node, WHITE)
   }
 
-  const cycles: string[][] = [];
-  const path: string[] = [];
+  const cycles: string[][] = []
+  const path: string[] = []
 
   function dfs(node: string): boolean {
-    color.set(node, GRAY);
-    path.push(node);
+    color.set(node, GRAY)
+    path.push(node)
 
-    const neighbors = adj.get(node) ?? [];
+    const neighbors = adj.get(node) ?? []
     for (const neighbor of neighbors) {
-      if (!color.has(neighbor)) continue;
-      const c = color.get(neighbor)!;
+      if (!color.has(neighbor)) continue
+      const c = color.get(neighbor)!
       if (c === GRAY) {
-        const cycleStart = path.indexOf(neighbor);
-        cycles.push(path.slice(cycleStart));
-        path.pop();
-        color.set(node, BLACK);
-        return true;
+        const cycleStart = path.indexOf(neighbor)
+        cycles.push(path.slice(cycleStart))
+        path.pop()
+        color.set(node, BLACK)
+        return true
       }
       if (c === WHITE && dfs(neighbor)) {
-        path.pop();
-        color.set(node, BLACK);
-        return true;
+        path.pop()
+        color.set(node, BLACK)
+        return true
       }
     }
 
-    path.pop();
-    color.set(node, BLACK);
-    return false;
+    path.pop()
+    color.set(node, BLACK)
+    return false
   }
 
   for (const node of allNodes) {
     if (color.get(node) === WHITE) {
-      dfs(node);
+      dfs(node)
     }
   }
 
-  return cycles;
+  return cycles
 }
 
 /**
@@ -203,60 +200,58 @@ export function findCyclePaths(edges: Edge[]): string[][] {
  */
 export function computeTopologicalLayers(
   edges: Edge[],
-  nodeNames: string[]
+  nodeNames: string[],
 ): Map<number, string[]> {
-  if (nodeNames.length === 0) return new Map();
+  if (nodeNames.length === 0) return new Map()
 
   // Compute in-degree (dependency count) for each node
-  const inDegree = new Map<string, number>();
+  const inDegree = new Map<string, number>()
   for (const name of nodeNames) {
-    inDegree.set(name, 0);
+    inDegree.set(name, 0)
   }
   for (const edge of edges) {
     // edge.from depends on edge.to, so from has an in-degree
     if (inDegree.has(edge.from)) {
-      inDegree.set(edge.from, inDegree.get(edge.from)! + 1);
+      inDegree.set(edge.from, inDegree.get(edge.from)! + 1)
     }
   }
 
   // Reverse adjacency map: to -> [from, ...] (who depends on to)
-  const reverseAdj = new Map<string, string[]>();
+  const reverseAdj = new Map<string, string[]>()
   for (const edge of edges) {
-    const dependents = reverseAdj.get(edge.to) ?? [];
-    dependents.push(edge.from);
-    reverseAdj.set(edge.to, dependents);
+    const dependents = reverseAdj.get(edge.to) ?? []
+    dependents.push(edge.from)
+    reverseAdj.set(edge.to, dependents)
   }
 
-  const layers = new Map<number, string[]>();
-  let currentLayer = [...inDegree.entries()]
-    .filter(([, deg]) => deg === 0)
-    .map(([name]) => name);
+  const layers = new Map<number, string[]>()
+  let currentLayer = [...inDegree.entries()].filter(([, deg]) => deg === 0).map(([name]) => name)
 
-  let layerIndex = 0;
-  const assigned = new Set<string>();
+  let layerIndex = 0
+  const assigned = new Set<string>()
 
   while (currentLayer.length > 0) {
-    layers.set(layerIndex, currentLayer);
+    layers.set(layerIndex, currentLayer)
     for (const name of currentLayer) {
-      assigned.add(name);
+      assigned.add(name)
     }
 
-    const nextLayer: string[] = [];
+    const nextLayer: string[] = []
     for (const name of currentLayer) {
-      const dependents = reverseAdj.get(name) ?? [];
+      const dependents = reverseAdj.get(name) ?? []
       for (const dep of dependents) {
-        if (assigned.has(dep)) continue;
-        const deg = inDegree.get(dep)! - 1;
-        inDegree.set(dep, deg);
+        if (assigned.has(dep)) continue
+        const deg = inDegree.get(dep)! - 1
+        inDegree.set(dep, deg)
         if (deg === 0 && !assigned.has(dep)) {
-          nextLayer.push(dep);
+          nextLayer.push(dep)
         }
       }
     }
 
-    currentLayer = nextLayer;
-    layerIndex++;
+    currentLayer = nextLayer
+    layerIndex++
   }
 
-  return layers;
+  return layers
 }

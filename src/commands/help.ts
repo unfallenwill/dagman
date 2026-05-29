@@ -1,22 +1,22 @@
-import type { Command } from "commander";
-import { readFileSync } from "fs";
-import * as path from "path";
-import { CliError } from "../errors.js";
+import type { Command } from 'commander'
+import { readFileSync } from 'fs'
+import * as path from 'path'
+import { CliError } from '../errors.js'
 
 function getVersion(): string {
   try {
     // Search upward from script directory for package.json (dist/commands/help.js -> package.json)
-    const pkgPath = path.resolve(__dirname, "../../package.json");
-    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
-    return pkg.version ?? "0.0.0";
+    const pkgPath = path.resolve(__dirname, '../../package.json')
+    const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'))
+    return pkg.version ?? '0.0.0'
   } catch {
     // Fallback to cwd
     try {
-      const pkgPath = path.resolve("package.json");
-      const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
-      return pkg.version ?? "0.0.0";
+      const pkgPath = path.resolve('package.json')
+      const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'))
+      return pkg.version ?? '0.0.0'
     } catch {
-      return "0.0.0";
+      return '0.0.0'
     }
   }
 }
@@ -68,81 +68,81 @@ Node instructions support Handlebars templates to reference upstream outputs:
 ━━━ More Help ━━━
 
   dagman <command> --help    Show subcommand usage
-`;
+`
 }
 
 /** Dynamic command reference — generated from registered Commander commands. */
 function buildCommandReference(program: Command): string {
-  const groups: Record<string, Array<{ usage: string; summary: string }>> = {};
+  const groups: Record<string, Array<{ usage: string; summary: string }>> = {}
 
   // Categorize commands into groups
-  const workflowCommands = ["ls", "show", "compile", "graph"];
-  const executionCommands = ["start", "ps"];
-  const schedulingCommands = ["next", "task"];
+  const workflowCommands = ['ls', 'show', 'compile', 'graph']
+  const executionCommands = ['start', 'ps']
+  const schedulingCommands = ['next', 'task']
 
   for (const cmd of program.commands) {
-    const cmdName = cmd.name();
-    if (cmdName === "help") continue;
+    const cmdName = cmd.name()
+    if (cmdName === 'help') continue
 
-    let category: string;
+    let category: string
     if (workflowCommands.includes(cmdName)) {
-      category = "Workflow";
+      category = 'Workflow'
     } else if (executionCommands.includes(cmdName)) {
-      category = "Execution";
+      category = 'Execution'
     } else if (schedulingCommands.includes(cmdName)) {
-      category = "Scheduling (core)";
+      category = 'Scheduling (core)'
     } else {
-      category = "Data";
+      category = 'Data'
     }
 
-    if (!groups[category]) {
-      groups[category] = [];
-    }
+    groups[category] ??= []
 
-    const args = cmd.usage().replace(cmdName, "").trim();
-    const usage = `${cmdName}${args ? " " + args : ""}`;
-    const summary = cmd.summary() || cmd.description().split("\n")[0];
-    groups[category].push({ usage: usage.padEnd(32), summary });
+    const args = cmd.usage().replace(cmdName, '').trim()
+    const usage = `${cmdName}${args ? ' ' + args : ''}`
+    const summary = cmd.summary() || (cmd.description().split('\n')[0] ?? '')
+    groups[category]!.push({ usage: usage.padEnd(32), summary })
   }
 
-  const categoryOrder = ["Workflow", "Execution", "Scheduling (core)", "Data"];
-  const lines: string[] = ["━━━ Command Reference ━━━\n"];
+  const categoryOrder = ['Workflow', 'Execution', 'Scheduling (core)', 'Data']
+  const lines: string[] = ['━━━ Command Reference ━━━\n']
 
   for (const category of categoryOrder) {
-    const items = groups[category];
-    if (!items || items.length === 0) continue;
-    lines.push(`${category}:`);
+    const items = groups[category]
+    if (!items || items.length === 0) continue
+    lines.push(`${category}:`)
     for (const item of items) {
-      lines.push(`  ${item.usage}${item.summary}`);
+      lines.push(`  ${item.usage}${item.summary}`)
     }
-    lines.push("");
+    lines.push('')
   }
 
-  return lines.join("\n");
+  return lines.join('\n')
 }
 
 export function registerHelpCommand(program: Command): void {
-  program.description("DAG-based agent task orchestration CLI").version(getVersion());
+  program.description('DAG-based agent task orchestration CLI').version(getVersion())
 
   program
-    .command("help [subcommand]")
-    .summary("Show usage guide or subcommand help")
-    .description(`Show the full usage guide, or detailed help for a specific subcommand.
+    .command('help [subcommand]')
+    .summary('Show usage guide or subcommand help')
+    .description(
+      `Show the full usage guide, or detailed help for a specific subcommand.
 
 Without arguments, displays the complete guide including core concepts,
 workflow, and command reference.
-With a subcommand name, shows man page style help for that command.`)
+With a subcommand name, shows man page style help for that command.`,
+    )
     .action((subcommand?: string) => {
       if (subcommand) {
-        const cmd = program.commands.find((c) => c.name() === subcommand);
+        const cmd = program.commands.find((c) => c.name() === subcommand)
         if (cmd) {
-          cmd.outputHelp();
+          cmd.outputHelp()
         } else {
-          throw new CliError(`Unknown command: ${subcommand}`);
+          throw new CliError(`Unknown command: ${subcommand}`)
         }
       } else {
-        console.log(buildOverview(getVersion()));
-        console.log(buildCommandReference(program));
+        console.log(buildOverview(getVersion()))
+        console.log(buildCommandReference(program))
       }
-    });
+    })
 }

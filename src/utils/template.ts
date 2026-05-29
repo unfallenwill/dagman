@@ -1,4 +1,4 @@
-import Handlebars from "handlebars";
+import Handlebars from 'handlebars'
 
 /**
  * Variable reference format:
@@ -9,66 +9,66 @@ import Handlebars from "handlebars";
 
 export interface VarRef {
   /** Expression, e.g. "global.key" */
-  expr: string;
+  expr: string
   /** Source type */
-  source: "global" | "node" | "self";
+  source: 'global' | 'node' | 'self'
   /** Node name (only set when source=node) */
-  nodeName?: string;
+  nodeName?: string
   /** Key name */
-  key: string;
+  key: string
 }
 
-type ASTNode = {
-  type: string;
-  [key: string]: unknown;
-  body?: ASTNode[];
-  program?: ASTNode;
-  inverse?: ASTNode;
-};
+interface ASTNode {
+  type: string
+  [key: string]: unknown
+  body?: ASTNode[]
+  program?: ASTNode
+  inverse?: ASTNode
+}
 
 /**
  * Extract all variable references from text.
  */
 export function extractVarRefs(text: string): VarRef[] {
-  const refs: VarRef[] = [];
-  const seen = new Set<string>();
+  const refs: VarRef[] = []
+  const seen = new Set<string>()
 
-  const ast = Handlebars.parse(text) as unknown as ASTNode;
-  collectRefs(ast, refs, seen);
+  const ast = Handlebars.parse(text) as unknown as ASTNode
+  collectRefs(ast, refs, seen)
 
-  return refs;
+  return refs
 }
 
 function collectRefs(node: ASTNode, refs: VarRef[], seen: Set<string>): void {
   if (
-    node.type === "MustacheStatement" &&
-    "path" in node &&
-    typeof node.path === "object" &&
+    node.type === 'MustacheStatement' &&
+    'path' in node &&
+    typeof node.path === 'object' &&
     node.path !== null &&
-    "type" in (node.path as ASTNode) &&
-    (node.path as ASTNode).type === "PathExpression" &&
-    "original" in (node.path as ASTNode)
+    'type' in (node.path as ASTNode) &&
+    (node.path as ASTNode).type === 'PathExpression' &&
+    'original' in (node.path as ASTNode)
   ) {
-    const expr = (node.path as ASTNode & { original: string }).original;
-    if (seen.has(expr)) return;
-    seen.add(expr);
+    const expr = (node.path as ASTNode & { original: string }).original
+    if (seen.has(expr)) return
+    seen.add(expr)
 
-    const ref = parseVarExpr(expr);
-    if (ref) refs.push(ref);
+    const ref = parseVarExpr(expr)
+    if (ref) refs.push(ref)
   }
 
   if (Array.isArray(node.body)) {
     for (const child of node.body) {
-      collectRefs(child, refs, seen);
+      collectRefs(child, refs, seen)
     }
   }
 
   if (node.program) {
-    collectRefs(node.program, refs, seen);
+    collectRefs(node.program, refs, seen)
   }
 
   if (node.inverse) {
-    collectRefs(node.inverse, refs, seen);
+    collectRefs(node.inverse, refs, seen)
   }
 }
 
@@ -76,7 +76,7 @@ function collectRefs(node: ASTNode, refs: VarRef[], seen: Set<string>): void {
  * Check whether the text contains any variable references.
  */
 export function hasVarRefs(text: string): boolean {
-  return extractVarRefs(text).length > 0;
+  return extractVarRefs(text).length > 0
 }
 
 /**
@@ -86,47 +86,47 @@ export function hasVarRefs(text: string): boolean {
 export function renderTemplate(
   text: string,
   resolver: (
-    source: "global" | "node" | "self",
+    source: 'global' | 'node' | 'self',
     key: string,
-    nodeName?: string
-  ) => string | undefined
+    nodeName?: string,
+  ) => string | undefined,
 ): { text: string; missing: string[] } {
-  const refs = extractVarRefs(text);
-  if (refs.length === 0) return { text, missing: [] };
+  const refs = extractVarRefs(text)
+  if (refs.length === 0) return { text, missing: [] }
 
-  const missing: string[] = [];
-  let result = text;
+  const missing: string[] = []
+  let result = text
 
   // Sort by expression length descending to avoid short expressions matching substrings of longer ones
-  const sorted = [...refs].sort((a, b) => b.expr.length - a.expr.length);
+  const sorted = [...refs].sort((a, b) => b.expr.length - a.expr.length)
 
   for (const ref of sorted) {
-    const value = resolver(ref.source, ref.key, ref.nodeName);
-    const tag = `{{${ref.expr}}}`;
+    const value = resolver(ref.source, ref.key, ref.nodeName)
+    const tag = `{{${ref.expr}}}`
     if (value === undefined) {
-      missing.push(tag);
+      missing.push(tag)
     } else {
-      result = result.split(tag).join(value);
+      result = result.split(tag).join(value)
     }
   }
 
-  return { text: result, missing };
+  return { text: result, missing }
 }
 
 function parseVarExpr(expr: string): VarRef | null {
-  const dotIndex = expr.indexOf(".");
+  const dotIndex = expr.indexOf('.')
   if (dotIndex === -1) {
-    if (!expr) return null;
-    return { expr, source: "self", key: expr };
+    if (!expr) return null
+    return { expr, source: 'self', key: expr }
   }
 
-  const namespace = expr.slice(0, dotIndex);
-  const key = expr.slice(dotIndex + 1);
-  if (!key) return null;
+  const namespace = expr.slice(0, dotIndex)
+  const key = expr.slice(dotIndex + 1)
+  if (!key) return null
 
-  if (namespace === "global") {
-    return { expr, source: "global", key };
+  if (namespace === 'global') {
+    return { expr, source: 'global', key }
   }
 
-  return { expr, source: "node", nodeName: namespace, key };
+  return { expr, source: 'node', nodeName: namespace, key }
 }

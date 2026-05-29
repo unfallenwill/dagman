@@ -1,12 +1,12 @@
-import { randomBytes } from "crypto";
+import { randomBytes } from 'crypto'
 
 /**
  * Generate instance ID: <workflowName>@<8-char-hex>
  * @example generateInstanceId("demo") → "demo@1a2b3c4d"
  */
 export function generateInstanceId(workflowName: string): string {
-  const suffix = randomBytes(4).toString("hex");
-  return `${workflowName}@${suffix}`;
+  const suffix = randomBytes(4).toString('hex')
+  return `${workflowName}@${suffix}`
 }
 
 /**
@@ -14,14 +14,14 @@ export function generateInstanceId(workflowName: string): string {
  * @throws {Error} if ID is invalid (missing @)
  */
 export function parseInstanceId(id: string): {
-  workflowName: string;
-  suffix: string;
+  workflowName: string
+  suffix: string
 } {
-  const idx = id.indexOf("@");
+  const idx = id.indexOf('@')
   if (idx === -1) {
-    throw new Error(`invalid instance ID: ${id}`);
+    throw new Error(`invalid instance ID: ${id}`)
   }
-  return { workflowName: id.slice(0, idx), suffix: id.slice(idx + 1) };
+  return { workflowName: id.slice(0, idx), suffix: id.slice(idx + 1) }
 }
 
 /**
@@ -30,12 +30,12 @@ export function parseInstanceId(id: string): {
  * @example parseNodeRef("classify@abc123") → { nodeName: "classify", instanceSuffix: "abc123" }
  */
 export function parseNodeRef(ref: string): {
-  nodeName: string;
-  instanceSuffix: string;
+  nodeName: string
+  instanceSuffix: string
 } {
-  const idx = ref.lastIndexOf("@");
+  const idx = ref.lastIndexOf('@')
   if (idx === -1) {
-    throw new Error(`invalid node reference: ${ref}`);
+    throw new Error(`invalid node reference: ${ref}`)
   }
-  return { nodeName: ref.slice(0, idx), instanceSuffix: ref.slice(idx + 1) };
+  return { nodeName: ref.slice(0, idx), instanceSuffix: ref.slice(idx + 1) }
 }

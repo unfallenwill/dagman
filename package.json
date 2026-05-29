@@ -23,8 +23,21 @@
     "build": "tsc",
     "dev": "tsx bin/dagman.ts",
     "test": "vitest",
+    "lint": "eslint src bin tests",
+    "lint:fix": "eslint src bin tests --fix",
     "lint:deps": "depcruise src bin",
-    "prepublishOnly": "npm run build"
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write 'src/**/*.ts' 'bin/**/*.ts' 'tests/**/*.ts'",
+    "format:check": "prettier --check 'src/**/*.ts' 'bin/**/*.ts' 'tests/**/*.ts'",
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm run lint:deps",
+    "prepublishOnly": "npm run build",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ]
   },
   "files": [
     "dist"
@@ -43,8 +56,14 @@
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^25.6.0",
     "dependency-cruiser": "^17.4.2",
+    "eslint": "^10.4.0",
+    "eslint-config-prettier": "^10.1.8",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.5",
+    "prettier": "^3.8.3",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
+    "typescript-eslint": "^8.60.0",
     "vitest": "^4.1.7"
   }
 }
