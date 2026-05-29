@@ -12,10 +12,20 @@ import { registerShowCommand } from '../../src/commands/show.js'
 import { registerGraphCommand } from '../../src/commands/graph.js'
 import { registerCompileCommand } from '../../src/commands/compile.js'
 import * as runService from '../../src/runtime/run.js'
-import * as eventService from '../../src/runtime/event.js'
 import { CliError } from '../../src/errors.js'
 
 const TMP_DIR = path.join(os.tmpdir(), `dagman-cmd-ext-test-${Date.now()}`)
+
+async function writeTestEvent(
+  node: string,
+  from: string,
+  to: string,
+  runId: string,
+): Promise<void> {
+  const event = { timestamp: new Date().toISOString(), node, from, to }
+  const eventsFile = path.join('.dagman/runs', runId, 'events.jsonl')
+  await fs.appendFile(eventsFile, JSON.stringify(event) + '\n', 'utf-8')
+}
 
 let originalCwd: string
 let logSpy: ReturnType<typeof vi.spyOn>
@@ -253,8 +263,8 @@ describe('log command', () => {
     const info = await runService.createRun(undefined, 'log-events', true)
 
     // Add events
-    await eventService.appendEvent('node-a', 'ready', 'running', info.id)
-    await eventService.appendEvent('node-a', 'running', 'success', info.id)
+    await writeTestEvent('node-a', 'ready', 'running', info.id)
+    await writeTestEvent('node-a', 'running', 'success', info.id)
 
     const program = createProgram(registerLogCommand)
     await program.parseAsync(['node', 'dagman', 'log', '--run', info.id])
@@ -275,7 +285,7 @@ describe('log command', () => {
       [],
     )
     const info = await runService.createRun(undefined, 'log-json', true)
-    await eventService.appendEvent('node-a', 'ready', 'running', info.id)
+    await writeTestEvent('node-a', 'ready', 'running', info.id)
 
     const program = createProgram(registerLogCommand)
     await program.parseAsync(['node', 'dagman', 'log', '--run', info.id, '--json'])
@@ -299,8 +309,8 @@ describe('log command', () => {
     )
     const info = await runService.createRun(undefined, 'log-filter', true)
 
-    await eventService.appendEvent('node-a', 'ready', 'running', info.id)
-    await eventService.appendEvent('node-b', 'ready', 'running', info.id)
+    await writeTestEvent('node-a', 'ready', 'running', info.id)
+    await writeTestEvent('node-b', 'ready', 'running', info.id)
 
     const program = createProgram(registerLogCommand)
     await program.parseAsync(['node', 'dagman', 'log', 'node-a', '--run', info.id, '--json'])
@@ -318,7 +328,7 @@ describe('log command', () => {
       [],
     )
     const info = await runService.createRun(undefined, 'log-nofilter', true)
-    await eventService.appendEvent('node-a', 'ready', 'running', info.id)
+    await writeTestEvent('node-a', 'ready', 'running', info.id)
 
     const program = createProgram(registerLogCommand)
     await program.parseAsync(['node', 'dagman', 'log', 'node-z', '--run', info.id])

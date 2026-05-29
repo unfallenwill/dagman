@@ -4,7 +4,6 @@
 export * from './workflow/workflow.js'
 export * from './scheduling/next.js'
 export * from './runtime/run.js'
-export * from './runtime/event.js'
 export * from './graph/graph.js'
 export * from './graph/validator.js'
 

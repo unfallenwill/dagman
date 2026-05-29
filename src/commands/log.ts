@@ -1,5 +1,5 @@
 import type { Command } from 'commander'
-import * as eventService from '../runtime/event.js'
+import { FsEventRepository } from '../runtime/repository-fs.js'
 import { resolveCurrentRunId } from '../runtime/run.js'
 import { RunNotFoundError } from '../errors.js'
 import { getRunMetaFile } from '../constants.js'
@@ -44,7 +44,8 @@ to events for a specific node.`)
           throw new RunNotFoundError(runId)
         }
 
-        const events = await eventService.readEvents(runId)
+        const eventRepo = new FsEventRepository()
+        const events = await eventRepo.readEvents(runId)
         const filtered = node ? events.filter((e) => e.node === node) : events
 
         if (options?.json) {
