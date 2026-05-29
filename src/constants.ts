@@ -2,6 +2,7 @@ export const DAGMAN_DIR = ".dagman";
 export const NODES_DIR = ".dagman/nodes";
 export const GRAPHS_DIR = ".dagman/graphs";
 export const RUNS_DIR = ".dagman/runs";
+export const WORKFLOWS_DIR = ".dagman/workflows";
 export const CURRENT_RUN_FILE = ".dagman/.current-run";
 export const DEFAULT_RUN_ID = "default";
 
@@ -18,7 +19,7 @@ export function getRunMetaFile(runId: string): string {
   return `${RUNS_DIR}/${runId}/run.json`;
 }
 
-export function getWorkflowFile(runId: string): string {
+export function getWorkflowJsonlFile(runId: string): string {
   return `${RUNS_DIR}/${runId}/workflow.jsonl`;
 }
 
@@ -33,4 +34,17 @@ export function getContextDir(runId: string): string {
 
 export function getEventsFile(runId: string): string {
   return `${RUNS_DIR}/${runId}/events.jsonl`;
+}
+
+// Workflow path resolvers
+export function getWorkflowDir(name: string): string {
+  return `${WORKFLOWS_DIR}/${name}`;
+}
+
+export function getWorkflowTsFile(name: string): string {
+  return `${WORKFLOWS_DIR}/${name}/${name}.ts`;
+}
+
+export function getWorkflowManifest(name: string): string {
+  return `${WORKFLOWS_DIR}/${name}/manifest.yaml`;
 }

@@ -22,7 +22,10 @@ module.exports = {
       severity: "error",
       comment: "Production code must not use devDependencies",
       from: { path: "^src/" },
-      to: { dependencyTypes: ["npm-dev"] },
+      to: {
+        dependencyTypes: ["npm-dev"],
+        pathNot: ["tsx"],
+      },
     },
 
     // === Command Layer ===
@@ -39,12 +42,12 @@ module.exports = {
       name: "commands-only-to-domain-and-shared",
       severity: "error",
       comment:
-        "Commands should only import from domain modules, models, utils, and shared files",
+        "Commands should only import from domain modules, compiler, models, utils, and shared files",
       from: { path: "^src/commands/" },
       to: {
         path: "^src/",
         pathNot: [
-          "^src/(workflow|scheduling|runtime|graph|io)/",
+          "^src/(workflow|scheduling|runtime|graph|io|compiler)/",
           "^src/models/",
           "^src/utils/",
           "^src/constants\\.ts$",
@@ -56,6 +59,24 @@ module.exports = {
     },
 
     // === Domain Layer Rules (inner = more foundational) ===
+
+    {
+      name: "compiler-only-to-graph-and-shared",
+      severity: "error",
+      comment: "compiler/ should only import from graph/, models/, utils/, constants, errors",
+      from: { path: "^src/compiler/" },
+      to: {
+        path: "^src/",
+        pathNot: [
+          "^src/graph/",
+          "^src/models/",
+          "^src/utils/",
+          "^src/constants\\.ts$",
+          "^src/errors\\.ts$",
+          "^src/compiler/",
+        ],
+      },
+    },
 
     {
       name: "graph-no-upward-deps",
@@ -157,7 +178,7 @@ module.exports = {
       from: { path: "^src/models/" },
       to: {
         path: [
-          "^src/(workflow|scheduling|runtime|graph|io|commands)/",
+          "^src/(workflow|scheduling|runtime|graph|io|commands|compiler)/",
         ],
       },
     },
@@ -169,7 +190,21 @@ module.exports = {
       from: { path: "^src/utils/" },
       to: {
         path: [
-          "^src/(workflow|scheduling|runtime|graph|io|commands)/",
+          "^src/(workflow|scheduling|runtime|graph|io|commands|compiler)/",
+        ],
+      },
+    },
+
+    {
+      name: "api-no-domain-deps",
+      severity: "error",
+      comment: "API is pure builder — only models and internal types",
+      from: { path: "^src/api/" },
+      to: {
+        path: "^src/",
+        pathNot: [
+          "^src/models/",
+          "^src/api/",
         ],
       },
     },

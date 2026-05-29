@@ -3,6 +3,16 @@
   "version": "1.0.2",
   "description": "dagman - DAG-based agent task orchestration CLI",
   "main": "dist/index.js",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./api": {
+      "import": "./dist/api/index.js",
+      "types": "./dist/api/index.d.ts"
+    }
+  },
   "bin": {
     "dagman": "dist/bin/dagman.js"
   },

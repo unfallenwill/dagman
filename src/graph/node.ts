@@ -32,8 +32,13 @@ export async function removeNode(name: string): Promise<void> {
 export async function getNode(name: string): Promise<Node> {
   const filePath = `${NODES_DIR}/${name}.yaml`;
   const data = await readYAML<Record<string, unknown>>(filePath);
-  const { kind, ...nodeData } = data;
-  return nodeData as unknown as Node;
+  const { kind: yamlKind, ...rest } = data;
+  // yamlKind is "Node" for hand-created nodes (YAML discriminator),
+  // or "user"/"collect"/"cond"/"fanout" for compiled nodes (real kind field)
+  if (yamlKind && yamlKind !== "Node") {
+    return { ...rest, kind: yamlKind as Node["kind"] } as unknown as Node;
+  }
+  return rest as unknown as Node;
 }
 
 export async function listNodes(): Promise<Node[]> {
@@ -42,8 +47,12 @@ export async function listNodes(): Promise<Node[]> {
   for (const file of files) {
     try {
       const data = await readYAML<Record<string, unknown>>(`${NODES_DIR}/${file}`);
-      const { kind, ...nodeData } = data;
-      nodes.push(nodeData as unknown as Node);
+      const { kind: yamlKind, ...rest } = data;
+      if (yamlKind && yamlKind !== "Node") {
+        nodes.push({ ...rest, kind: yamlKind as Node["kind"] } as unknown as Node);
+      } else {
+        nodes.push(rest as unknown as Node);
+      }
     } catch {
       // Skip if a single file fails to parse
     }

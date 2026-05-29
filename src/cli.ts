@@ -10,6 +10,8 @@ import { registerStepCommand } from "./commands/step.js";
 import { registerLogCommand } from "./commands/log.js";
 import { registerImportCommand } from "./commands/import.js";
 import { registerExportCommand } from "./commands/export.js";
+import { registerWorkflowCommand } from "./commands/workflow.js";
+import { registerCollectCommand } from "./commands/collect.js";
 import { getCommandMeta } from "./utils/command-meta.js";
 import { formatManHelp } from "./utils/format-help.js";
 
@@ -33,6 +35,8 @@ export function run(): void {
   registerLogCommand(program);
   registerImportCommand(program);
   registerExportCommand(program);
+  registerWorkflowCommand(program);
+  registerCollectCommand(program);
 
   // Attach man page style after-help to all commands that have metadata
   for (const cmd of program.commands) {

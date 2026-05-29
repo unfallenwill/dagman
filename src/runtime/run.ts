@@ -44,7 +44,13 @@ async function createRunInternal(
 
   // If bound to a graph, compute layers and initialize workflow
   if (graphName) {
-    const graph = await graphService.loadGraph(graphName);
+    // Try compiled JSON graph first (from TS workflow), fall back to YAML
+    let graph;
+    try {
+      graph = await graphService.loadCompiledGraph(graphName);
+    } catch {
+      graph = await graphService.loadGraph(graphName);
+    }
     const nodes = await nodeService.listNodes();
     const nodeNames = nodes.map((n) => n.name);
     const layers = computeTopologicalLayers(graph.edges, nodeNames);

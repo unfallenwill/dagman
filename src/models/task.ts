@@ -14,6 +14,8 @@ export const TERMINAL_STATUSES: readonly TaskStatus[] = [
   "skipped",
 ];
 
+export type TaskKind = "execution" | "collect" | "eval" | "dynamic";
+
 export interface Task {
   id: string;
   nodeId: string;
@@ -22,6 +24,14 @@ export interface Task {
   startedAt?: string;
   completedAt?: string;
   error?: string;
+  /** Task kind: execution (dagman runs fn), collect (agent collects), eval (condEdge), dynamic (fan-out) */
+  kind: TaskKind;
+  /** For collect/eval tasks: the parent node id */
+  parentNodeId?: string;
+  /** For dynamic tasks: index within fan-out batch */
+  fanOutIndex?: number;
+  /** For dynamic tasks: the fan-out parameter (item from fn result) */
+  fanOutParam?: unknown;
 }
 
 /** Generate a Task ID */
@@ -35,11 +45,22 @@ export function isTerminalStatus(status: TaskStatus): boolean {
 }
 
 /** Create an initial Task */
-export function createTask(nodeId: string, step: number): Task {
+export function createTask(
+  nodeId: string,
+  step: number,
+  kind: TaskKind = "execution",
+  parentNodeId?: string,
+  fanOutIndex?: number,
+  fanOutParam?: unknown,
+): Task {
   return {
     id: taskId(nodeId, step),
     nodeId,
     step,
     status: "ready",
+    kind,
+    parentNodeId,
+    fanOutIndex,
+    fanOutParam,
   };
 }

@@ -20,9 +20,14 @@ export * from "./models/superstep.js";
 export * from "./models/event.js";
 export * from "./models/context.js";
 export * from "./models/state.js";
+export * from "./models/workflow-def.js";
+
+// API builders
+export * from "./api/index.js";
 
 // Utilities
 export * from "./utils/run-resolver.js";
+export * from "./utils/state.js";
 
 // Shared
 export * from "./errors.js";

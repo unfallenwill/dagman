@@ -7,4 +7,8 @@ export interface Edge {
 export interface Graph {
   name: string;
   edges: Edge[];
+  /** StateGraph schema (Zod → JSON Schema), for TS-compiled workflows */
+  stateSchema?: Record<string, unknown>;
+  /** Corresponding workflow name in .dagman/workflows/<name>/ */
+  workflowName?: string;
 }

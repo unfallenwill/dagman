@@ -7,6 +7,7 @@ import {
   edgeChannelName,
   isNodeChannel,
   isGlobalChannel,
+  fanoutChannelName,
   GLOBAL_CHANNEL_PREFIX,
 } from "../models/channel.js";
 import type { Task, TaskStatus } from "../models/task.js";
@@ -18,7 +19,7 @@ import type {
   RunInfo,
 } from "../models/superstep.js";
 import type { Edge } from "../models/graph.js";
-import { getWorkflowFile } from "../constants.js";
+import { getWorkflowJsonlFile } from "../constants.js";
 import { ensureDir } from "../utils/file.js";
 import { computeTopologicalLayers } from "../utils/topology.js";
 import { appendEvent } from "../runtime/event.js";
@@ -34,7 +35,7 @@ async function resolveRun(runId?: string): Promise<string> {
 // ===== JSONL Read/Write =====
 
 async function readRecords(runId: string): Promise<WorkflowRecord[]> {
-  const filePath = getWorkflowFile(runId);
+  const filePath = getWorkflowJsonlFile(runId);
   try {
     const content = await fs.readFile(path.resolve(filePath), "utf-8");
     return content
@@ -54,7 +55,7 @@ async function appendRecord(
   record: WorkflowRecord,
   runId: string
 ): Promise<void> {
-  const filePath = getWorkflowFile(runId);
+  const filePath = getWorkflowJsonlFile(runId);
   await ensureDir(path.dirname(path.resolve(filePath)));
   const line = JSON.stringify(record) + "\n";
   await fs.appendFile(path.resolve(filePath), line, "utf-8");
@@ -203,7 +204,7 @@ export async function initEdgeChannels(
   if (records.length > 0) {
     records[0].channelChanges = { ...records[0].channelChanges, ...changes };
     // Rewrite the entire file
-    const filePath = getWorkflowFile(runId);
+    const filePath = getWorkflowJsonlFile(runId);
     const content = records.map((r) => JSON.stringify(r)).join("\n") + "\n";
     await fs.writeFile(path.resolve(filePath), content, "utf-8");
   }
@@ -578,9 +579,32 @@ async function tryAdvanceStep(runId: string): Promise<boolean> {
     return false;
   }
 
-  // Create next superstep
+  // Load current state to read fanout channels
+  const state = await loadState(runId);
+
+  // Create tasks, expanding fanout template nodes into dynamic tasks
   const now = new Date().toISOString();
-  const tasks = nextLayerNodes.map((nodeId) => createTask(nodeId, nextStep));
+  const tasks: Task[] = [];
+
+  for (const nodeId of nextLayerNodes) {
+    // Check if this node is a fanout template node by looking for upstream fanout channels
+    const fanoutItems = await getFanoutItemsForNode(nodeId, state.channels);
+
+    if (fanoutItems && fanoutItems.length > 0) {
+      // Dynamic task creation: one task per item
+      for (let i = 0; i < fanoutItems.length; i++) {
+        tasks.push({
+          ...createTask(nodeId, nextStep, "dynamic"),
+          id: `${nodeId}#${i}@step${nextStep}`,
+          fanOutIndex: i,
+          fanOutParam: fanoutItems[i],
+        });
+      }
+    } else {
+      // Normal task
+      tasks.push(createTask(nodeId, nextStep));
+    }
+  }
 
   const record: WorkflowRecord = {
     step: nextStep,
@@ -598,6 +622,30 @@ async function tryAdvanceStep(runId: string): Promise<boolean> {
   await writeJSON(getRunMetaFile(runId), runInfo);
 
   return true;
+}
+
+/**
+ * Check if a node is the template target of a fanout, and return the items.
+ * Returns null if this node is not a fanout template.
+ */
+export async function getFanoutItemsForNode(
+  nodeId: string,
+  channels: Record<string, Channel>,
+): Promise<any[] | null> {
+  // Look through all channels for fanout channels that target this node
+  for (const [name, ch] of Object.entries(channels)) {
+    if (!name.startsWith("_fanout.")) continue;
+    // The fanout channel name encodes the template: fanout:<from>→<templateNode>
+    const fanoutNodeName = name.slice("_fanout.".length);
+    // Check if the templateNode part matches nodeId
+    const arrowIndex = fanoutNodeName.indexOf("→");
+    if (arrowIndex === -1) continue;
+    const templateNode = fanoutNodeName.slice(arrowIndex + "→".length);
+    if (templateNode === nodeId && Array.isArray(ch.value)) {
+      return ch.value as any[];
+    }
+  }
+  return null;
 }
 
 export async function getCurrentStep(runId?: string): Promise<WorkflowRecord> {
