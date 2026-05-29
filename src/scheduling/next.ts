@@ -4,7 +4,6 @@ import type { Edge } from "../models/graph.js";
 import type { Task } from "../models/task.js";
 import type { Channel } from "../models/channel.js";
 import { condChannelName, fanoutChannelName, nodeChannelName, globalChannelName } from "../models/channel.js";
-import * as nodeService from "../graph/node.js";
 import * as graphService from "../graph/graph.js";
 import * as runService from "../runtime/run.js";
 import * as workflowService from "../workflow/workflow.js";
@@ -22,6 +21,7 @@ export interface NextResult {
 interface RunContext {
   runId: string;
   edges: Edge[];
+  nodes: Node[];
   graphName: string;
 }
 
@@ -39,7 +39,8 @@ async function resolveRunContext(runId?: string): Promise<RunContext> {
   } catch {
     graph = await graphService.loadGraph(graphName);
   }
-  return { runId: resolvedRunId, edges: graph.edges, graphName };
+  const nodes: Node[] = graph.nodes ?? [];
+  return { runId: resolvedRunId, edges: graph.edges, nodes, graphName };
 }
 
 /**
@@ -90,7 +91,7 @@ export async function filterByCondEdge(
 }
 
 export async function findNext(runId?: string): Promise<NextResult | null> {
-  const { runId: rid, edges, graphName } = await resolveRunContext(runId);
+  const { runId: rid, edges, nodes, graphName } = await resolveRunContext(runId);
   const readyTasks = await workflowService.findReadyTasks(rid);
   if (readyTasks.length === 0) return null;
 
@@ -106,7 +107,10 @@ export async function findNext(runId?: string): Promise<NextResult | null> {
   );
   const task = sorted[0];
 
-  const node = await nodeService.getNode(task.nodeId);
+  const node = nodes.find(n => n.name === task.nodeId);
+  if (!node) {
+    throw new Error(`node '${task.nodeId}' not found in graph`);
+  }
 
   // Execute based on node kind
   if (node.kind === "user") {
@@ -118,11 +122,11 @@ export async function findNext(runId?: string): Promise<NextResult | null> {
   }
   // collect nodes: agent handles, dagman doesn't execute
 
-  return await buildResult(task, edges, rid);
+  return await buildResult(task, edges, rid, nodes);
 }
 
 export async function findAllNext(runId?: string): Promise<NextResult[]> {
-  const { runId: rid, edges, graphName } = await resolveRunContext(runId);
+  const { runId: rid, edges, nodes, graphName } = await resolveRunContext(runId);
   const readyTasks = await workflowService.findReadyTasks(rid);
   if (readyTasks.length === 0) return [];
 
@@ -138,7 +142,10 @@ export async function findAllNext(runId?: string): Promise<NextResult[]> {
 
   const results: NextResult[] = [];
   for (const task of sorted) {
-    const node = await nodeService.getNode(task.nodeId);
+    const node = nodes.find(n => n.name === task.nodeId);
+    if (!node) {
+      throw new Error(`node '${task.nodeId}' not found in graph`);
+    }
 
     // Execute based on node kind
     if (node.kind === "user") {
@@ -149,7 +156,7 @@ export async function findAllNext(runId?: string): Promise<NextResult[]> {
       await executeFanOutNode(node, state.channels, rid, graphName, edges);
     }
 
-    results.push(await buildResult(task, edges, rid));
+    results.push(await buildResult(task, edges, rid, nodes));
   }
   return results;
 }
@@ -301,9 +308,14 @@ async function loadGraphForRun(graphName: string): Promise<{ edges: Edge[] }> {
 async function buildResult(
   task: Task,
   edges: Edge[],
-  runId: string
+  runId: string,
+  nodes: Node[]
 ): Promise<NextResult> {
-  const node = await nodeService.getNode(task.nodeId);
+  const node = nodes.find(n => n.name === task.nodeId);
+  if (!node) {
+    throw new Error(`node '${task.nodeId}' not found in graph`);
+  }
+
   const state = await workflowService.loadState(runId);
 
   const instructions = renderInstructions(

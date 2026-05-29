@@ -1,7 +1,11 @@
 import type { Command } from "commander";
 import { WORKFLOWS_DIR, getWorkflowManifest } from "../constants.js";
 import { compileWorkflow } from "../compiler/compiler.js";
-import { graphExists, saveCompiledGraph } from "../graph/graph.js";
+import { expandWorkflow } from "../compiler/node-gen.js";
+import { computeTopologicalLayers } from "../utils/topology.js";
+import { generateInstanceId } from "../utils/id.js";
+import * as runService from "../runtime/run.js";
+import { graphExists } from "../graph/graph.js";
 import { ValidationError } from "../errors.js";
 import { withErrorHandler } from "../utils/output.js";
 import { outputJson } from "../utils/output.js";
@@ -29,28 +33,76 @@ export function registerWorkflowCommand(program: Command): void {
     );
 
   workflow
-    .command("load <name>")
-    .summary("Compile and load a workflow")
+    .command("graph <name>")
+    .summary("Display layered topology of a workflow")
     .option("--json", "Output as JSON")
     .action(
       withErrorHandler(async (name: string, opts: { json?: boolean }) => {
         const result = await compileWorkflow(name);
+        const layers = computeTopologicalLayers(
+          result.graph.edges,
+          result.nodes.map((n) => n.name)
+        );
+
         if (opts.json) {
           outputJson({
-            name: result.manifest.name,
-            version: result.manifest.version,
+            workflow: name,
+            layers: Object.fromEntries(layers),
             nodes: result.nodes.map((n) => ({
               name: n.name,
               kind: n.kind,
-              stateKey: n.stateKey,
-              targets: n.targets,
+              layer: (() => {
+                for (const [idx, names] of layers.entries()) {
+                  if (names.includes(n.name)) return idx;
+                }
+                return -1;
+              })(),
             })),
-            edges: result.graph.edges,
           });
         } else {
-          console.log("Loaded workflow: " + result.manifest.name + " v" + result.manifest.version);
-          console.log("  Nodes: " + result.nodes.map((n) => n.name).join(", "));
-          console.log("  Edges: " + result.graph.edges.length);
+          renderAsciiLayers(layers, result.nodes);
+        }
+      }),
+    );
+
+  workflow
+    .command("start <name>")
+    .summary("Start a workflow instance")
+    .action(
+      withErrorHandler(async (name: string) => {
+        // Compile workflow (persists graph, which will be loaded by createRun)
+        await compileWorkflow(name);
+
+        // Create run with generated instance ID
+        const runInfo = await runService.createRun(undefined, name, true);
+
+        console.log(runInfo.id);
+      }),
+    );
+
+  workflow
+    .command("ps")
+    .summary("List workflow instances")
+    .option("-a, --all", "Show all instances (not just running)")
+    .option("--json", "Output as JSON")
+    .action(
+      withErrorHandler(async (opts: { all?: boolean; json?: boolean }) => {
+        const runs = await runService.listRuns();
+        const filtered = opts.all
+          ? runs
+          : runs.filter((r) => r.status === "running");
+
+        if (opts.json) {
+          outputJson(
+            filtered.map((r) => ({
+              id: r.id,
+              status: r.status,
+              graphName: r.graphName,
+              createdAt: r.createdAt,
+            }))
+          );
+        } else {
+          renderPsTable(filtered);
         }
       }),
     );
@@ -85,23 +137,6 @@ export function registerWorkflowCommand(program: Command): void {
       withErrorHandler(async (name: string) => {
         const result = await compileWorkflow(name);
         console.log("Compile OK: " + result.nodes.length + " nodes, " + result.graph.edges.length + " edges");
-      }),
-    );
-
-  workflow
-    .command("validate <name>")
-    .summary("Validate manifest and TS file")
-    .action(
-      withErrorHandler(async (name: string) => {
-        const manifest = await loadManifest(name);
-        const tsFile = WORKFLOWS_DIR + "/" + name + "/" + name + ".ts";
-        const tsExists = await fileExists(tsFile);
-
-        if (!tsExists) {
-          throw new ValidationError("TS file not found: " + tsFile);
-        }
-
-        console.log("Valid: " + manifest.name + " v" + manifest.version);
       }),
     );
 }
@@ -152,4 +187,61 @@ async function loadManifest(name: string) {
     repository: data.repository as string | undefined,
     license: data.license as string | undefined,
   };
+}
+
+/** Render ASCII layered topology */
+function renderAsciiLayers(
+  layers: Map<number, string[]>,
+  nodes: Array<{ name: string; kind?: string }>
+): void {
+  const nodeKindMap = new Map(nodes.map((n) => [n.name, n.kind]));
+
+  for (const [layerIdx, nodeNames] of layers.entries()) {
+    const formattedNodes = nodeNames.map((name) => {
+      const kind = nodeKindMap.get(name);
+      const label = formatNodeLabel(name, kind);
+      return label;
+    });
+
+    console.log(`Layer ${layerIdx} │ ${formattedNodes.join("  ")}`);
+  }
+}
+
+/** Format node name with kind prefix/color hint */
+function formatNodeLabel(name: string, kind?: string): string {
+  if (!kind || kind === "user") {
+    return `[${name}]`;
+  }
+
+  // Virtual nodes: collect, cond, fanout
+  if (kind === "collect") {
+    return `[collect:${name.replace("collect-", "")}]`;
+  }
+  if (kind === "cond") {
+    return `[cond:${name}]`;
+  }
+  if (kind === "fanout") {
+    return `[fanout:${name}]`;
+  }
+
+  return `[${name}]`;
+}
+
+/** Render process status table */
+function renderPsTable(runs: Array<{
+  id: string;
+  status: string;
+  graphName?: string;
+  createdAt: string;
+}>): void {
+  if (runs.length === 0) {
+    console.log("No workflow instances found.");
+    return;
+  }
+
+  for (const run of runs) {
+    const progress = run.graphName ? "" : ""; // Could add task progress later
+    const date = new Date(run.createdAt).toLocaleString();
+    console.log(`  ${run.id}  ${run.status}  ${progress}  ${date}`);
+  }
 }

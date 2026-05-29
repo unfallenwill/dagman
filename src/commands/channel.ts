@@ -1,6 +1,5 @@
 import type { Command } from "commander";
 import * as workflowService from "../workflow/workflow.js";
-import * as nodeService from "../graph/node.js";
 import { NodeNotFoundError, CliError } from "../errors.js";
 import { GLOBAL_CHANNEL_PREFIX } from "../models/channel.js";
 import { setCommandMeta } from "../utils/command-meta.js";
@@ -157,24 +156,13 @@ Use --global to write a global channel (the node parameter is ignored).`);
     .option("-r, --run <runId>", "specify run")
     .action(
       withErrorHandler(async (node: string, key: string, value: string, options: { global?: boolean; run?: string }) => {
-        if (!options.global) {
-          await nodeService.getNode(node);
-        }
-
         const channelName = options.global
           ? `_global.${key}`
           : `${node}.${key}`;
 
-        try {
-          const ch = await workflowService.setChannel(channelName, value, options.run);
-          const scope = options.global ? "global " : `node '${node}' `;
-          console.log(`Set ${scope}channel: ${key} = ${value} (v${ch.version})`);
-        } catch (err: unknown) {
-          if (err instanceof NodeNotFoundError) {
-            throw new CliError(`Node '${node}' does not exist`);
-          }
-          throw err;
-        }
+        const ch = await workflowService.setChannel(channelName, value, options.run);
+        const scope = options.global ? "global " : `node '${node}' `;
+        console.log(`Set ${scope}channel: ${key} = ${value} (v${ch.version})`);
       })
     );
 

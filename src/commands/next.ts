@@ -2,6 +2,7 @@ import type { Command } from "commander";
 import * as nextService from "../scheduling/next.js";
 import { setCommandMeta } from "../utils/command-meta.js";
 import { withErrorHandler, outputJson } from "../utils/output.js";
+import { resolveActiveRunId } from "../utils/run-resolver.js";
 
 export function registerNextCommand(program: Command): void {
   const nextCmd = program
@@ -22,26 +23,29 @@ The agent execution loop typically follows: next -> task start ->
       { description: "Get all ready tasks", command: "dagman next --all" },
       { description: "Get next task as JSON", command: "dagman next --json" },
       { description: "Check current superstep status", command: "dagman next --step" },
-      { description: "All ready tasks as JSON for a specific run", command: "dagman next --all --json --run abc123" },
+      { description: "All ready tasks as JSON for a specific run", command: "dagman next --all --json --run demo@abc123" },
     ],
     exitStatus: [
       { code: 0, meaning: "Success (task found or no tasks remaining)" },
       { code: 1, meaning: "Error (run not found, workflow not initialized)" },
     ],
-    seeAlso: ["dagman-task(1)", "dagman-step(1)", "dagman-run(1)"],
+    seeAlso: ["dagman-workflow(1)", "dagman-collect(1)"],
     dataProducing: true,
   });
 
   nextCmd
-    .option("-r, --run <run-id>", "specify run (defaults to current)")
+    .option("-r, --run <name@id>", "specify workflow instance (defaults to active)")
     .option("--all", "return all executable tasks in the current superstep")
     .option("--step", "show current superstep status")
     .option("--json", "output in JSON format")
     .action(
       withErrorHandler(async (options: { run?: string; all?: boolean; step?: boolean; json?: boolean }) => {
+        // Hybrid auto-resolve: use explicit --run if provided, otherwise find active run
+        const runId = options.run ?? await resolveActiveRunId();
+
         if (options.step) {
           const { getCurrentStep } = await import("../workflow/workflow.js");
-          const current = await getCurrentStep(options.run);
+          const current = await getCurrentStep(runId);
 
           if (options.json) {
             outputJson(current);
@@ -56,7 +60,7 @@ The agent execution loop typically follows: next -> task start ->
         }
 
         if (options.all) {
-          const results = await nextService.findAllNext(options.run);
+          const results = await nextService.findAllNext(runId);
           if (results.length === 0) {
             if (options.json) {
               outputJson([]);
@@ -80,7 +84,7 @@ The agent execution loop typically follows: next -> task start ->
           return;
         }
 
-        const result = await nextService.findNext(options.run);
+        const result = await nextService.findNext(runId);
         if (!result) {
           if (options.json) {
             outputJson(null);

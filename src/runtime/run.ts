@@ -9,13 +9,15 @@ import {
 import { ensureDir, readJSON, writeJSON, fileExists } from "../utils/file.js";
 import { RunNotFoundError, RunExistsError } from "../errors.js";
 import type { RunInfo, RunStatus } from "../models/superstep.js";
+import type { Node } from "../models/node.js";
 import * as graphService from "../graph/graph.js";
-import * as nodeService from "../graph/node.js";
 import * as workflowService from "../workflow/workflow.js";
 import { computeTopologicalLayers } from "../utils/topology.js";
+import { generateInstanceId } from "../utils/id.js";
 import {
   setCurrentRunId,
   resolveCurrentRunId,
+  resolveActiveRunId,
 } from "../utils/run-resolver.js";
 
 export type { RunInfo, RunStatus };
@@ -23,6 +25,7 @@ export {
   getCurrentRunId,
   setCurrentRunId,
   resolveCurrentRunId,
+  resolveActiveRunId,
   listRunIds,
 } from "../utils/run-resolver.js";
 
@@ -51,8 +54,8 @@ async function createRunInternal(
     } catch {
       graph = await graphService.loadGraph(graphName);
     }
-    const nodes = await nodeService.listNodes();
-    const nodeNames = nodes.map((n) => n.name);
+    const nodes: Node[] = graph.nodes ?? [];
+    const nodeNames = nodes.map((n: Node) => n.name);
     const layers = computeTopologicalLayers(graph.edges, nodeNames);
 
     layerAssignment = {};
@@ -99,16 +102,24 @@ export async function createRun(
   graphName?: string,
   switchTo?: boolean
 ): Promise<RunInfo> {
-  const runId = label
-    ? label
-        .toLowerCase()
-        .replace(/[^a-z0-9-]/g, "-")
-        .replace(/-+/g, "-")
-        .replace(/^-|-$/g, "")
-    : `run-${Date.now()}`;
+  let runId: string;
 
-  if (!runId) {
-    throw new Error("could not generate valid run ID from label");
+  if (graphName) {
+    // When bound to a graph/workflow, generate <name>@<suffix>
+    runId = generateInstanceId(graphName);
+  } else if (label) {
+    // Otherwise use sanitized label
+    runId = label
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
+    if (!runId) {
+      throw new Error("could not generate valid run ID from label");
+    }
+  } else {
+    // Fallback to timestamp-based ID
+    runId = `run-${Date.now()}`;
   }
 
   const info = await createRunInternal(runId, label, graphName);

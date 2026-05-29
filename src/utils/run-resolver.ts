@@ -7,6 +7,8 @@ import {
   getRunMetaFile,
 } from "../constants.js";
 import { ensureDir, fileExists } from "./file.js";
+import { readJSON } from "./file.js";
+import type { RunStatus } from "../models/superstep.js";
 
 export async function getCurrentRunId(): Promise<string | null> {
   if (!(await fileExists(CURRENT_RUN_FILE))) {
@@ -41,4 +43,47 @@ export async function listRunIds(): Promise<string[]> {
   } catch {
     return [];
   }
+}
+
+/**
+ * Hybrid auto-resolve for active run ID.
+ * 1. First tries `.current-run` file
+ * 2. If empty, scans `.dagman/runs/` for runs with status `running`
+ * 3. If exactly one, returns it
+ * 4. If zero or multiple, throws appropriate error
+ */
+export async function resolveActiveRunId(): Promise<string> {
+  // First try .current-run file
+  const current = await getCurrentRunId();
+  if (current) {
+    return current;
+  }
+
+  // Scan for running runs
+  const runIds = await listRunIds();
+  const runningRuns: string[] = [];
+
+  for (const runId of runIds) {
+    try {
+      const meta = await readJSON<{ status?: RunStatus }>(getRunMetaFile(runId));
+      if (meta.status === "running") {
+        runningRuns.push(runId);
+      }
+    } catch {
+      // Skip invalid runs
+      continue;
+    }
+  }
+
+  if (runningRuns.length === 1) {
+    return runningRuns[0];
+  }
+
+  if (runningRuns.length === 0) {
+    throw new Error("No active run found. Use `dagman workflow start <name>` to create one.");
+  }
+
+  throw new Error(
+    `Multiple active runs found: ${runningRuns.join(", ")}. Please specify which one to use with --run <id>.`
+  );
 }

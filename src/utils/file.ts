@@ -51,28 +51,6 @@ export async function readYAML<T>(filePath: string): Promise<T> {
   }
 }
 
-export async function readYAMLAll<T>(filePath: string): Promise<T[]> {
-  const abs = path.resolve(filePath);
-  let content: string;
-  try {
-    content = await fs.readFile(abs, "utf-8");
-  } catch (err: unknown) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new NodeNotFoundError(filePath);
-    }
-    throw err;
-  }
-  try {
-    const docs: T[] = [];
-    yaml.loadAll(content, (doc: unknown) => {
-      if (doc != null) docs.push(doc as T);
-    });
-    return docs;
-  } catch {
-    throw new ValidationError(`file '${filePath}' is not valid YAML`);
-  }
-}
-
 export async function writeYAML<T>(filePath: string, data: T): Promise<void> {
   const abs = path.resolve(filePath);
   await ensureDir(path.dirname(abs));

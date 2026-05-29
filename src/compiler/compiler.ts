@@ -2,8 +2,7 @@ import * as path from "path";
 import type { Graph } from "../models/graph.js";
 import type { Node } from "../models/node.js";
 import type { WorkflowDefinition, WorkflowManifest } from "../models/workflow-def.js";
-import { WORKFLOWS_DIR, getWorkflowTsFile, getWorkflowManifest } from "../constants.js";
-import { ensureDir, writeYAML } from "../utils/file.js";
+import { getWorkflowTsFile, getWorkflowManifest } from "../constants.js";
 import { hasCycle } from "../utils/topology.js";
 import { ValidationError } from "../errors.js";
 import { saveCompiledGraph } from "../graph/graph.js";
@@ -42,6 +41,7 @@ export async function compileWorkflow(workflowName: string): Promise<CompileResu
   const graph: Graph = {
     name: workflowName,
     edges: allEdges,
+    nodes: allNodes,
     stateSchema: definition.stateSchema,
     workflowName,
   };
@@ -115,18 +115,9 @@ async function loadManifest(manifestFile: string): Promise<WorkflowManifest> {
 }
 
 /**
- * Persist compiled graph and expanded nodes.
+ * Persist compiled graph with embedded nodes.
  */
 async function persistCompiledGraph(graph: Graph, nodes: Node[]): Promise<void> {
-  // Save graph as compiled JSON
+  // Save graph as compiled JSON (nodes are embedded in graph.nodes)
   await saveCompiledGraph(graph);
-
-  // Save each node as YAML (same format as existing nodes, with extra fields)
-  const NODES_DIR = ".dagman/nodes";
-  await ensureDir(NODES_DIR);
-
-  for (const node of nodes) {
-    const filePath = NODES_DIR + "/" + node.name + ".yaml";
-    await writeYAML(filePath, { kind: "Node", ...node });
-  }
 }

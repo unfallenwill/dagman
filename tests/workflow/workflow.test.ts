@@ -22,26 +22,30 @@ afterEach(async () => {
   await fs.rm(TMP_DIR, { recursive: true, force: true });
 });
 
-// Helper: create nodes, graph, and run
+// Helper: create compiled graph and run
 async function setupGraph(
   nodeNames: string[],
   edges: Edge[],
   graphName = "test-graph"
 ): Promise<string> {
-  const yaml = await import("js-yaml");
-  await fs.mkdir(path.join(TMP_DIR, ".dagman/nodes"), { recursive: true });
-
-  for (const name of nodeNames) {
-    await fs.writeFile(
-      path.join(TMP_DIR, `.dagman/nodes/${name}.yaml`),
-      yaml.dump({ kind: "Node", name, description: `Node ${name}`, instructions: `Do ${name}` }, { lineWidth: -1 })
-    );
-  }
-
   await fs.mkdir(path.join(TMP_DIR, ".dagman/graphs"), { recursive: true });
+
+  const nodes = nodeNames.map(name => ({
+    name,
+    description: `Node ${name}`,
+    instructions: `Do ${name}`,
+    kind: "user" as const
+  }));
+
+  const graphData = {
+    name: graphName,
+    edges,
+    nodes
+  };
+
   await fs.writeFile(
-    path.join(TMP_DIR, `.dagman/graphs/${graphName}.yaml`),
-    yaml.dump({ kind: "Graph", name: graphName, edges }, { lineWidth: -1 })
+    path.join(TMP_DIR, `.dagman/graphs/${graphName}.json`),
+    JSON.stringify(graphData, null, 2)
   );
 
   const info = await runService.createRun("wf-test", graphName, true);

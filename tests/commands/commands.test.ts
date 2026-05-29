@@ -3,12 +3,9 @@ import * as path from "path";
 import * as os from "os";
 import * as fs from "fs/promises";
 import { Command } from "commander";
-import { registerNodeCommand } from "../../src/commands/node.js";
-import { registerGraphCommand } from "../../src/commands/graph.js";
 import { registerHelpCommand } from "../../src/commands/help.js";
 import { registerChannelCommand } from "../../src/commands/channel.js";
-import { registerTaskCommand } from "../../src/commands/task.js";
-import { registerStepCommand } from "../../src/commands/step.js";
+import { registerWorkflowCommand } from "../../src/commands/workflow.js";
 import * as runService from "../../src/runtime/run.js";
 import * as workflowService from "../../src/workflow/workflow.js";
 
@@ -34,72 +31,40 @@ function createProgram(): Command {
     writeErr: () => {},
   });
   registerHelpCommand(program);
-  registerNodeCommand(program);
-  registerGraphCommand(program);
   registerChannelCommand(program);
-  registerTaskCommand(program);
-  registerStepCommand(program);
+  registerWorkflowCommand(program);
   return program;
 }
 
-describe("node create command", () => {
-  it("should create a node template", async () => {
+describe("workflow commands", () => {
+  it("should list empty workflows", async () => {
     const program = createProgram();
-    await program.parseAsync(["node", "dagman", "node", "create", "my-node"]);
-
-    const exists = await fs
-      .access(path.join(TMP_DIR, ".dagman/nodes/my-node.yaml"))
-      .then(() => true)
-      .catch(() => false);
-    expect(exists).toBe(true);
-  });
-
-  it("should fail when node already exists", async () => {
-    const program1 = createProgram();
-    await program1.parseAsync(["node", "dagman", "node", "create", "dup"]);
-
-    const program2 = createProgram();
-    await expect(
-      program2.parseAsync(["node", "dagman", "node", "create", "dup"])
-    ).rejects.toThrow();
-  });
-});
-
-describe("graph commands", () => {
-  it("should list empty graphs", async () => {
-    const program = createProgram();
-    await program.parseAsync(["node", "dagman", "graph", "list"]);
+    await program.parseAsync(["node", "dagman", "workflow", "ls"]);
   });
 });
 
 describe("task commands", () => {
   it("should list tasks for a workflow run", async () => {
-    // Setup: create nodes, graph, and run
-    const yaml = await import("js-yaml");
-    await fs.mkdir(path.join(TMP_DIR, ".dagman/nodes"), { recursive: true });
-
-    for (const name of ["node-a", "node-b"]) {
-      await fs.writeFile(
-        path.join(TMP_DIR, `.dagman/nodes/${name}.yaml`),
-        yaml.dump({ kind: "Node", name, description: "test", instructions: "test" }, { lineWidth: -1 })
-      );
-    }
-
+    // Setup: create compiled graph and run
     await fs.mkdir(path.join(TMP_DIR, ".dagman/graphs"), { recursive: true });
+    const graphData = {
+      name: "test",
+      edges: [{ from: "node-b", to: "node-a" }],
+      nodes: [
+        { name: "node-a", description: "test", instructions: "test", kind: "user" },
+        { name: "node-b", description: "test", instructions: "test", kind: "user" }
+      ]
+    };
     await fs.writeFile(
-      path.join(TMP_DIR, ".dagman/graphs/test.yaml"),
-      yaml.dump({
-        kind: "Graph",
-        name: "test",
-        edges: [{ from: "node-b", to: "node-a" }],
-      }, { lineWidth: -1 })
+      path.join(TMP_DIR, ".dagman/graphs/test.json"),
+      JSON.stringify(graphData, null, 2)
     );
 
     const info = await runService.createRun("task-test", "test", true);
     expect(info.graphName).toBe("test");
 
     // List tasks
-    const tasks = await workflowService.listTasks(undefined, "task-test");
+    const tasks = await workflowService.listTasks(undefined, info.id);
     expect(tasks.length).toBe(1); // Only node-a is in layer 0
     expect(tasks[0].nodeId).toBe("node-a");
     expect(tasks[0].status).toBe("ready");
@@ -108,29 +73,29 @@ describe("task commands", () => {
 
 describe("channel commands", () => {
   it("should set and get a channel", async () => {
-    // Setup: create a run with workflow
-    const yaml = await import("js-yaml");
-    await fs.mkdir(path.join(TMP_DIR, ".dagman/nodes"), { recursive: true });
-    await fs.writeFile(
-      path.join(TMP_DIR, ".dagman/nodes/test-node.yaml"),
-      yaml.dump({ kind: "Node", name: "test-node", description: "test", instructions: "test" }, { lineWidth: -1 })
-    );
-
+    // Setup: create a compiled graph and run
     await fs.mkdir(path.join(TMP_DIR, ".dagman/graphs"), { recursive: true });
+    const graphData = {
+      name: "single",
+      edges: [],
+      nodes: [
+        { name: "test-node", description: "test", instructions: "test", kind: "user" }
+      ]
+    };
     await fs.writeFile(
-      path.join(TMP_DIR, ".dagman/graphs/single.yaml"),
-      yaml.dump({ kind: "Graph", name: "single", edges: [] }, { lineWidth: -1 })
+      path.join(TMP_DIR, ".dagman/graphs/single.json"),
+      JSON.stringify(graphData, null, 2)
     );
 
-    await runService.createRun("ch-test", "single", true);
+    const info = await runService.createRun("ch-test", "single", true);
 
     // Set channel
-    const ch = await workflowService.setChannel("test-node.mykey", "myvalue", "ch-test");
+    const ch = await workflowService.setChannel("test-node.mykey", "myvalue", info.id);
     expect(ch.version).toBe(1);
     expect(ch.value).toBe("myvalue");
 
     // Get channel
-    const retrieved = await workflowService.getChannel("test-node.mykey", "ch-test");
+    const retrieved = await workflowService.getChannel("test-node.mykey", info.id);
     expect(retrieved?.value).toBe("myvalue");
     expect(retrieved?.version).toBe(1);
   });

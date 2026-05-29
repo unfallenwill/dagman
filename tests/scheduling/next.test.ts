@@ -27,26 +27,30 @@ afterEach(async () => {
   await fs.rm(TMP_DIR, { recursive: true, force: true });
 });
 
-// Helper: create nodes + compiled graph + run
+// Helper: create compiled graph with embedded nodes + run
 async function setupCompiledRun(
   nodeNames: string[],
   edges: Edge[],
   graphName = "test-graph",
 ): Promise<string> {
-  await fs.mkdir(path.join(TMP_DIR, ".dagman/nodes"), { recursive: true });
-
-  for (const name of nodeNames) {
-    await fs.writeFile(
-      path.join(TMP_DIR, `.dagman/nodes/${name}.yaml`),
-      yaml.dump({ kind: "Node", name, description: `Node ${name}`, instructions: "" }, { lineWidth: -1 }),
-    );
-  }
-
-  // Save as compiled JSON graph
   await fs.mkdir(path.join(TMP_DIR, ".dagman/graphs"), { recursive: true });
+
+  const nodes = nodeNames.map(name => ({
+    name,
+    description: `Node ${name}`,
+    instructions: "",
+    kind: "user" as const
+  }));
+
+  const graphData = {
+    name: graphName,
+    edges,
+    nodes
+  };
+
   await fs.writeFile(
     path.join(TMP_DIR, `.dagman/graphs/${graphName}.json`),
-    JSON.stringify({ name: graphName, edges }, null, 2) + "\n",
+    JSON.stringify(graphData, null, 2) + "\n",
   );
 
   const info = await runService.createRun("phase3-test", graphName, true);
@@ -200,33 +204,35 @@ describe("collect workflow", () => {
     ];
 
     // Nodes: a (user with stateKey), collect-a, b
-    await fs.mkdir(path.join(TMP_DIR, ".dagman/nodes"), { recursive: true });
-    for (const name of ["a", "collect-a", "b"]) {
-      const nodeData: Record<string, unknown> = {
-        kind: "Node",
-        name,
-        description: `Node ${name}`,
+    const nodes = [
+      {
+        name: "a",
+        description: "Node a",
         instructions: "",
-      };
-      if (name === "a") {
-        nodeData.stateKey = "output";
+        kind: "user" as const,
+        stateKey: "output"
+      },
+      {
+        name: "collect-a",
+        description: "Node collect-a",
+        instructions: "",
+        kind: "collect" as const,
+        parentNodeId: "a",
+        stateKey: "output"
+      },
+      {
+        name: "b",
+        description: "Node b",
+        instructions: "",
+        kind: "user" as const
       }
-      if (name === "collect-a") {
-        nodeData.kind = "collect";
-        nodeData.parentNodeId = "a";
-        nodeData.stateKey = "output";
-      }
-      await fs.writeFile(
-        path.join(TMP_DIR, `.dagman/nodes/${name}.yaml`),
-        yaml.dump(nodeData, { lineWidth: -1 }),
-      );
-    }
+    ];
 
     // Create run with the topology
     await fs.mkdir(path.join(TMP_DIR, ".dagman/graphs"), { recursive: true });
     await fs.writeFile(
       path.join(TMP_DIR, ".dagman/graphs/collect-test.json"),
-      JSON.stringify({ name: "collect-test", edges }, null, 2) + "\n",
+      JSON.stringify({ name: "collect-test", edges, nodes }, null, 2) + "\n",
     );
 
     const runId = (await runService.createRun("collect-test", "collect-test", true)).id;
