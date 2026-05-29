@@ -1,6 +1,6 @@
 import type { Command } from 'commander'
 import * as runService from '../runtime/run.js'
-import { withErrorHandler, outputJson } from '../utils/output.js'
+import { withErrorHandler, outputJson } from '../slices/_shared/output.js'
 
 /** Render process status table */
 function renderPsTable(

@@ -4,8 +4,8 @@ import { resolveCurrentRunId } from '../runtime/run.js'
 import { RunNotFoundError } from '../shared/errors.js'
 import { getRunMetaFile } from '../infra/fs/paths.js'
 import { fileExists } from '../infra/fs/file-ops.js'
-import { setCommandMeta } from '../utils/command-meta.js'
-import { withErrorHandler, outputJson } from '../utils/output.js'
+import { setCommandMeta } from '../slices/_shared/command-meta.js'
+import { withErrorHandler, outputJson } from '../slices/_shared/output.js'
 
 function formatEvent(iso: string, node: string, from: string, to: string): string {
   return `[${iso}] ${node}: ${from} -> ${to}`

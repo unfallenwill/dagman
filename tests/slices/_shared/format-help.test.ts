@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { Command } from 'commander'
-import { formatManHelp } from '../../src/utils/format-help.js'
-import { setCommandMeta } from '../../src/utils/command-meta.js'
+import { formatManHelp } from '../../../src/slices/_shared/format-help.js'
+import { setCommandMeta } from '../../../src/slices/_shared/command-meta.js'
 
 describe('formatManHelp', () => {
   it('should return empty string for command without meta', () => {

@@ -1,40 +1,17 @@
 import * as path from 'path'
 import type { Graph } from '../shared/models/graph.js'
 import type { Node } from '../shared/models/node.js'
-import type { WorkflowDefinition, WorkflowManifest } from '../shared/models/workflow-def.js'
+import type { WorkflowManifest } from '../shared/models/workflow-def.js'
 import type { WorkflowLoader } from '../shared/utils/loader.js'
 import { getWorkflowTsFile, getWorkflowManifest } from '../infra/fs/paths.js'
 import { hasCycle } from '../shared/utils/topology.js'
 import { ValidationError } from '../shared/errors.js'
 import { saveCompiledGraph } from '../graph/graph.js'
 import { expandWorkflow } from './node-gen.js'
+import { createDefaultLoader } from '../infra/loader/tsx-loader.js'
 
 export interface CompilerDeps {
   loader?: WorkflowLoader
-}
-
-function createDefaultLoader(): WorkflowLoader {
-  return {
-    async load(workflowPath: string): Promise<WorkflowDefinition> {
-      const absPath = path.resolve(workflowPath)
-
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const { register } = require('tsx/esm') as { register: () => void }
-        register()
-      } catch {
-        // tsx may already be registered or not needed
-      }
-
-      const mod = await import(absPath)
-
-      if (!mod.default || typeof mod.default !== 'object') {
-        throw new ValidationError('workflow file must export a default WorkflowDefinition')
-      }
-
-      return mod.default as WorkflowDefinition
-    },
-  }
 }
 
 export interface CompileResult {

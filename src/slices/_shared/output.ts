@@ -1,4 +1,4 @@
-import { ValidationError } from '../shared/errors.js'
+import { ValidationError } from '../../shared/errors.js'
 
 /**
  * Higher-order function that wraps a command action with unified error handling.

@@ -1,9 +1,7 @@
-import * as path from 'path'
 import type { Node } from '../shared/models/node.js'
 import type { Edge } from '../shared/models/graph.js'
 import type { Task } from '../shared/models/task.js'
 import type { Channel } from '../shared/models/channel.js'
-import type { WorkflowDefinition } from '../shared/models/workflow-def.js'
 import { condChannelName, fanoutChannelName } from '../shared/models/channel.js'
 import * as graphService from '../graph/graph.js'
 import * as runService from '../runtime/run.js'
@@ -13,37 +11,12 @@ import type { WorkflowLoader } from '../shared/utils/loader.js'
 import type { Clock } from '../shared/utils/clock.js'
 import { getWorkflowTsFile } from '../infra/fs/paths.js'
 import { buildGraphState } from '../shared/utils/state.js'
+import { createDefaultLoader } from '../infra/loader/tsx-loader.js'
 
 export interface SchedulingDeps {
   loader?: WorkflowLoader
   clock?: Clock
   workflowDeps?: WorkflowDeps
-}
-
-function createDefaultLoader(): WorkflowLoader {
-  return {
-    async load(workflowPath: string): Promise<WorkflowDefinition> {
-      const absPath = path.resolve(workflowPath)
-
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const { register } = require('tsx/esm') as { register: () => void }
-        register()
-      } catch {
-        // tsx may already be registered
-      }
-
-      // Bust cache for repeated imports during development
-      const timestamp = Date.now()
-      const mod = await import(`${absPath}?t=${timestamp}`)
-
-      if (!mod.default || typeof mod.default !== 'object') {
-        throw new Error('workflow file must export a default WorkflowDefinition')
-      }
-
-      return mod.default as WorkflowDefinition
-    },
-  }
 }
 
 export interface NextResult {

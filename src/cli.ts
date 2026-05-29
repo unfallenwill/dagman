@@ -10,8 +10,8 @@ import { registerStartCommand } from './commands/start.js'
 import { registerPsCommand } from './commands/ps.js'
 import { registerShowCommand } from './commands/show.js'
 import { registerCompileCommand } from './commands/compile.js'
-import { getCommandMeta } from './utils/command-meta.js'
-import { formatManHelp } from './utils/format-help.js'
+import { getCommandMeta } from './slices/_shared/command-meta.js'
+import { formatManHelp } from './slices/_shared/format-help.js'
 
 export function run(): void {
   const program = new Command()

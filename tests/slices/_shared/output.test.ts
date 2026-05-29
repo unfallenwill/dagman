@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { withErrorHandler, outputJson } from '../../src/utils/output.js'
-import { ValidationError } from '../../src/shared/errors.js'
+import { withErrorHandler, outputJson } from '../../../src/slices/_shared/output.js'
+import { ValidationError } from '../../../src/shared/errors.js'
 
 describe('withErrorHandler', () => {
   let exitSpy: ReturnType<typeof vi.spyOn>

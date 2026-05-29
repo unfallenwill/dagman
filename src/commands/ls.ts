@@ -1,6 +1,6 @@
 import type { Command } from 'commander'
 import { WORKFLOWS_DIR, getWorkflowsDir } from '../infra/fs/paths.js'
-import { withErrorHandler } from '../utils/output.js'
+import { withErrorHandler } from '../slices/_shared/output.js'
 import { readYAML } from '../infra/fs/file-ops.js'
 import { promises as fs } from 'fs'
 import * as path from 'path'

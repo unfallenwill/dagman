@@ -1,7 +1,7 @@
 import type { Command } from 'commander'
 import * as nextService from '../scheduling/next.js'
-import { setCommandMeta } from '../utils/command-meta.js'
-import { withErrorHandler, outputJson } from '../utils/output.js'
+import { setCommandMeta } from '../slices/_shared/command-meta.js'
+import { withErrorHandler, outputJson } from '../slices/_shared/output.js'
 import { resolveActiveRunId } from '../shared/utils/run-resolver.js'
 
 export function registerNextCommand(program: Command): void {

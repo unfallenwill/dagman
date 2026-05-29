@@ -1,7 +1,7 @@
 import type { Command } from 'commander'
 import { compileWorkflow } from '../compiler/compiler.js'
 import * as runService from '../runtime/run.js'
-import { withErrorHandler } from '../utils/output.js'
+import { withErrorHandler } from '../slices/_shared/output.js'
 
 export function registerStartCommand(program: Command): void {
   program

@@ -1,7 +1,7 @@
 import type { Command } from 'commander'
 import { getWorkflowManifest } from '../infra/fs/paths.js'
 import { graphExists } from '../graph/graph.js'
-import { withErrorHandler, outputJson } from '../utils/output.js'
+import { withErrorHandler, outputJson } from '../slices/_shared/output.js'
 import { readYAML } from '../infra/fs/file-ops.js'
 
 /** Load manifest for a specific workflow */
