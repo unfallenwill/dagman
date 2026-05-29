@@ -7,25 +7,45 @@ This project uses dagman to manage development tasks. The workflow is predefined
 - `npm run build` / `tsc` — Compile TypeScript to dist/
 - `npm run dev` / `tsx bin/dagman.ts` — Run in development mode
 - `npm test` / `vitest` — Run tests
+- `npm run test:coverage` / `vitest run --coverage` — Run tests with coverage report
+- `npm run lint` / `eslint src bin tests` — Lint with typescript-eslint
 - `npm run lint:deps` / `depcruise src bin` — Validate dependency architecture
+- `npm run typecheck` / `tsc --noEmit` — Type-check without emit
+- `npm run format:check` — Verify Prettier formatting
+- `npm run check` — Full quality gate (typecheck + lint + format + deps)
+
+## Quality Gates
+
+- **tsconfig**: `strict` + `noUncheckedIndexedAccess`, `noImplicitReturns`, `noFallthroughCasesInSwitch`, `noUnusedLocals`, `noUnusedParameters`, incremental build
+- **ESLint**: flat config (`eslint.config.js`), typescript-eslint + eslint-config-prettier; `any` and `!` are `warn` (not error); `no-unsafe-*` rules are off (builder API uses `any`)
+- **Prettier**: single quotes, no semi, 2-space indent, 100 print width
+- **Git hooks**: pre-commit runs lint-staged (eslint + prettier), pre-push runs typecheck
+- **Coverage**: v8 provider, thresholds 80% stmts/funcs/lines, 75% branches (baseline ~47%)
+
+## Testability Architecture
+
+- `setBasePath(dir)` in `constants.ts` replaces implicit `process.cwd()` — tests use this instead of `process.chdir()`
+- Service functions require explicit `runId` (no silent fallback) — I/O boundary (commands) resolves it
+- `canTransition(current, target)` in `models/task.ts` — pure function for task state transitions
+- `createRun(label?, graphName?, switchTo?, explicitRunId?)` — accepts deterministic run ID for tests
+- Test helpers: `tests/helpers/setup.ts` exports `initTmpDir()`, `cleanupTmpDir()`, `setupCompiledRun()`
 
 ## Project Structure
 
 - `bin/dagman.ts` — CLI entry point (shebang + uncaught exception handler)
 - `src/cli.ts` — Commander program registration
 - `src/index.ts` — Public API exports (for programmatic use)
-- `src/constants.ts` — Path constants and run-aware path resolution
-- `src/commands/` — CLI command definitions (Commander.js, noun+verb grouping)
+- `src/constants.ts` — Path constants, basePath injection (`setBasePath`), and run-aware path resolution
+- `src/commands/` — CLI command definitions (Commander.js, one file per command)
 - `src/workflow/` — Pregel execution engine
-  - `workflow-service.ts` — Manages Channel, Task, Superstep (workflow.jsonl)
+  - `workflow.ts` — Manages Channel, Task, Superstep (workflow.jsonl)
 - `src/scheduling/` — Task scheduling
-  - `next-service.ts` — Superstep-aware scheduling (reads ready tasks from workflow)
+  - `next.ts` — Superstep-aware scheduling (reads ready tasks from workflow)
 - `src/runtime/` — Run lifecycle + audit
-  - `run-service.ts` — Run instance management (computes topological layers on creation)
-  - `event-service.ts` — Fine-grained task event logging
+  - `run.ts` — Run instance management (computes topological layers on creation)
+  - `event.ts` — Fine-grained task event logging
 - `src/graph/` — Static graph/node definitions + validation
-  - `graph-service.ts` — Graph definition CRUD + display
-  - `node-service.ts` — Node definition CRUD
+  - `graph.ts` — Graph definition CRUD + display
   - `validator.ts` — Graph validation
 - `src/compiler/` — TypeScript workflow compilation
   - `compiler.ts` — Compiles TS workflow definitions (tsx import → expand → persist)
@@ -36,11 +56,12 @@ This project uses dagman to manage development tasks. The workflow is predefined
   - `node.ts` — Node (pure static definition, no runtime state)
   - `graph.ts` — Graph, Edge
   - `channel.ts` — Channel (versioned state unit) + naming utilities
-  - `task.ts` — Task (runtime entity, ready/running/success/failed/skipped)
+  - `task.ts` — Task (runtime entity, ready/running/success/failed/skipped) + `canTransition` pure function
   - `superstep.ts` — WorkflowRecord, RunInfo, WorkflowState
   - `event.ts` — Event (audit log entry)
 - `src/utils/` — Shared utilities (file I/O, topology computation, template rendering, interactive prompts, run ID resolution)
-- `tests/` — vitest tests, mirrors src directory layout, isolated with tmpdir + chdir
+- `tests/` — vitest tests, mirrors src directory layout, isolated with `setBasePath` + tmpdir
+- `tests/helpers/setup.ts` — Shared test helpers (`initTmpDir`, `cleanupTmpDir`, `setupCompiledRun`)
 - `.dagman/nodes/` — Node definitions (YAML, `kind: Node`)
 - `.dagman/graphs/` — Graph definitions (JSON, compiled from TypeScript workflows)
 - `.dagman/workflows/` — TypeScript workflow definitions (index.ts + manifest.yaml per workflow)
