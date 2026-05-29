@@ -1,6 +1,6 @@
 # dagman Development Workflow
 
-This project uses dagman to manage development tasks. The workflow is predefined — just follow the steps.
+DAG-based agent task orchestration CLI. Developers write TypeScript workflow definitions using the builder API, then use the CLI to compile, run, and step through task execution.
 
 ## Development Environment
 
@@ -180,5 +180,5 @@ Co-Authored-By: GLM 5.1 <noreply@z.ai>
 
 - `Edge { from, to, expect? }` — `from` depends on `to`, `expect` defaults to `"success"`
 - `skipped` equals `success`: when `expect` is `"success"`, a `"skipped"` status on the `to` node also satisfies the dependency
-- Run instances bind to a graph via `run create --graph <name>`, which auto-computes topological layers
-- Workflows can also be started directly via `workflow start <name>`, which compiles and creates a run in one step
+- Run instances are created via `dagman start <name>`, which compiles the workflow and creates a run in one step
+- The run auto-computes topological layers from the graph definition
