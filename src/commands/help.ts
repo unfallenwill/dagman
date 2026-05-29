@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import { readFileSync } from "fs";
 import * as path from "path";
+import { CliError } from "../errors.js";
 
 function getVersion(): string {
   try {
@@ -20,7 +21,8 @@ function getVersion(): string {
   }
 }
 
-function buildGuide(version: string): string {
+/** Static overview content — concepts, workflow, YAML format, edge semantics, variables. */
+function buildOverview(version: string): string {
   return `dagman v${version} — DAG-based agent task orchestration CLI
 
 ━━━ Overview ━━━
@@ -78,40 +80,6 @@ Separate multiple documents with \`---\`, can mix Node and Graph:
 Edge { from, to } means from depends on to (to executes first).
 expect defaults to "success"; when expect is "success", a "skipped" status on the to node also satisfies the dependency.
 
-━━━ Command Reference ━━━
-
-Definitions:
-  node create <name>              Create a node
-  node list                       List nodes
-  node remove <name>              Remove a node
-  graph list                      List graphs
-  graph show [--graph <name>]     Show graph structure
-  graph validate [--graph <name>] Validate graph
-
-Execution:
-  import [file]                   Import YAML (default: stdin)
-  export [file]                   Export as YAML (default: stdout)
-  run create --graph <name> [-s]  Create a run (-s auto-switch)
-  run list                        List runs
-  run switch <run-id>             Switch current run
-  run show [run-id]               Show run details
-
-Scheduling (core):
-  next [--all] [--json]           Get next/all executable tasks
-  task start <node>               Start task
-  task complete <node>            Complete task
-  task fail <node>                Mark as failed
-  task skip <node>                Skip task
-  task retry <node>               Retry failed task
-
-Data:
-  channel set <node> <key> <val>  Set channel
-  channel get <node> <key>        Get channel
-  channel list [node]             List channels
-  step show                       Current superstep status
-  step advance                    Manually advance superstep
-  log [node]                      View execution log
-
 ━━━ Variable References ━━━
 
 Node instructions support Handlebars templates to reference upstream outputs:
@@ -125,23 +93,89 @@ Node instructions support Handlebars templates to reference upstream outputs:
 `;
 }
 
+/** Dynamic command reference — generated from registered Commander commands. */
+function buildCommandReference(program: Command): string {
+  const groups: Record<string, Array<{ usage: string; summary: string }>> = {};
+
+  // Categorize commands into groups
+  const definitionCommands = ["node", "graph"];
+  const executionCommands = ["import", "export", "run"];
+  const schedulingCommands = ["next", "task"];
+
+  for (const cmd of program.commands) {
+    const cmdName = cmd.name();
+    if (cmdName === "help") continue;
+
+    let category: string;
+    if (definitionCommands.includes(cmdName)) {
+      category = "Definitions";
+    } else if (executionCommands.includes(cmdName)) {
+      category = "Execution";
+    } else if (schedulingCommands.includes(cmdName)) {
+      category = "Scheduling (core)";
+    } else {
+      category = "Data";
+    }
+
+    if (!groups[category]) {
+      groups[category] = [];
+    }
+
+    if (cmd.commands && cmd.commands.length > 0) {
+      // Command group with subcommands
+      for (const sub of cmd.commands) {
+        const args = sub.usage().replace(sub.name(), "").trim();
+        const usage = `${cmdName} ${sub.name()}${args ? " " + args : ""}`;
+        const summary = sub.summary() || sub.description().split("\n")[0];
+        groups[category].push({ usage: usage.padEnd(32), summary });
+      }
+    } else {
+      // Top-level command
+      const args = cmd.usage().replace(cmdName, "").trim();
+      const usage = `${cmdName}${args ? " " + args : ""}`;
+      const summary = cmd.summary() || cmd.description().split("\n")[0];
+      groups[category].push({ usage: usage.padEnd(32), summary });
+    }
+  }
+
+  const categoryOrder = ["Definitions", "Execution", "Scheduling (core)", "Data"];
+  const lines: string[] = ["━━━ Command Reference ━━━\n"];
+
+  for (const category of categoryOrder) {
+    const items = groups[category];
+    if (!items || items.length === 0) continue;
+    lines.push(`${category}:`);
+    for (const item of items) {
+      lines.push(`  ${item.usage}${item.summary}`);
+    }
+    lines.push("");
+  }
+
+  return lines.join("\n");
+}
+
 export function registerHelpCommand(program: Command): void {
   program.description("DAG-based agent task orchestration CLI").version(getVersion());
 
   program
     .command("help [subcommand]")
-    .description("Show usage guide or subcommand help")
+    .summary("Show usage guide or subcommand help")
+    .description(`Show the full usage guide, or detailed help for a specific subcommand.
+
+Without arguments, displays the complete guide including core concepts,
+workflow, YAML format, and command reference.
+With a subcommand name, shows man page style help for that command.`)
     .action((subcommand?: string) => {
       if (subcommand) {
         const cmd = program.commands.find((c) => c.name() === subcommand);
         if (cmd) {
           cmd.outputHelp();
         } else {
-          console.error(`Unknown command: ${subcommand}`);
-          process.exit(1);
+          throw new CliError(`Unknown command: ${subcommand}`);
         }
       } else {
-        console.log(buildGuide(getVersion()));
+        console.log(buildOverview(getVersion()));
+        console.log(buildCommandReference(program));
       }
     });
 }

@@ -49,3 +49,14 @@ export class GraphNotFoundError extends Error {
     this.name = "GraphNotFoundError";
   }
 }
+
+/**
+ * General CLI error for user-facing validation failures.
+ * Used when the error message is already formatted for display.
+ */
+export class CliError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CliError";
+  }
+}
