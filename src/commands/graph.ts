@@ -1,10 +1,10 @@
 import type { Command } from "commander";
 import type { Task } from "../models/task.js";
-import * as graphService from "../graph/graph-service.js";
+import * as graphService from "../graph/graph.js";
 import * as validatorService from "../graph/validator.js";
-import * as nodeService from "../graph/node-service.js";
-import * as workflowService from "../workflow/workflow-service.js";
-import * as eventService from "../runtime/event-service.js";
+import * as nodeService from "../graph/node.js";
+import * as workflowService from "../workflow/workflow.js";
+import * as eventService from "../runtime/event.js";
 import { resolveCurrentRunId } from "../utils/run-resolver.js";
 
 export function registerGraphCommand(program: Command): void {

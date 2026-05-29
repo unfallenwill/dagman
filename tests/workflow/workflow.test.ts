@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import * as path from "path";
 import * as os from "os";
 import * as fs from "fs/promises";
-import * as workflowService from "../../src/workflow/workflow-service.js";
-import * as runService from "../../src/runtime/run-service.js";
+import * as workflowService from "../../src/workflow/workflow.js";
+import * as runService from "../../src/runtime/run.js";
 import { computeTopologicalLayers } from "../../src/utils/topology.js";
 import type { Edge } from "../../src/models/graph.js";
 

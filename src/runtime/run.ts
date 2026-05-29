@@ -9,9 +9,9 @@ import {
 import { ensureDir, readJSON, writeJSON, fileExists } from "../utils/file.js";
 import { RunNotFoundError, RunExistsError } from "../errors.js";
 import type { RunInfo, RunStatus } from "../models/superstep.js";
-import * as graphService from "../graph/graph-service.js";
-import * as nodeService from "../graph/node-service.js";
-import * as workflowService from "../workflow/workflow-service.js";
+import * as graphService from "../graph/graph.js";
+import * as nodeService from "../graph/node.js";
+import * as workflowService from "../workflow/workflow.js";
 import { computeTopologicalLayers } from "../utils/topology.js";
 import {
   setCurrentRunId,

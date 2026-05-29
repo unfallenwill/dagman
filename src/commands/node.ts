@@ -1,7 +1,7 @@
 import type { Command } from "commander";
-import * as nodeService from "../graph/node-service.js";
-import * as graphService from "../graph/graph-service.js";
-import * as workflowService from "../workflow/workflow-service.js";
+import * as nodeService from "../graph/node.js";
+import * as graphService from "../graph/graph.js";
+import * as workflowService from "../workflow/workflow.js";
 import { confirmPrompt } from "../utils/prompt.js";
 import { collectDownstream } from "../utils/topology.js";
 import { listRunIds } from "../utils/run-resolver.js";

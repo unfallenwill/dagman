@@ -9,8 +9,8 @@ import { registerHelpCommand } from "../../src/commands/help.js";
 import { registerChannelCommand } from "../../src/commands/channel.js";
 import { registerTaskCommand } from "../../src/commands/task.js";
 import { registerStepCommand } from "../../src/commands/step.js";
-import * as runService from "../../src/runtime/run-service.js";
-import * as workflowService from "../../src/workflow/workflow-service.js";
+import * as runService from "../../src/runtime/run.js";
+import * as workflowService from "../../src/workflow/workflow.js";
 
 const TMP_DIR = path.join(os.tmpdir(), `dagman-cmd-test-${Date.now()}`);
 

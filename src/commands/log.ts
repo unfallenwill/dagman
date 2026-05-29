@@ -1,6 +1,6 @@
 import type { Command } from "commander";
-import * as eventService from "../runtime/event-service.js";
-import { resolveCurrentRunId } from "../runtime/run-service.js";
+import * as eventService from "../runtime/event.js";
+import { resolveCurrentRunId } from "../runtime/run.js";
 import { RunNotFoundError } from "../errors.js";
 import { getRunMetaFile } from "../constants.js";
 import { fileExists } from "../utils/file.js";

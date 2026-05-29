@@ -1,5 +1,5 @@
 import type { Command } from "commander";
-import * as nextService from "../scheduling/next-service.js";
+import * as nextService from "../scheduling/next.js";
 
 export function registerNextCommand(program: Command): void {
   program
@@ -12,7 +12,7 @@ export function registerNextCommand(program: Command): void {
     .action(async (options: { run?: string; all?: boolean; step?: boolean; json?: boolean }) => {
       try {
         if (options.step) {
-          const { getCurrentStep } = await import("../workflow/workflow-service.js");
+          const { getCurrentStep } = await import("../workflow/workflow.js");
           const current = await getCurrentStep(options.run);
           console.log(`Current step: ${current.step} [${current.status}]`);
           for (const t of current.tasks) {

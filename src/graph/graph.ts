@@ -4,7 +4,7 @@ import type { Task } from "../models/task.js";
 import { GRAPHS_DIR } from "../constants.js";
 import { ensureDir, readYAML, writeYAML, fileExists, deleteFile, listFiles } from "../utils/file.js";
 import { GraphNotFoundError } from "../errors.js";
-import * as nodeService from "./node-service.js";
+import * as nodeService from "./node.js";
 
 // ── Graph CRUD ──
 

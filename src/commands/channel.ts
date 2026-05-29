@@ -1,6 +1,6 @@
 import type { Command } from "commander";
-import * as workflowService from "../workflow/workflow-service.js";
-import * as nodeService from "../graph/node-service.js";
+import * as workflowService from "../workflow/workflow.js";
+import * as nodeService from "../graph/node.js";
 import { NodeNotFoundError } from "../errors.js";
 import { GLOBAL_CHANNEL_PREFIX } from "../models/channel.js";
 

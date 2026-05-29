@@ -1,6 +1,6 @@
 import type { Command } from "commander";
-import * as runService from "../runtime/run-service.js";
-import * as graphService from "../graph/graph-service.js";
+import * as runService from "../runtime/run.js";
+import * as graphService from "../graph/graph.js";
 import { RunNotFoundError, GraphNotFoundError } from "../errors.js";
 
 export function registerRunCommand(program: Command): void {

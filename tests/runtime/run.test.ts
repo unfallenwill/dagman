@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import * as path from "path";
 import * as os from "os";
 import * as fs from "fs/promises";
-import * as runService from "../../src/runtime/run-service.js";
+import * as runService from "../../src/runtime/run.js";
 import { RunNotFoundError, RunExistsError } from "../../src/errors.js";
 
 const TMP_DIR = path.join(os.tmpdir(), `dagman-run-test-${Date.now()}`);

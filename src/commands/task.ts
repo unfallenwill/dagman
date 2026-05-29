@@ -1,7 +1,7 @@
 import type { Command } from "commander";
-import * as workflowService from "../workflow/workflow-service.js";
-import * as graphService from "../graph/graph-service.js";
-import * as runService from "../runtime/run-service.js";
+import * as workflowService from "../workflow/workflow.js";
+import * as graphService from "../graph/graph.js";
+import * as runService from "../runtime/run.js";
 
 export function registerTaskCommand(program: Command): void {
   const task = program.command("task").description("Task lifecycle management");

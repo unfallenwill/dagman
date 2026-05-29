@@ -1,5 +1,5 @@
 import type { Command } from "commander";
-import * as importService from "../io/import-service.js";
+import * as importService from "../io/import.js";
 import { ValidationError } from "../errors.js";
 import * as fs from "fs/promises";
 

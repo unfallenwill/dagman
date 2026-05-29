@@ -21,7 +21,7 @@ import type { Edge } from "../models/graph.js";
 import { getWorkflowFile } from "../constants.js";
 import { ensureDir } from "../utils/file.js";
 import { computeTopologicalLayers } from "../utils/topology.js";
-import { appendEvent } from "../runtime/event-service.js";
+import { appendEvent } from "../runtime/event.js";
 import { resolveCurrentRunId } from "../utils/run-resolver.js";
 
 // ===== Run ID Resolution =====
