@@ -22,50 +22,10 @@ DAG-based agent task orchestration CLI. Developers write TypeScript workflow def
 - **Git hooks**: pre-commit runs lint-staged (eslint + prettier), pre-push runs typecheck
 - **Coverage**: v8 provider, thresholds 80% stmts/funcs/lines, 75% branches (baseline ~47%)
 
-## Testability Architecture
-
-- `setBasePath(dir)` in `constants.ts` replaces implicit `process.cwd()` — tests use this instead of `process.chdir()`
-- Service functions require explicit `runId` (no silent fallback) — I/O boundary (commands) resolves it
-- `canTransition(current, target)` in `models/task.ts` — pure function for task state transitions
-- `createRun(label?, graphName?, switchTo?, explicitRunId?)` — accepts deterministic run ID for tests
-- Test helpers: `tests/helpers/setup.ts` exports `initTmpDir()`, `cleanupTmpDir()`, `setupCompiledRun()`
-
 ## Project Structure
 
-- `bin/dagman.ts` — CLI entry point (shebang + uncaught exception handler)
-- `src/cli.ts` — Commander program registration
-- `src/index.ts` — Public API exports (for programmatic use)
-- `src/constants.ts` — Path constants, basePath injection (`setBasePath`), and run-aware path resolution
-- `src/commands/` — CLI command definitions (Commander.js, one file per command)
-- `src/workflow/` — Pregel execution engine
-  - `workflow.ts` — Manages Channel, Task, Superstep (workflow.jsonl)
-- `src/scheduling/` — Task scheduling
-  - `next.ts` — Superstep-aware scheduling (reads ready tasks from workflow)
-- `src/runtime/` — Run lifecycle + audit
-  - `run.ts` — Run instance management (computes topological layers on creation)
-  - `event.ts` — Fine-grained task event logging
-- `src/graph/` — Static graph/node definitions + validation
-  - `graph.ts` — Graph definition CRUD + display
-  - `validator.ts` — Graph validation
-- `src/compiler/` — TypeScript workflow compilation
-  - `compiler.ts` — Compiles TS workflow definitions (tsx import → expand → persist)
-  - `node-gen.ts` — Expands collect/condEdge/fanOut virtual nodes
-- `src/api/` — Public builder API for programmatic workflow definition
-  - `node.ts` / `workflow.ts` — `node()` and `workflow()` builder functions
-- `src/models/` — Type definitions and data models
-  - `node.ts` — Node (pure static definition, no runtime state)
-  - `graph.ts` — Graph, Edge
-  - `channel.ts` — Channel (versioned state unit) + naming utilities
-  - `task.ts` — Task (runtime entity, ready/running/success/failed/skipped) + `canTransition` pure function
-  - `superstep.ts` — WorkflowRecord, RunInfo, WorkflowState
-  - `event.ts` — Event (audit log entry)
-- `src/utils/` — Shared utilities (file I/O, topology computation, template rendering, interactive prompts, run ID resolution)
-- `tests/` — vitest tests, mirrors src directory layout, isolated with `setBasePath` + tmpdir
-- `tests/helpers/setup.ts` — Shared test helpers (`initTmpDir`, `cleanupTmpDir`, `setupCompiledRun`)
-- `.dagman/nodes/` — Node definitions (YAML, `kind: Node`)
-- `.dagman/graphs/` — Graph definitions (JSON, compiled from TypeScript workflows)
-- `.dagman/workflows/` — TypeScript workflow definitions (index.ts + manifest.yaml per workflow)
-- `.dagman/runs/` — Run instances (workflow.jsonl state + events.jsonl audit)
+- `src/` — Source code: `commands/`, `workflow/`, `scheduling/`, `runtime/`, `graph/`, `compiler/`, `api/`, `models/`, `utils/`
+- `tests/` — Vitest tests mirroring src layout, isolated via `setBasePath` + tmpdir
 
 ## Core Concepts
 
@@ -135,45 +95,6 @@ Append the following to every git commit message:
 
 ```
 Co-Authored-By: GLM 5.1 <noreply@z.ai>
-```
-
-## CLI Commands
-
-### Workflow
-- `ls` — List discovered workflows
-- `show <name>` — Show workflow info
-- `graph <name>` — Display layered topology
-- `compile <name>` — Dry-run compile (validate without persisting)
-- `start <name>` — Compile + create run instance
-- `ps` — List workflow instances
-
-### Task Lifecycle
-- `collect <node@id>` — Collect and validate results for a node with stateKey
-
-### Scheduling
-- `next [--all] [--step] [--json]` — Returns ready task(s) in the current superstep
-
-### Other
-- `log [node]` — Audit log
-
-## Data Storage
-
-```
-.dagman/
-  .current-run              # Current active run ID
-  nodes/
-    <name>.yaml             # Node definition (kind: Node, no depends_on)
-  graphs/
-    <name>.json             # Graph definition (compiled from TypeScript workflow)
-  workflows/
-    <name>/
-      index.ts              # TypeScript workflow definition (builder API)
-      manifest.yaml         # Workflow metadata (name, version, description)
-  runs/
-    <run-id>/
-      run.json              # Run metadata (graphName, currentStep, status, layerAssignment)
-      workflow.jsonl        # Workflow state (channels + tasks + snapshots, append-only)
-      events.jsonl          # Fine-grained task event log (append-only)
 ```
 
 ## Edge Semantics
