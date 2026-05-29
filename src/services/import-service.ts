@@ -25,52 +25,52 @@ export async function importFromYAML(content: string): Promise<ImportResult> {
   const graphDocs = docs.filter((d) => d.kind === "Graph");
 
   if (nodeDocs.length === 0 && graphDocs.length === 0) {
-    throw new ValidationError("YAML 文件不包含任何节点或图定义", []);
+    throw new ValidationError("YAML file contains no node or graph definitions", []);
   }
 
-  // 校验并提取节点
+  // Validate and extract nodes
   const nodes: Node[] = [];
   for (const doc of nodeDocs) {
     const nodeData = { ...doc };
     delete nodeData.kind;
     const { valid, errors } = validateNodeFormat(nodeData);
     if (!valid) {
-      throw new ValidationError(`节点 '${doc.name ?? "?"}' 格式不合法`, errors);
+      throw new ValidationError(`node '${doc.name ?? "?"}' has invalid format`, errors);
     }
     nodes.push(nodeData as unknown as Node);
   }
 
-  // 校验并提取图
+  // Validate and extract graphs
   const graphs: Graph[] = [];
   for (const doc of graphDocs) {
     const graphData = { ...doc };
     delete graphData.kind;
     const { valid, errors } = validateGraphFormat(graphData);
     if (!valid) {
-      throw new ValidationError(`图 '${doc.name ?? "?"}' 格式不合法`, errors);
+      throw new ValidationError(`graph '${doc.name ?? "?"}' has invalid format`, errors);
     }
     graphs.push(graphData as unknown as Graph);
   }
 
-  // 检测节点重复（文件内）
+  // Check for duplicate nodes (within file)
   const nodeNames = new Set<string>();
   for (const node of nodes) {
     if (nodeNames.has(node.name)) {
-      throw new ValidationError(`YAML 文件中存在重复节点名: '${node.name}'`, []);
+      throw new ValidationError(`duplicate node name in YAML file: '${node.name}'`, []);
     }
     nodeNames.add(node.name);
   }
 
-  // 检测图重复（文件内）
+  // Check for duplicate graphs (within file)
   const graphNames = new Set<string>();
   for (const graph of graphs) {
     if (graphNames.has(graph.name)) {
-      throw new ValidationError(`YAML 文件中存在重复图名: '${graph.name}'`, []);
+      throw new ValidationError(`duplicate graph name in YAML file: '${graph.name}'`, []);
     }
     graphNames.add(graph.name);
   }
 
-  // 检测与已有节点冲突
+  // Check for conflicts with existing nodes
   const existingNodes = await nodeService.listNodes();
   const importedNodes: string[] = [];
   const skippedNodes: string[] = [];
@@ -84,7 +84,7 @@ export async function importFromYAML(content: string): Promise<ImportResult> {
     importedNodes.push(node.name);
   }
 
-  // 检测与已有图冲突
+  // Check for conflicts with existing graphs
   const existingGraphs = await graphService.listGraphs();
   const importedGraphs: string[] = [];
   const skippedGraphs: string[] = [];
@@ -99,14 +99,14 @@ export async function importFromYAML(content: string): Promise<ImportResult> {
     importedGraphs.push(graph.name);
   }
 
-  // 逐图环检测
+  // Cycle detection per graph
   for (const graph of newGraphs) {
     if (graph.edges.length > 0 && hasCycle(graph.edges)) {
-      throw new ValidationError(`图 '${graph.name}' 包含循环依赖，请检查边的配置`, []);
+      throw new ValidationError(`graph '${graph.name}' contains cycle dependency, check edge configuration`, []);
     }
   }
 
-  // 验证变量引用：检查 {{node-name.key}} 中的 node-name 是否为上游节点
+  // Validate variable references: check if node-name in {{node-name.key}} is an upstream node
   const allNodeNames = new Set(nodes.map((n) => n.name).concat(existingNodes.map((n) => n.name)));
   for (const graph of newGraphs) {
     for (const node of nodes) {
@@ -116,14 +116,14 @@ export async function importFromYAML(content: string): Promise<ImportResult> {
         if (ref.source === "node") {
           if (!allNodeNames.has(ref.nodeName!)) {
             throw new ValidationError(
-              `节点 '${node.name}' 的指令引用了不存在的节点 '${ref.nodeName}'`,
-              [`变量 {{${ref.expr}}} 引用的节点不存在`]
+              `node '${node.name}' instructions reference non-existent node '${ref.nodeName}'`,
+              [`variable {{${ref.expr}}} references a node that does not exist`]
             );
           }
           if (!upstream.has(ref.nodeName!)) {
             throw new ValidationError(
-              `节点 '${node.name}' 的指令引用了非上游节点 '${ref.nodeName}'`,
-              [`变量 {{${ref.expr}}} 引用的节点不是 '${node.name}' 的上游依赖`]
+              `node '${node.name}' instructions reference non-upstream node '${ref.nodeName}'`,
+              [`variable {{${ref.expr}}} references a node that is not an upstream dependency of '${node.name}'`]
             );
           }
         }
@@ -131,7 +131,7 @@ export async function importFromYAML(content: string): Promise<ImportResult> {
     }
   }
 
-  // 持久化节点
+  // Persist nodes
   if (importedNodes.length > 0) {
     await ensureDir(NODES_DIR);
     for (const name of importedNodes) {
@@ -140,7 +140,7 @@ export async function importFromYAML(content: string): Promise<ImportResult> {
     }
   }
 
-  // 持久化图
+  // Persist graphs
   if (importedGraphs.length > 0) {
     await ensureDir(GRAPHS_DIR);
     for (const graph of newGraphs) {

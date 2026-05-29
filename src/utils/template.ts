@@ -1,20 +1,20 @@
 import Handlebars from "handlebars";
 
 /**
- * 变量引用格式：
- *   {{global.key}}      — 全局上下文
- *   {{node-name.key}}   — 上游节点上下文
- *   {{key}}             — 当前节点自身上下文
+ * Variable reference format:
+ *   {{global.key}}      — global context
+ *   {{node-name.key}}   — upstream node context
+ *   {{key}}             — current node's own context
  */
 
 export interface VarRef {
-  /** 表达式，如 "global.key" */
+  /** Expression, e.g. "global.key" */
   expr: string;
-  /** 来源 */
+  /** Source type */
   source: "global" | "node" | "self";
-  /** 节点名（仅 source=node 时有值） */
+  /** Node name (only set when source=node) */
   nodeName?: string;
-  /** 键名 */
+  /** Key name */
   key: string;
 }
 
@@ -27,7 +27,7 @@ type ASTNode = {
 };
 
 /**
- * 从文本中提取所有变量引用。
+ * Extract all variable references from text.
  */
 export function extractVarRefs(text: string): VarRef[] {
   const refs: VarRef[] = [];
@@ -73,15 +73,15 @@ function collectRefs(node: ASTNode, refs: VarRef[], seen: Set<string>): void {
 }
 
 /**
- * 判断文本中是否包含变量引用。
+ * Check whether the text contains any variable references.
  */
 export function hasVarRefs(text: string): boolean {
   return extractVarRefs(text).length > 0;
 }
 
 /**
- * 渲染文本中的变量引用。
- * resolver 接收 (source, key, nodeName?) 返回值字符串，找不到时返回 undefined。
+ * Render variable references in text.
+ * resolver receives (source, key, nodeName?) and returns a value string, or undefined if not found.
  */
 export function renderTemplate(
   text: string,
@@ -97,7 +97,7 @@ export function renderTemplate(
   const missing: string[] = [];
   let result = text;
 
-  // 按表达式长度降序替换，避免短表达式误匹配长表达式的子串
+  // Sort by expression length descending to avoid short expressions matching substrings of longer ones
   const sorted = [...refs].sort((a, b) => b.expr.length - a.expr.length);
 
   for (const ref of sorted) {

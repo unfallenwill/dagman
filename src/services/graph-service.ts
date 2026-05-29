@@ -32,7 +32,7 @@ export async function listGraphs(): Promise<Graph[]> {
       const { kind, ...graphData } = data;
       graphs.push(graphData as unknown as Graph);
     } catch {
-      // 单个文件解析失败时跳过
+      // Skip if a single file fails to parse
     }
   }
   return graphs;
@@ -87,7 +87,7 @@ export function formatGraph(
   timestamps?: Record<string, string>
 ): string {
   if (nodes.length === 0) {
-    return "暂无已注册节点";
+    return "no registered nodes";
   }
 
   const ts = timestamps ?? {};

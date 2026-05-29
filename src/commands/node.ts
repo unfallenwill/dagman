@@ -8,85 +8,85 @@ import { FileExistsError, NodeNotFoundError } from "../errors.js";
 const NAME_REGEX = /^[a-zA-Z0-9_-]+$/;
 
 export function registerNodeCommand(program: Command): void {
-  const node = program.command("node").description("节点管理");
+  const node = program.command("node").description("Node management");
 
   node
     .command("create <name>")
-    .description("创建节点模板文件并注册到任务图")
+    .description("Create a node template")
     .action(async (name: string) => {
       try {
         if (!NAME_REGEX.test(name) || name.length < 1 || name.length > 100) {
           console.error(
-            "错误: 节点名称仅允许字母、数字、连字符和下划线，长度 1-100"
+            "Error: Node name must contain only letters, digits, hyphens and underscores, length 1-100"
           );
           process.exit(1);
         }
 
         const filePath = await nodeService.createTemplate(name);
-        console.log(`已创建节点模板: ${filePath}`);
+        console.log(`Node template created: ${filePath}`);
       } catch (err: unknown) {
         if (err instanceof FileExistsError) {
           console.error(
-            `错误: 节点 '${name}' 已存在，请先使用 node remove 命令删除`
+            `Error: Node '${name}' already exists, remove it first with node remove`
           );
           process.exit(1);
         }
-        console.error(`错误: ${(err as Error).message}`);
+        console.error(`Error: ${(err as Error).message}`);
         process.exit(1);
       }
     });
 
   node
     .command("list")
-    .description("列出所有节点")
+    .description("List all nodes")
     .action(async () => {
       try {
         const nodes = await nodeService.listNodes();
         if (nodes.length === 0) {
-          console.log("暂无已注册节点");
+          console.log("No nodes registered");
           return;
         }
         for (const n of nodes) {
           console.log(`  ${n.name}`);
         }
       } catch (err: unknown) {
-        console.error(`错误: ${(err as Error).message}`);
+        console.error(`Error: ${(err as Error).message}`);
         process.exit(1);
       }
     });
 
   node
     .command("remove <name>")
-    .description("移除节点")
-    .option("--force", "跳过确认提示")
+    .description("Remove a node")
+    .option("--force", "skip confirmation prompt")
     .action(async (name: string, options: { force?: boolean }) => {
       try {
-        // 检查所有图中是否有边引用此节点
+        // Check if any graph has edges referencing this node
         const graphs = await graphService.listGraphs();
         const allEdges = graphs.flatMap((g) => g.edges);
         const dependents = collectDownstream(name, allEdges);
 
         if (dependents.length > 0) {
           console.log(
-            `警告: 以下节点依赖 '${name}': ${dependents.join(", ")}`
+            `Warning: The following nodes depend on '${name}': ${dependents.join(", ")}`
           );
           if (!options.force) {
-            const confirmed = await confirmPrompt("确定要继续删除吗？");
+            const confirmed = await confirmPrompt("Are you sure you want to continue?");
             if (!confirmed) {
-              console.log("已取消删除");
+              console.log("Removal cancelled");
               return;
             }
           }
         }
 
         await nodeService.removeNode(name);
-        console.log(`已移除节点: ${name}`);
+        console.log(`Node removed: ${name}`);
       } catch (err: unknown) {
         if (err instanceof NodeNotFoundError) {
-          console.error(`错误: 节点 '${name}' 不存在`);
+          console.error(`Error: Node '${name}' does not exist`);
           process.exit(1);
         }
-        console.error(`错误: ${(err as Error).message}`);
+        console.error(`Error: ${(err as Error).message}`);
         process.exit(1);
       }
     });

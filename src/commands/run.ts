@@ -4,13 +4,13 @@ import * as graphService from "../services/graph-service.js";
 import { RunNotFoundError, GraphNotFoundError } from "../errors.js";
 
 export function registerRunCommand(program: Command): void {
-  const run = program.command("run").description("管理运行实例");
+  const run = program.command("run").description("Run management");
 
   run
     .command("create [label]")
-    .description("创建新的运行实例")
-    .option("-s, --switch", "创建后自动切换到新运行", false)
-    .option("--graph <name>", "绑定图")
+    .description("Create a new run")
+    .option("-s, --switch", "switch to new run after creation", false)
+    .option("--graph <name>", "bind to graph")
     .action(
       async (
         label?: string,
@@ -19,7 +19,7 @@ export function registerRunCommand(program: Command): void {
         try {
           if (options?.graph) {
             if (!(await graphService.graphExists(options.graph))) {
-              console.error(`错误: 图 '${options.graph}' 不存在`);
+              console.error(`Error: Graph '${options.graph}' does not exist`);
               process.exit(1);
             }
           }
@@ -29,10 +29,10 @@ export function registerRunCommand(program: Command): void {
             options?.switch
           );
           console.log(
-            `已创建运行: ${info.id}${info.label ? ` (${info.label})` : ""}`
+            `Run created: ${info.id}${info.label ? ` (${info.label})` : ""}`
           );
           if (info.graphName) {
-            console.log(`绑定图: ${info.graphName}`);
+            console.log(`Graph: ${info.graphName}`);
           }
           if (info.layerAssignment) {
             const layers = new Map<number, number>();
@@ -42,14 +42,14 @@ export function registerRunCommand(program: Command): void {
             const layerInfo = [...layers.entries()]
               .sort(([a], [b]) => a - b)
               .map(([, count]) => `${count}`)
-              .join(" → ");
-            console.log(`层级: ${layerInfo} (${Object.keys(info.layerAssignment).length} 个节点)`);
+              .join(" -> ");
+            console.log(`Layers: ${layerInfo} (${Object.keys(info.layerAssignment).length} nodes)`);
           }
           if (options?.switch) {
-            console.log(`已切换到运行: ${info.id}`);
+            console.log(`Switched to run: ${info.id}`);
           }
         } catch (err: unknown) {
-          console.error(`错误: ${(err as Error).message}`);
+          console.error(`Error: ${(err as Error).message}`);
           process.exit(1);
         }
       }
@@ -57,12 +57,12 @@ export function registerRunCommand(program: Command): void {
 
   run
     .command("list")
-    .description("列出所有运行实例")
+    .description("List all runs")
     .action(async () => {
       try {
         const runs = await runService.listRuns();
         if (runs.length === 0) {
-          console.log("暂无运行实例");
+          console.log("No runs found");
           return;
         }
         const currentRunId = await runService.getCurrentRunId();
@@ -75,48 +75,48 @@ export function registerRunCommand(program: Command): void {
           );
         }
       } catch (err: unknown) {
-        console.error(`错误: ${(err as Error).message}`);
+        console.error(`Error: ${(err as Error).message}`);
         process.exit(1);
       }
     });
 
   run
     .command("switch <run-id>")
-    .description("切换到指定运行实例")
+    .description("Switch to a run")
     .action(async (runId: string) => {
       try {
         await runService.switchRun(runId);
-        console.log(`已切换到运行: ${runId}`);
+        console.log(`Switched to run: ${runId}`);
       } catch (err: unknown) {
         if (err instanceof RunNotFoundError) {
-          console.error(`错误: 运行实例 '${runId}' 不存在`);
+          console.error(`Error: Run '${runId}' does not exist`);
           process.exit(1);
         }
-        console.error(`错误: ${(err as Error).message}`);
+        console.error(`Error: ${(err as Error).message}`);
         process.exit(1);
       }
     });
 
   run
     .command("show [run-id]")
-    .description("显示运行详情（默认当前运行）")
+    .description("Show run details (defaults to current run)")
     .action(async (runId?: string) => {
       try {
         const rid = runId ?? (await runService.resolveCurrentRunId());
         const info = await runService.showRun(rid);
-        console.log(`运行 ID: ${info.id}`);
-        if (info.label) console.log(`标签: ${info.label}`);
-        if (info.graphName) console.log(`绑定图: ${info.graphName}`);
-        console.log(`状态: ${info.status}`);
-        console.log(`当前步骤: ${info.currentStep}`);
-        console.log(`创建时间: ${info.createdAt}`);
-        console.log(`任务: ${info.completedTasks}/${info.taskCount} 已完成`);
+        console.log(`Run ID: ${info.id}`);
+        if (info.label) console.log(`Label: ${info.label}`);
+        if (info.graphName) console.log(`Graph: ${info.graphName}`);
+        console.log(`Status: ${info.status}`);
+        console.log(`Current step: ${info.currentStep}`);
+        console.log(`Created: ${info.createdAt}`);
+        console.log(`Tasks: ${info.completedTasks}/${info.taskCount} completed`);
       } catch (err: unknown) {
         if (err instanceof RunNotFoundError) {
-          console.error(`错误: 运行实例 '${runId}' 不存在`);
+          console.error(`Error: Run '${runId}' does not exist`);
           process.exit(1);
         }
-        console.error(`错误: ${(err as Error).message}`);
+        console.error(`Error: ${(err as Error).message}`);
         process.exit(1);
       }
     });

@@ -14,7 +14,7 @@ export interface WorkflowRecord {
   step: number;
   status: SuperstepStatus;
   tasks: Task[];
-  /** 只记录本 step 变化的 channel 及其最新值 */
+  /** Only channels that changed in this step, with their latest values */
   channelChanges: Record<string, Channel>;
   startedAt?: string;
   completedAt?: string;

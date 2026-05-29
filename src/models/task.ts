@@ -24,17 +24,17 @@ export interface Task {
   error?: string;
 }
 
-/** 生成 Task ID */
+/** Generate a Task ID */
 export function taskId(nodeId: string, step: number): string {
   return `${nodeId}@step${step}`;
 }
 
-/** 判断 task 是否为终态 */
+/** Check whether a task is in a terminal status */
 export function isTerminalStatus(status: TaskStatus): boolean {
   return (TERMINAL_STATUSES as readonly string[]).includes(status);
 }
 
-/** 创建初始 Task */
+/** Create an initial Task */
 export function createTask(nodeId: string, step: number): Task {
   return {
     id: taskId(nodeId, step),

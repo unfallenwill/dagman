@@ -4,7 +4,7 @@ const nameSchema = z
   .string()
   .min(1)
   .max(100)
-  .regex(/^[a-zA-Z0-9_-]+$/, "name 仅允许字母、数字、连字符和下划线");
+  .regex(/^[a-zA-Z0-9_-]+$/, "name must contain only letters, digits, hyphens and underscores");
 
 export const nodeSchema = z.object({
   name: nameSchema,

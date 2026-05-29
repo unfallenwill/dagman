@@ -59,7 +59,7 @@ describe("checkCycles", () => {
     ];
     const results = checkCycles(edges);
     expect(results.some((r) => r.level === "error")).toBe(true);
-    expect(results[0].message).toContain("循环依赖");
+    expect(results[0].message).toContain("cycle detected");
   });
 
   it("should detect A -> B -> C -> A cycle", () => {
@@ -87,14 +87,14 @@ describe("checkOrphans", () => {
     const results = checkOrphans(edges, nodeNames);
     expect(results.length).toBe(1);
     expect(results[0].level).toBe("warning");
-    expect(results[0].message).toContain("孤立节点");
+    expect(results[0].message).toContain("orphaned");
   });
 });
 
 describe("formatValidationResults", () => {
   it("should return pass message when no issues", () => {
     const result = formatValidationResults([]);
-    expect(result).toBe("任务图校验通过，无问题");
+    expect(result).toBe("task graph validation passed, no issues");
   });
 
   it("should format errors before warnings", () => {
@@ -103,13 +103,13 @@ describe("formatValidationResults", () => {
         rule: "orphan",
         passed: false,
         level: "warning" as const,
-        message: "孤立节点",
+        message: "orphaned node",
       },
       {
         rule: "missing",
         passed: false,
         level: "error" as const,
-        message: "依赖不存在",
+        message: "dependency not found",
       },
     ];
     const formatted = formatValidationResults(results);

@@ -4,18 +4,18 @@ import * as nodeService from "./node-service.js";
 import * as graphService from "./graph-service.js";
 
 /**
- * 导出指定图及其引用的所有节点为 multi-document YAML 字符串。
+ * Export the specified graph and all referenced nodes as a multi-document YAML string.
  */
 export async function exportToYAML(graphName: string): Promise<string>;
 /**
- * 导出所有节点和所有图为 multi-document YAML 字符串。
+ * Export all nodes and graphs as a multi-document YAML string.
  */
 export async function exportToYAML(): Promise<string>;
 export async function exportToYAML(graphName?: string): Promise<string> {
   const docs: unknown[] = [];
 
   if (graphName) {
-    // 导出指定图 + 引用的节点
+    // Export specified graph + referenced nodes
     const graph = await graphService.loadGraph(graphName);
     const nodeNames = new Set<string>();
     for (const edge of graph.edges) {
@@ -29,11 +29,11 @@ export async function exportToYAML(graphName?: string): Promise<string> {
         const node = await nodeService.getNode(name);
         docs.push({ kind: "Node", ...node });
       } catch {
-        // 节点不存在时跳过
+        // Skip if node does not exist
       }
     }
   } else {
-    // 导出所有图 + 所有节点
+    // Export all graphs + all nodes
     const graphs = await graphService.listGraphs();
     for (const graph of graphs) {
       docs.push({ kind: "Graph", ...graph });

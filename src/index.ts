@@ -14,7 +14,7 @@ import { registerImportCommand } from "./commands/import.js";
 import { registerExportCommand } from "./commands/export.js";
 
 process.on("uncaughtException", (err: Error) => {
-  console.error(`错误: ${err.message}`);
+  console.error(`Error: ${err.message}`);
   process.exit(1);
 });
 

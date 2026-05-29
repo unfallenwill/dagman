@@ -34,7 +34,7 @@ export async function resolveCurrentRunId(): Promise<string> {
   const current = await getCurrentRunId();
   if (current) return current;
 
-  // Fresh start — 不再支持 legacy 迁移
+  // Fresh start — legacy migration no longer supported
   await createRunInternal(DEFAULT_RUN_ID);
   await setCurrentRunId(DEFAULT_RUN_ID);
   return DEFAULT_RUN_ID;
@@ -56,7 +56,7 @@ async function createRunInternal(
   let currentStep = 0;
   let status: RunStatus = "idle";
 
-  // 如果绑定了 graph，计算层级并初始化 workflow
+  // If bound to a graph, compute layers and initialize workflow
   if (graphName) {
     const graph = await graphService.loadGraph(graphName);
     const nodes = await nodeService.listNodes();
@@ -83,7 +83,7 @@ async function createRunInternal(
     };
     await writeJSON(getRunMetaFile(runId), info);
 
-    // 初始化 workflow.jsonl
+    // Initialize workflow.jsonl
     await workflowService.initWorkflow(runId, layers, graph.edges);
 
     return info;
@@ -116,7 +116,7 @@ export async function createRun(
     : `run-${Date.now()}`;
 
   if (!runId) {
-    throw new Error("无法从标签生成有效的运行 ID");
+    throw new Error("could not generate valid run ID from label");
   }
 
   const info = await createRunInternal(runId, label, graphName);

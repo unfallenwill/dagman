@@ -12,8 +12,8 @@ function formatEvent(iso: string, node: string, from: string, to: string): strin
 export function registerLogCommand(program: Command): void {
   program
     .command("log [node]")
-    .description("查看执行日志")
-    .option("--run <runId>", "指定运行实例")
+    .description("View execution log")
+    .option("--run <runId>", "specify run")
     .action(async (node?: string, options?: { run?: string }) => {
       try {
         const runId = options?.run ?? (await resolveCurrentRunId());
@@ -28,7 +28,7 @@ export function registerLogCommand(program: Command): void {
           : events;
 
         if (filtered.length === 0) {
-          console.log(node ? `节点 '${node}' 暂无执行记录` : "暂无执行记录");
+          console.log(node ? `No execution log for node '${node}'` : "No execution log");
           return;
         }
 
@@ -37,10 +37,10 @@ export function registerLogCommand(program: Command): void {
         }
       } catch (err: unknown) {
         if (err instanceof RunNotFoundError) {
-          console.error(`错误: 运行实例 '${options?.run}' 不存在`);
+          console.error(`Error: Run '${options?.run}' does not exist`);
           process.exit(1);
         }
-        console.error(`错误: ${(err as Error).message}`);
+        console.error(`Error: ${(err as Error).message}`);
         process.exit(1);
       }
     });

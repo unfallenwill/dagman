@@ -1,134 +1,134 @@
-# dagman 开发工作流
+# dagman Development Workflow
 
-本项目使用 dagman 管理开发任务。工作流已预定义，你只需按步骤执行。
+This project uses dagman to manage development tasks. The workflow is predefined — just follow the steps.
 
-## 开发环境
+## Development Environment
 
-- `npm run build` / `tsc` — 编译 TypeScript 到 dist/
-- `npm run dev` / `tsx src/index.ts` — 开发模式直接运行
-- `npm test` / `vitest` — 运行测试
+- `npm run build` / `tsc` — Compile TypeScript to dist/
+- `npm run dev` / `tsx src/index.ts` — Run in development mode
+- `npm test` / `vitest` — Run tests
 
-## 项目结构
+## Project Structure
 
-- `src/commands/` — CLI 命令定义（Commander.js，名词+动词分组风格）
-- `src/constants.ts` — 路径常量和 run-aware 路径解析
-- `src/services/` — 业务逻辑层
-  - `workflow-service.ts` — 核心：统一管理 Channel、Task、Superstep（workflow.jsonl）
-  - `next-service.ts` — Superstep 感知的调度（从 workflow 读取 ready tasks）
-  - `run-service.ts` — 运行实例管理（创建时计算拓扑层级）
-  - `node-service.ts` — 节点定义 CRUD
-  - `graph-service.ts` — 图定义 CRUD + 展示
-  - `event-service.ts` — 细粒度 task 事件日志
-  - `import-service.ts` / `export-service.ts` — YAML 导入导出
-  - `validator.ts` — 图校验
-- `src/models/` — 类型定义和数据模型
-  - `node.ts` — Node（纯静态定义，无运行时状态）
-  - `graph.ts` — Graph、Edge
-  - `channel.ts` — Channel（带版本号的状态单元）+ 命名工具函数
-  - `task.ts` — Task（运行时实体，ready/running/success/failed/skipped）
-  - `superstep.ts` — WorkflowRecord、RunInfo、WorkflowState
-  - `event.ts` — Event（审计日志条目）
-- `src/utils/` — 共享工具（文件 I/O、拓扑计算、模板渲染、交互提示）
-- `tests/` — vitest 测试，用 tmpdir + chdir 隔离
-- `.dagman/nodes/` — 节点定义（YAML 格式，`kind: Node`）
-- `.dagman/graphs/` — 图定义（YAML 格式，`kind: Graph`）
-- `.dagman/runs/` — 运行实例（workflow.jsonl 状态 + events.jsonl 审计）
+- `src/commands/` — CLI command definitions (Commander.js, noun+verb grouping)
+- `src/constants.ts` — Path constants and run-aware path resolution
+- `src/services/` — Business logic layer
+  - `workflow-service.ts` — Core: manages Channel, Task, Superstep (workflow.jsonl)
+  - `next-service.ts` — Superstep-aware scheduling (reads ready tasks from workflow)
+  - `run-service.ts` — Run instance management (computes topological layers on creation)
+  - `node-service.ts` — Node definition CRUD
+  - `graph-service.ts` — Graph definition CRUD + display
+  - `event-service.ts` — Fine-grained task event logging
+  - `import-service.ts` / `export-service.ts` — YAML import/export
+  - `validator.ts` — Graph validation
+- `src/models/` — Type definitions and data models
+  - `node.ts` — Node (pure static definition, no runtime state)
+  - `graph.ts` — Graph, Edge
+  - `channel.ts` — Channel (versioned state unit) + naming utilities
+  - `task.ts` — Task (runtime entity, ready/running/success/failed/skipped)
+  - `superstep.ts` — WorkflowRecord, RunInfo, WorkflowState
+  - `event.ts` — Event (audit log entry)
+- `src/utils/` — Shared utilities (file I/O, topology computation, template rendering, interactive prompts)
+- `tests/` — vitest tests, isolated with tmpdir + chdir
+- `.dagman/nodes/` — Node definitions (YAML, `kind: Node`)
+- `.dagman/graphs/` — Graph definitions (YAML, `kind: Graph`)
+- `.dagman/runs/` — Run instances (workflow.jsonl state + events.jsonl audit)
 
-## 核心概念
+## Core Concepts
 
 ### Channel + Version
 
-所有运行时数据统一为 Channel，每个 channel 有 `value` + `version`：
-- 节点上下文 channel：`{node}.{key}`（节点执行产出）
-- Edge channel：`edge:{from}→{to}`（依赖满足信号）
-- 全局 channel：`_global.{key}`（跨节点共享）
+All runtime data is unified as Channels, each with `value` + `version`:
+- Node context channel: `{node}.{key}` (node execution output)
+- Edge channel: `edge:{from}→{to}` (dependency satisfaction signal)
+- Global channel: `_global.{key}` (shared across nodes)
 
-### Node → Task 分离
+### Node → Task Separation
 
-- **Node**：纯静态定义（name, description, instructions），不承载状态
-- **Task**：运行时实体，由 Superstep 从 Node 创建，有生命周期：ready → running → success/failed/skipped
-- 失败的 task 可通过 `task retry` 重置为 ready
+- **Node**: Pure static definition (name, description, instructions), carries no state
+- **Task**: Runtime entity, created from a Node by Superstep, lifecycle: ready → running → success/failed/skipped
+- Failed tasks can be reset to ready via `task retry`
 
-### Superstep（Pregel-like）
+### Superstep (Pregel-like)
 
-- DAG 按拓扑结构 BFS 分层，每层是一个 Superstep
-- 层内所有 ready tasks 可并行执行
-- 当前 step 所有 task 到达终态后，自动推进到下一层
-- superstep 内有 task 失败则暂停，等待人工处理
+- DAG is BFS-layered by topology, each layer is a Superstep
+- All ready tasks within a layer can execute in parallel
+- When all tasks in the current step reach terminal state, advance to the next layer
+- If any task fails within a superstep, pause and wait for manual intervention
 
 ### workflow.jsonl
 
-追加写入的 JSONL 文件，每行记录一个 superstep 的状态快照：
+Append-only JSONL file, each line records a superstep state snapshot:
 ```jsonl
 {"step":0,"status":"completed","tasks":[...],"channelChanges":{"edge:A→B":{"value":"success","version":1,...}},...}
 {"step":1,"status":"running","tasks":[...],"channelChanges":{},...}
 ```
-- `channelChanges` 只记录本 step 有变化的 channel 及其最新值
-- 读取完整状态：累积所有行的 `channelChanges`
+- `channelChanges` only records channels that changed in this step with their latest values
+- To read full state: accumulate `channelChanges` across all lines
 
-## 代码规范
+## Code Conventions
 
-- 所有 import 使用 `.js` 扩展名（Node16 模块解析要求）
-- 用户可见的错误和提示信息用中文
-- 自定义错误类定义在 `src/errors.ts`
-- 节点定义存储为 YAML（`kind: Node`），不含依赖关系
-- 图定义存储为 YAML（`kind: Graph`），边列表声明依赖关系
-- schema 由 `src/utils/json.ts` 的 zod 校验
-- 拓扑计算（环检测、层级计算、邻接表）集中在 `src/utils/topology.ts`
-- import/export 默认使用 stdin/stdout，参数指定文件
+- All imports use `.js` extension (Node16 module resolution requirement)
+- User-facing errors and messages are in English
+- Custom error classes are defined in `src/errors.ts`
+- Node definitions are stored as YAML (`kind: Node`), no dependency info
+- Graph definitions are stored as YAML (`kind: Graph`), edges declare dependencies
+- Schema validation uses zod in `src/utils/json.ts`
+- Topology computation (cycle detection, layer calculation, adjacency) is centralized in `src/utils/topology.ts`
+- import/export defaults to stdin/stdout, file path as argument
 
-## 提交规范
+## Commit Convention
 
-每次 git commit 时，在 commit message 末尾附加：
+Append the following to every git commit message:
 
 ```
 Co-Authored-By: GLM 5.1 <noreply@z.ai>
 ```
 
-## CLI 命令
+## CLI Commands
 
-### 节点和图（定义层）
-- `node create/list/remove` — 节点定义管理
-- `graph list/show/validate` — 图定义管理
+### Nodes and Graphs (Definition Layer)
+- `node create/list/remove` — Node definition management
+- `graph list/show/validate` — Graph definition management
 
-### 运行和工作流（执行层）
-- `run create [label] --graph <name> -s` — 创建运行实例（自动计算拓扑层级）
-- `run list/switch/show` — 运行实例管理
+### Runs and Workflow (Execution Layer)
+- `run create [label] --graph <name> -s` — Create a run (auto-computes topological layers)
+- `run list/switch/show` — Run instance management
 
-### 任务生命周期
-- `task list/show/start/complete/fail/skip/retry` — Task 生命周期管理
+### Task Lifecycle
+- `task list/show/start/complete/fail/skip/retry` — Task lifecycle management
 
-### Channel 管理
-- `channel list/get/set/clear` — Channel 读写（version 自动递增）
+### Channel Management
+- `channel list/get/set/clear` — Channel read/write (version auto-increments)
 
 ### Superstep
-- `step show/advance/history` — Superstep 查看和手动推进
+- `step show/advance/history` — Superstep view and manual advance
 
-### 调度
-- `next [--all] [--step] [--json]` — 返回当前 superstep 的 ready task(s)
+### Scheduling
+- `next [--all] [--step] [--json]` — Returns ready task(s) in the current superstep
 
-### 其他
-- `log [node]` — 审计日志
-- `import/export` — YAML 导入导出
+### Other
+- `log [node]` — Audit log
+- `import/export` — YAML import/export
 
-## 数据存储
+## Data Storage
 
 ```
 .dagman/
-  .current-run              # 当前活跃运行实例 ID
+  .current-run              # Current active run ID
   nodes/
-    <name>.yaml             # 节点定义（kind: Node，无 depends_on）
+    <name>.yaml             # Node definition (kind: Node, no depends_on)
   graphs/
-    <name>.yaml             # 图定义（kind: Graph，edges 列表）
+    <name>.yaml             # Graph definition (kind: Graph, edges list)
   runs/
     <run-id>/
-      run.json              # 运行元数据（含 graphName、currentStep、status、layerAssignment）
-      workflow.jsonl         # 工作流状态（channels + tasks + 快照，追加写入）
-      events.jsonl          # 细粒度 task 事件日志（追加写入）
+      run.json              # Run metadata (graphName, currentStep, status, layerAssignment)
+      workflow.jsonl        # Workflow state (channels + tasks + snapshots, append-only)
+      events.jsonl          # Fine-grained task event log (append-only)
 ```
 
-## 边语义
+## Edge Semantics
 
-- `Edge { from, to, expect? }` — `from` 依赖于 `to`，`expect` 默认 `"success"`
-- `skipped` 等价于 `success`：当 `expect` 为 `"success"` 时，`to` 节点状态为 `"skipped"` 也视为满足
-- 运行实例通过 `run create --graph <name>` 绑定图，创建时自动计算拓扑层级
+- `Edge { from, to, expect? }` — `from` depends on `to`, `expect` defaults to `"success"`
+- `skipped` equals `success`: when `expect` is `"success"`, a `"skipped"` status on the `to` node also satisfies the dependency
+- Run instances bind to a graph via `run create --graph <name>`, which auto-computes topological layers

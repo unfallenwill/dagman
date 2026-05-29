@@ -1,6 +1,6 @@
 export class NodeNotFoundError extends Error {
   constructor(name: string) {
-    super(`节点 '${name}' 不存在`);
+    super(`node '${name}' not found`);
     this.name = "NodeNotFoundError";
   }
 }
@@ -17,35 +17,35 @@ export class ValidationError extends Error {
 
 export class FileExistsError extends Error {
   constructor(path: string) {
-    super(`文件 '${path}' 已存在`);
+    super(`file '${path}' already exists`);
     this.name = "FileExistsError";
   }
 }
 
 export class CycleError extends Error {
   constructor(nodeName: string) {
-    super(`注册节点 '${nodeName}' 会产生循环依赖，已拒绝注册`);
+    super(`registering node '${nodeName}' would create a cycle, registration rejected`);
     this.name = "CycleError";
   }
 }
 
 export class RunNotFoundError extends Error {
   constructor(runId: string) {
-    super(`运行实例 '${runId}' 不存在`);
+    super(`run '${runId}' not found`);
     this.name = "RunNotFoundError";
   }
 }
 
 export class RunExistsError extends Error {
   constructor(runId: string) {
-    super(`运行实例 '${runId}' 已存在`);
+    super(`run '${runId}' already exists`);
     this.name = "RunExistsError";
   }
 }
 
 export class GraphNotFoundError extends Error {
   constructor(name: string) {
-    super(`图 '${name}' 不存在`);
+    super(`graph '${name}' not found`);
     this.name = "GraphNotFoundError";
   }
 }

@@ -23,7 +23,7 @@ export function validateGraph(
         rule: "empty-graph",
         passed: true,
         level: "warning",
-        message: "任务图为空，无需校验",
+        message: "task graph is empty, nothing to validate",
       },
     ];
   }
@@ -50,7 +50,7 @@ export function checkMissingDeps(
       rule: "missing-dep",
       passed: false,
       level: "error",
-      message: `边引用的节点 '${missingName}' 不存在（${side}: ${side === "from" ? edge.from : edge.to}）`,
+      message: `edge references non-existent node '${missingName}' (${side}: ${side === "from" ? edge.from : edge.to})`,
     });
   }
 
@@ -71,7 +71,7 @@ export function checkInvalidStatus(edges: Edge[]): ValidationResult[] {
         rule: "invalid-status",
         passed: false,
         level: "error",
-        message: `边 '${edge.from}' -> '${edge.to}' 的期望状态 '${edge.expect}' 无效，仅支持: ${VALID_EXPECT_STATUSES.join(", ")}`,
+        message: `edge '${edge.from}' -> '${edge.to}' has invalid expect status '${edge.expect}', supported: ${VALID_EXPECT_STATUSES.join(", ")}`,
       });
     }
   }
@@ -92,7 +92,7 @@ export function checkCycles(edges: Edge[]): ValidationResult[] {
       rule: "cycle",
       passed: false,
       level: "error",
-      message: `检测到循环依赖：${cycle.join(" -> ")}`,
+      message: `cycle detected: ${cycle.join(" -> ")}`,
     });
   }
 
@@ -108,7 +108,7 @@ export function checkOrphans(
     rule: "orphan",
     passed: false,
     level: "warning" as const,
-    message: `节点 '${name}' 为孤立节点（无依赖关系）`,
+    message: `node '${name}' is orphaned (no dependencies)`,
   }));
 }
 
@@ -117,12 +117,12 @@ export function formatValidationResults(results: ValidationResult[]): string {
   const hasWarnings = results.some((r) => r.level === "warning" && !r.passed);
 
   if (!hasErrors && !hasWarnings) {
-    // 检查是否是空图提示
+    // Check if it's the empty-graph hint
     const emptyGraph = results.find((r) => r.rule === "empty-graph");
     if (emptyGraph) {
       return emptyGraph.message;
     }
-    return "任务图校验通过，无问题";
+    return "task graph validation passed, no issues";
   }
 
   const errors = results.filter((r) => r.level === "error" && !r.passed);

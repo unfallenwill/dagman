@@ -6,7 +6,7 @@ import * as fs from "fs/promises";
 export function registerImportCommand(program: Command): void {
   program
     .command("import [file]")
-    .description("从 YAML 文件或标准输入导入节点和图")
+    .description("Import nodes and graphs from YAML")
     .action(async (filePath?: string) => {
       try {
         let content: string;
@@ -19,28 +19,28 @@ export function registerImportCommand(program: Command): void {
         const result = await importService.importFromYAML(content);
 
         if (result.importedNodes.length > 0) {
-          console.log(`已导入 ${result.importedNodes.length} 个节点:`);
+          console.log(`Imported ${result.importedNodes.length} node(s):`);
           for (const name of result.importedNodes) {
             console.log(`  ${name}`);
           }
         }
 
         if (result.skippedNodes.length > 0) {
-          console.log(`已跳过 ${result.skippedNodes.length} 个已存在的节点:`);
+          console.log(`Skipped ${result.skippedNodes.length} existing node(s):`);
           for (const name of result.skippedNodes) {
             console.log(`  ${name}`);
           }
         }
 
         if (result.importedGraphs.length > 0) {
-          console.log(`已导入 ${result.importedGraphs.length} 个图:`);
+          console.log(`Imported ${result.importedGraphs.length} graph(s):`);
           for (const name of result.importedGraphs) {
             console.log(`  ${name}`);
           }
         }
 
         if (result.skippedGraphs.length > 0) {
-          console.log(`已跳过 ${result.skippedGraphs.length} 个已存在的图:`);
+          console.log(`Skipped ${result.skippedGraphs.length} existing graph(s):`);
           for (const name of result.skippedGraphs) {
             console.log(`  ${name}`);
           }
@@ -52,17 +52,17 @@ export function registerImportCommand(program: Command): void {
           result.importedGraphs.length === 0 &&
           result.skippedGraphs.length === 0
         ) {
-          console.log("YAML 文件中无可导入的内容");
+          console.log("No importable content found in YAML");
         }
       } catch (err: unknown) {
         if (err instanceof ValidationError) {
-          console.error(`错误: ${err.message}`);
+          console.error(`Error: ${err.message}`);
           for (const e of err.errors) {
             console.error(`  - ${e}`);
           }
           process.exit(1);
         }
-        console.error(`错误: ${(err as Error).message}`);
+        console.error(`Error: ${(err as Error).message}`);
         process.exit(1);
       }
     });

@@ -169,7 +169,7 @@ describe("task lifecycle", () => {
     // Cannot complete a task that's not running
     await expect(
       workflowService.completeTask("a", [], runId)
-    ).rejects.toThrow(/无法完成/);
+    ).rejects.toThrow(/cannot complete/);
   });
 });
 

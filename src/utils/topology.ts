@@ -1,8 +1,8 @@
 import type { Edge } from "../models/graph.js";
 
 /**
- * 构建正向邻接表：from -> [to, ...]
- * 表示依赖方向：from 依赖于 to
+ * Build forward adjacency map: from -> [to, ...]
+ * Represents dependency direction: from depends on to
  */
 export function buildAdjacencyMap(edges: Edge[]): Map<string, string[]> {
   const adj = new Map<string, string[]>();
@@ -15,8 +15,8 @@ export function buildAdjacencyMap(edges: Edge[]): Map<string, string[]> {
 }
 
 /**
- * 构建反向邻接表：to -> [from, ...]
- * 表示影响方向：谁依赖于 to
+ * Build reverse adjacency map: to -> [from, ...]
+ * Represents influence direction: who depends on to
  */
 export function buildReverseAdjacencyMap(edges: Edge[]): Map<string, string[]> {
   const adj = new Map<string, string[]>();
@@ -29,7 +29,7 @@ export function buildReverseAdjacencyMap(edges: Edge[]): Map<string, string[]> {
 }
 
 /**
- * 检测边列表中是否存在循环依赖（DFS 三色标记）。
+ * Detect whether the edge list contains a cycle (DFS three-color marking).
  */
 export function hasCycle(edges: Edge[]): boolean {
   const adj = buildAdjacencyMap(edges);
@@ -70,9 +70,9 @@ export function hasCycle(edges: Edge[]): boolean {
 }
 
 /**
- * 检查节点的所有依赖是否满足。
- * 边语义：from 依赖于 to，所以 nodeName 的依赖是 edges[from === nodeName]。
- * expect 默认为 "success"，skipped 等价于 success。
+ * Check whether all dependencies of a node are satisfied.
+ * Edge semantics: from depends on to, so nodeName's deps are edges[from === nodeName].
+ * expect defaults to "success"; skipped is treated as equivalent to success.
  */
 export function areDepsSatisfied(
   nodeName: string,
@@ -86,30 +86,30 @@ export function areDepsSatisfied(
     const expect = edge.expect ?? "success";
     const depState = states[edge.to];
     if (depState === expect) return true;
-    // skipped 等价于 success
+    // skipped is equivalent to success
     if (expect === "success" && depState === "skipped") return true;
     return false;
   });
 }
 
 /**
- * 收集节点的直接上游节点名称（被依赖的节点）。
- * from 依赖于 to，所以 nodeName 的上游是 edges[from === nodeName] 的 to 值。
+ * Collect direct upstream node names (nodes being depended on).
+ * from depends on to, so nodeName's upstreams are the to values of edges[from === nodeName].
  */
 export function collectUpstream(nodeName: string, edges: Edge[]): string[] {
   return edges.filter((e) => e.from === nodeName).map((e) => e.to);
 }
 
 /**
- * 收集节点的直接下游节点名称（依赖于该节点的节点）。
- * to 被依赖，所以 nodeName 的下游是 edges[to === nodeName] 的 from 值。
+ * Collect direct downstream node names (nodes that depend on this node).
+ * to is depended on, so nodeName's downstreams are the from values of edges[to === nodeName].
  */
 export function collectDownstream(nodeName: string, edges: Edge[]): string[] {
   return edges.filter((e) => e.to === nodeName).map((e) => e.from);
 }
 
 /**
- * 找到边中引用了不存在节点的目标。
+ * Find edges that reference non-existent node targets.
  */
 export function findMissingTargets(
   edges: Edge[],
@@ -124,7 +124,7 @@ export function findMissingTargets(
 }
 
 /**
- * 找到孤立节点（没有任何边连接）。
+ * Find orphan nodes (not connected to any edge).
  */
 export function findOrphanNodes(
   edges: Edge[],
@@ -139,7 +139,7 @@ export function findOrphanNodes(
 }
 
 /**
- * 找到循环路径（用于错误信息）。
+ * Find cycle paths (used for error messages).
  */
 export function findCyclePaths(edges: Edge[]): string[][] {
   const adj = buildAdjacencyMap(edges);
@@ -197,9 +197,9 @@ export function findCyclePaths(edges: Edge[]): string[][] {
 }
 
 /**
- * BFS 拓扑分层：将节点按依赖关系分层。
- * Layer 0: 无依赖的节点（没有入边）
- * Layer N: 所有依赖都在 Layer 0..N-1 中的节点
+ * BFS topological layering: assign nodes to layers by dependency.
+ * Layer 0: nodes with no dependencies (no incoming edges)
+ * Layer N: nodes whose dependencies are all in Layer 0..N-1
  */
 export function computeTopologicalLayers(
   edges: Edge[],
@@ -207,19 +207,19 @@ export function computeTopologicalLayers(
 ): Map<number, string[]> {
   if (nodeNames.length === 0) return new Map();
 
-  // 计算每个节点的入度（被依赖数）
+  // Compute in-degree (dependency count) for each node
   const inDegree = new Map<string, number>();
   for (const name of nodeNames) {
     inDegree.set(name, 0);
   }
   for (const edge of edges) {
-    // edge.from 依赖于 edge.to，所以 from 有入度
+    // edge.from depends on edge.to, so from has an in-degree
     if (inDegree.has(edge.from)) {
       inDegree.set(edge.from, inDegree.get(edge.from)! + 1);
     }
   }
 
-  // 反向邻接表：to -> [from, ...]（to 被谁依赖）
+  // Reverse adjacency map: to -> [from, ...] (who depends on to)
   const reverseAdj = new Map<string, string[]>();
   for (const edge of edges) {
     const dependents = reverseAdj.get(edge.to) ?? [];

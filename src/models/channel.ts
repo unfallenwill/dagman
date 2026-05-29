@@ -5,38 +5,38 @@ export interface Channel {
   updatedAt: string;
 }
 
-/** 全局上下文的节点名前缀 */
+/** Node name prefix for global context channels */
 export const GLOBAL_CHANNEL_PREFIX = "_global";
 
-/** Edge channel 的命名前缀 */
+/** Naming prefix for edge channels */
 export const EDGE_CHANNEL_PREFIX = "edge:";
 
-/** 构造节点上下文 channel 名称 */
+/** Build a node context channel name */
 export function nodeChannelName(nodeName: string, key: string): string {
   return `${nodeName}.${key}`;
 }
 
-/** 构造全局 channel 名称 */
+/** Build a global channel name */
 export function globalChannelName(key: string): string {
   return `${GLOBAL_CHANNEL_PREFIX}.${key}`;
 }
 
-/** 构造 edge channel 名称 (from→to 语义: from 被 to 依赖) */
+/** Build an edge channel name (from→to semantics: from is depended on by to) */
 export function edgeChannelName(from: string, to: string): string {
   return `${EDGE_CHANNEL_PREFIX}${from}→${to}`;
 }
 
-/** 判断 channel 名是否属于指定节点 */
+/** Check whether a channel name belongs to the specified node */
 export function isNodeChannel(name: string, nodeName: string): boolean {
   return name.startsWith(`${nodeName}.`);
 }
 
-/** 判断 channel 名是否为全局 channel */
+/** Check whether a channel name is a global channel */
 export function isGlobalChannel(name: string): boolean {
   return name.startsWith(`${GLOBAL_CHANNEL_PREFIX}.`);
 }
 
-/** 判断 channel 名是否为 edge channel */
+/** Check whether a channel name is an edge channel */
 export function isEdgeChannel(name: string): boolean {
   return name.startsWith(EDGE_CHANNEL_PREFIX);
 }

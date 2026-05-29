@@ -5,13 +5,13 @@ import { NodeNotFoundError } from "../errors.js";
 import { GLOBAL_CHANNEL_PREFIX } from "../models/channel.js";
 
 export function registerChannelCommand(program: Command): void {
-  const channel = program.command("channel").description("Channel 管理");
+  const channel = program.command("channel").description("Channel management");
 
   channel
     .command("list [node]")
-    .description("列出 channels")
-    .option("--global", "列出全局 channels")
-    .option("-r, --run <runId>", "指定运行实例")
+    .description("List channels")
+    .option("--global", "list global channels")
+    .option("-r, --run <runId>", "specify run")
     .action(async (node: string | undefined, options: { global?: boolean; run?: string }) => {
       try {
         let target = node;
@@ -19,23 +19,23 @@ export function registerChannelCommand(program: Command): void {
 
         const channels = await workflowService.listChannels(target, options.run);
         if (channels.length === 0) {
-          console.log(target ? `暂无 channels` : "暂无 channel 数据");
+          console.log(target ? `No channels found` : "No channel data");
           return;
         }
         for (const ch of channels) {
           console.log(`  ${ch.name}: ${ch.value} (v${ch.version})`);
         }
       } catch (err: unknown) {
-        console.error(`错误: ${(err as Error).message}`);
+        console.error(`Error: ${(err as Error).message}`);
         process.exit(1);
       }
     });
 
   channel
     .command("get <node> <key>")
-    .description("读取 channel 值")
-    .option("--global", "读取全局 channel（node 参数将被忽略）")
-    .option("-r, --run <runId>", "指定运行实例")
+    .description("Get channel value")
+    .option("--global", "read global channel (node parameter is ignored)")
+    .option("-r, --run <runId>", "specify run")
     .action(async (node: string, key: string, options: { global?: boolean; run?: string }) => {
       try {
         const channelName = options.global
@@ -43,22 +43,22 @@ export function registerChannelCommand(program: Command): void {
           : `${node}.${key}`;
         const ch = await workflowService.getChannel(channelName, options.run);
         if (!ch || ch.version === 0) {
-          const scope = options.global ? "全局" : `节点 '${node}'`;
-          console.error(`错误: ${scope}channel '${key}' 不存在`);
+          const scope = options.global ? "Global" : `Node '${node}' `;
+          console.error(`Error: ${scope}channel '${key}' does not exist`);
           process.exit(1);
         }
         console.log(`${ch.value} (v${ch.version})`);
       } catch (err: unknown) {
-        console.error(`错误: ${(err as Error).message}`);
+        console.error(`Error: ${(err as Error).message}`);
         process.exit(1);
       }
     });
 
   channel
     .command("set <node> <key> <value>")
-    .description("写入 channel（version 递增）")
-    .option("--global", "写入全局 channel（node 参数将被忽略）")
-    .option("-r, --run <runId>", "指定运行实例")
+    .description("Set channel value (version increments)")
+    .option("--global", "write global channel (node parameter is ignored)")
+    .option("-r, --run <runId>", "specify run")
     .action(async (node: string, key: string, value: string, options: { global?: boolean; run?: string }) => {
       try {
         if (!options.global) {
@@ -69,28 +69,28 @@ export function registerChannelCommand(program: Command): void {
           ? `_global.${key}`
           : `${node}.${key}`;
         const ch = await workflowService.setChannel(channelName, value, options.run);
-        const scope = options.global ? "全局" : `节点 '${node}' `;
-        console.log(`已设置${scope}channel: ${key} = ${value} (v${ch.version})`);
+        const scope = options.global ? "global " : `node '${node}' `;
+        console.log(`Set ${scope}channel: ${key} = ${value} (v${ch.version})`);
       } catch (err: unknown) {
         if (err instanceof NodeNotFoundError) {
-          console.error(`错误: 节点 '${node}' 不存在`);
+          console.error(`Error: Node '${node}' does not exist`);
           process.exit(1);
         }
-        console.error(`错误: ${(err as Error).message}`);
+        console.error(`Error: ${(err as Error).message}`);
         process.exit(1);
       }
     });
 
   channel
     .command("clear <node>")
-    .description("清除节点的所有 channels")
-    .option("-r, --run <runId>", "指定运行实例")
+    .description("Clear all channels for a node")
+    .option("-r, --run <runId>", "specify run")
     .action(async (node: string, options: { run?: string }) => {
       try {
         await workflowService.clearChannels(node, options.run);
-        console.log(`已清除节点 '${node}' 的所有 channels`);
+        console.log(`Cleared all channels for node '${node}'`);
       } catch (err: unknown) {
-        console.error(`错误: ${(err as Error).message}`);
+        console.error(`Error: ${(err as Error).message}`);
         process.exit(1);
       }
     });

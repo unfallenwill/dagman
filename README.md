@@ -1,16 +1,22 @@
 # dagman
 
-基于有向无环图（DAG）的通用 Agent 任务编排 CLI 工具。
+A DAG-based agent task orchestration CLI.
 
-dagman 将复杂的多步骤任务拆分为节点，通过边（Edge）构成 DAG，由外部 Agent 循环调用 `dagman next` 驱动执行。它本身不执行任务，而是作为调度器告诉 Agent 下一步该做什么、有哪些上下文可用。
+dagman splits complex multi-step tasks into nodes connected by edges to form a DAG. An external agent drives execution by repeatedly calling `dagman next`. dagman does not execute tasks itself — it acts as a scheduler, telling the agent what to do next and what context is available.
 
-## 安装
+## Install
 
 ```bash
-npm install -g @unfallenwill/dagman
+npm install -g dagman
 ```
 
-或从源码构建：
+Or use without installing:
+
+```bash
+npx -y dagman help
+```
+
+Or build from source:
 
 ```bash
 git clone <repo-url> dagman
@@ -20,32 +26,32 @@ npm run build
 npm link
 ```
 
-## 快速开始
+## Quick Start
 
-### 1. 编写计划文件
+### 1. Write a plan file
 
-创建一个 YAML 文件，用 `---` 分隔多个文档。节点（`kind: Node`）定义"做什么"，图（`kind: Graph`）定义"怎么连"：
+Create a YAML file with `---` separators. Nodes (`kind: Node`) define "what to do", graphs (`kind: Graph`) define "how they connect":
 
 ```yaml
 kind: Node
 name: setup
-description: 初始化项目环境
-instructions: 安装依赖并创建配置文件
+description: Initialize project environment
+instructions: Install dependencies and create config files
 ---
 kind: Node
 name: lint
-description: 代码检查
-instructions: 运行 ESLint 检查所有源文件
+description: Code check
+instructions: Run ESLint on all source files
 ---
 kind: Node
 name: test
-description: 运行测试
-instructions: 执行完整测试套件
+description: Run tests
+instructions: Execute the full test suite
 ---
 kind: Node
 name: deploy
-description: 部署到生产环境
-instructions: 构建并部署到生产服务器
+description: Deploy to production
+instructions: Build and deploy to production server
 ---
 kind: Graph
 name: ci
@@ -60,206 +66,229 @@ edges:
     to: test
 ```
 
-### 2. 导入节点和图
+### 2. Import nodes and graph
 
 ```bash
 dagman import plan.yaml
 
-# 或从标准输入
+# Or from stdin
 cat plan.yaml | dagman import
 ```
 
-### 3. 创建运行实例
+### 3. Create a run
 
 ```bash
 dagman run create my-deploy --graph ci --switch
 ```
 
-### 4. 驱动执行
+### 4. Drive execution
 
 ```bash
-# 查看下一个可执行节点
+# Get the next executable task
 dagman next
 
-# 执行任务后记录结果
-dagman status set setup success
+# Start the task
+dagman task start setup
 
-# 存储上下文供下游节点使用
-dagman context set setup output-path /tmp/build
+# After executing, mark as complete
+dagman task complete setup
 
-# 继续下一个节点
+# Store output for downstream nodes (optional)
+dagman channel set setup output-path /tmp/build
+
+# Get the next task
 dagman next
 
-# ... 重复直到没有可执行节点
+# ... repeat until no executable tasks
 ```
 
-### 5. 导出
+### 5. Export
 
 ```bash
-# 导出到标准输出
+# Export to stdout
 dagman export
 
-# 导出指定图及其引用的节点
+# Export a specific graph and its referenced nodes
 dagman export --graph ci > plan.yaml
 
-# 导出到文件
+# Export to a file
 dagman export plan.yaml
 ```
 
-## 命令参考
+## Command Reference
 
 ### `dagman import [file]`
 
-从 YAML 文件或标准输入导入节点和图。支持 `kind: Node` 和 `kind: Graph` 混合的 multi-document YAML。跳过已存在的同名节点和图。
+Import nodes and graphs from a YAML file or stdin. Supports multi-document YAML with `kind: Node` and `kind: Graph`. Skips already-existing names.
 
 ```bash
-dagman import plan.yaml   # 从文件导入
-dagman import < plan.yaml # 从标准输入导入
+dagman import plan.yaml    # Import from file
+dagman import < plan.yaml  # Import from stdin
 ```
 
 ### `dagman export [file]`
 
-导出节点和图为 YAML。默认输出到标准输出。
+Export nodes and graphs as YAML. Defaults to stdout.
 
 ```bash
-dagman export                    # 导出所有节点和图
-dagman export --graph ci         # 导出指定图及其引用的节点
-dagman export > plan.yaml        # 导出到标准输出
-dagman export plan.yaml          # 导出到文件
+dagman export                    # Export all nodes and graphs
+dagman export --graph ci         # Export specific graph and its nodes
+dagman export > plan.yaml        # Export to stdout
+dagman export plan.yaml          # Export to file
 ```
 
 ### `dagman node`
 
-节点生命周期管理。
+Node definition management.
 
 ```bash
-dagman node create <name>          # 创建节点（交互式输入描述和指令）
-dagman node list                   # 列出所有节点
-dagman node remove <name> [--force] # 删除节点
+dagman node create <name>            # Create a node
+dagman node list                     # List all nodes
+dagman node remove <name> [--force]  # Remove a node
 ```
 
-### `dagman status`
+### `dagman task`
 
-节点状态管理。可选状态：`success`、`failed`、`skipped`。
+Task lifecycle management. Tasks are runtime entities created from nodes during execution.
+
+States: `ready` → `running` → `success` / `failed` / `skipped`
 
 ```bash
-dagman status set <name> <state>   # 设置节点状态
-dagman status show <name>          # 查看节点状态
+dagman task list [--step <n>] [-r <run-id>]   # List tasks in current superstep
+dagman task show <node> [-r <run-id>]          # Show task details
+dagman task start <node> [-r <run-id>]         # Start task (ready → running)
+dagman task complete <node> [-r <run-id>]      # Complete task (running → success)
+dagman task fail <node> [--reason <msg>]       # Mark as failed (running → failed)
+dagman task skip <node> [-r <run-id>]          # Skip task (→ skipped)
+dagman task retry <node> [-r <run-id>]         # Retry failed task (failed → ready)
 ```
 
-### `dagman context`
+### `dagman channel`
 
-节点上下文管理。每个节点可存储 key-value 数据，供下游节点读取。
+Channel management. Channels are versioned key-value stores for passing data between nodes.
 
 ```bash
-dagman context show <name>              # 查看节点全部上下文
-dagman context set <name> <key> <value> # 设置上下文
-dagman context get <name> <key>         # 获取单个值
-dagman context clear <name>             # 清除全部上下文
+dagman channel list [node] [--global] [-r <run-id>]          # List channels
+dagman channel get <node> <key> [--global] [-r <run-id>]     # Get channel value
+dagman channel set <node> <key> <value> [--global] [-r <id>] # Set channel (auto-increments version)
+dagman channel clear <node> [-r <run-id>]                     # Clear all channels for a node
+```
+
+### `dagman step`
+
+Superstep management. Supersteps are BFS layers — all ready tasks within a layer run in parallel.
+
+```bash
+dagman step show [-r <run-id>]      # Current superstep status
+dagman step advance [-r <run-id>]   # Manually advance to next superstep
+dagman step history [-r <run-id>]   # Show completed superstep history
 ```
 
 ### `dagman graph`
 
-DAG 可视化和验证。
+Graph visualization and validation.
 
 ```bash
-dagman graph list                # 列出所有图
-dagman graph show --graph <name> # 显示节点图及当前状态
-dagman graph validate --graph <name> # 检查缺失依赖、无效状态、环、孤立节点
-```
-
-`graph show` 输出示例：
-
-```
-deploy [pending] -> lint:success, test:success
-lint [pending] -> setup:success
-setup [success 14:30]
-test [pending] -> setup:success
+dagman graph list                             # List all graphs
+dagman graph show [--graph <name>] [--run <id>]  # Show graph structure
+dagman graph validate [--graph <name>]        # Validate graph (missing deps, cycles, orphans)
 ```
 
 ### `dagman run`
 
-运行实例管理。每个运行实例拥有独立的状态、事件日志和上下文，并绑定到一个图。
+Run instance management. Each run has independent state, events, and channels, bound to a graph.
 
 ```bash
-dagman run create [label] --graph <name> [--switch]  # 创建运行实例并绑定图
-dagman run list                                      # 列出所有运行实例
-dagman run switch <run-id>                           # 切换当前运行实例
-dagman run show [run-id]                             # 查看运行实例详情
+dagman run create [label] --graph <name> [--switch]  # Create a run bound to a graph
+dagman run list                                      # List all runs
+dagman run switch <run-id>                           # Switch current run
+dagman run show [run-id]                             # Show run details
 ```
 
 ### `dagman next`
 
-调度核心。查找下一个（或所有）依赖已满足、尚未执行的节点。
+The core scheduling command. Returns the next (or all) executable task(s) in the current superstep.
 
 ```bash
-dagman next              # 返回下一个可执行节点
-dagman next --all        # 返回所有可执行节点
-dagman next --json       # JSON 格式输出
-dagman next --run <id>   # 指定运行实例
+dagman next                # Get next executable task
+dagman next --all          # Get all executable tasks in current superstep
+dagman next --json         # JSON output
+dagman next --step         # Show current superstep status
+dagman next -r <run-id>    # Specify run instance
 ```
-
-输出包含节点信息、可用状态、当前上下文和上游上下文。
 
 ### `dagman log`
 
-查看节点状态变迁事件日志。
+View task event log.
 
 ```bash
-dagman log              # 查看所有状态变迁
-dagman log <node>       # 查看指定节点的状态变迁
-dagman log --run <id>   # 指定运行实例
+dagman log                # View all events
+dagman log <node>         # View events for a specific node
+dagman log --run <id>     # Specify run instance
 ```
 
-## 边与依赖关系
+## Edges and Dependencies
 
-节点不包含依赖信息。依赖关系通过图中的边（Edge）声明：
+Nodes do not contain dependency information. Dependencies are declared via edges in the graph:
 
 ```yaml
 kind: Graph
 name: ci
 edges:
-  # 简写：lint 依赖于 setup，期望 setup 状态为 success
+  # Shorthand: lint depends on setup, expects setup status to be success
   - from: lint
     to: setup
 
-  # 完整：指定期望的上游状态
+  # Full form: specify expected upstream status
   - from: optional-check
     to: setup
     expect: skipped
 ```
 
-`expect` 默认为 `"success"`。当期望 `success` 时，上游节点状态为 `skipped` 也视为满足（跳过等价于成功）。
+`expect` defaults to `"success"`. When expecting `"success"`, an upstream node with `"skipped"` status also satisfies the dependency (skipped equals success).
 
-## 数据存储
+## Variable References
 
-所有数据存储在项目目录下的 `.dagman/` 中：
+Node instructions support Handlebars templates to reference upstream outputs:
+
+```yaml
+kind: Node
+name: build
+description: Build the project
+instructions: Build using config from {{setup.config-path}}
+```
+
+- `{{key}}` — current node's own channel
+- `{{node-name.key}}` — upstream node channel (validated at import time)
+- `{{global.key}}` — global channel
+
+## Data Storage
+
+All data is stored in `.dagman/` under the project directory:
 
 ```
 .dagman/
-  .current-run              # 当前活跃的运行实例 ID
+  .current-run              # Current active run ID
   nodes/
-    <name>.yaml             # 节点定义（kind: Node）
+    <name>.yaml             # Node definitions (kind: Node)
   graphs/
-    <name>.yaml             # 图定义（kind: Graph）
+    <name>.yaml             # Graph definitions (kind: Graph)
   runs/
     <run-id>/
-      run.json              # 运行实例元数据（含 graphName 绑定）
-      state.json            # 节点状态映射
-      events.jsonl          # 状态变迁事件日志（追加写入）
-      context/
-        <node-name>.json    # 每个节点的上下文数据
+      run.json              # Run metadata (graphName, currentStep, status, layerAssignment)
+      workflow.jsonl        # Workflow state (channels + tasks + snapshots, append-only)
+      events.jsonl          # Task event log (append-only)
 ```
 
-节点定义全局共享，图定义拓扑关系，状态和上下文按运行实例隔离。
+Node definitions are globally shared, graph definitions declare topology, and state/channels are isolated per run.
 
-## 开发
+## Development
 
 ```bash
-npm install          # 安装依赖
-npm run build        # 编译 TypeScript
-npm run dev          # 开发模式运行
-npm test             # 运行测试
+npm install          # Install dependencies
+npm run build        # Compile TypeScript
+npm run dev          # Run in dev mode
+npm test             # Run tests
 ```
 
 ## License

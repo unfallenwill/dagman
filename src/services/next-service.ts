@@ -26,7 +26,7 @@ async function resolveRunContext(runId?: string): Promise<RunContext> {
   const resolvedRunId = await runService.resolveRunId(runId);
   const graphName = await runService.getGraphForRun(resolvedRunId);
   if (!graphName) {
-    throw new Error("当前运行实例未绑定图，请使用 run create --graph <name>");
+    throw new Error("current run is not bound to a graph, use run create --graph <name>");
   }
 
   const graph = await graphService.loadGraph(graphName);
@@ -38,7 +38,7 @@ export async function findNext(runId?: string): Promise<NextResult | null> {
   const readyTasks = await workflowService.findReadyTasks(rid);
   if (readyTasks.length === 0) return null;
 
-  // 按节点名字母序取第一个
+  // Pick the first by node name alphabetical order
   const sorted = [...readyTasks].sort((a, b) =>
     a.nodeId.localeCompare(b.nodeId)
   );
@@ -80,10 +80,10 @@ async function buildResult(
 }
 
 /**
- * 从 workflow channels 渲染节点指令中的变量引用。
- * {{key}} → channel {currentNode}.{key}
- * {{global.key}} → channel _global.{key}
- * {{node-name.key}} → channel {node-name}.{key}
+ * Render variable references in node instructions from workflow channels.
+ * {{key}} -> channel {currentNode}.{key}
+ * {{global.key}} -> channel _global.{key}
+ * {{node-name.key}} -> channel {node-name}.{key}
  */
 function renderInstructions(
   raw: string,
@@ -108,7 +108,7 @@ function renderInstructions(
       }
 
       const ch = channels[channelName];
-      // version = 0 视为从未写入（缺失）
+      // version = 0 means never written (missing)
       if (!ch || ch.version === 0) return undefined;
       return String(ch.value);
     }
@@ -116,7 +116,7 @@ function renderInstructions(
 
   if (missing.length > 0) {
     throw new Error(
-      `节点指令中存在未解析的变量: ${missing.join(", ")}`
+      `unresolved variables in node instructions: ${missing.join(", ")}`
     );
   }
 

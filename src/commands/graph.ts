@@ -4,32 +4,32 @@ import * as validatorService from "../services/validator.js";
 import * as nodeService from "./../services/node-service.js";
 
 export function registerGraphCommand(program: Command): void {
-  const graph = program.command("graph").description("任务图操作");
+  const graph = program.command("graph").description("Graph operations");
 
   graph
     .command("list")
-    .description("列出所有图")
+    .description("List all graphs")
     .action(async () => {
       try {
         const graphs = await graphService.listGraphs();
         if (graphs.length === 0) {
-          console.log("暂无已注册图");
+          console.log("No graphs registered");
           return;
         }
         for (const g of graphs) {
-          console.log(`  ${g.name} (${g.edges.length} 条边)`);
+          console.log(`  ${g.name} (${g.edges.length} edges)`);
         }
       } catch (err: unknown) {
-        console.error(`错误: ${(err as Error).message}`);
+        console.error(`Error: ${(err as Error).message}`);
         process.exit(1);
       }
     });
 
   graph
     .command("show")
-    .description("展示完整任务图")
-    .requiredOption("--graph <name>", "指定图名称")
-    .option("--run <runId>", "指定运行实例")
+    .description("Show graph structure")
+    .requiredOption("--graph <name>", "graph name")
+    .option("--run <runId>", "specify run")
     .action(async (options: { graph: string; run?: string }) => {
       try {
         const { nodes, edges, tasks, timestamps } = await graphService.buildGraph(
@@ -38,15 +38,15 @@ export function registerGraphCommand(program: Command): void {
         );
         console.log(graphService.formatGraph(nodes, edges, tasks, timestamps));
       } catch (err: unknown) {
-        console.error(`错误: ${(err as Error).message}`);
+        console.error(`Error: ${(err as Error).message}`);
         process.exit(1);
       }
     });
 
   graph
     .command("validate")
-    .description("校验任务图合法性")
-    .requiredOption("--graph <name>", "指定图名称")
+    .description("Validate graph")
+    .requiredOption("--graph <name>", "graph name")
     .action(async (options: { graph: string }) => {
       try {
         const graph = await graphService.loadGraph(options.graph);
@@ -58,7 +58,7 @@ export function registerGraphCommand(program: Command): void {
           process.exit(1);
         }
       } catch (err: unknown) {
-        console.error(`错误: ${(err as Error).message}`);
+        console.error(`Error: ${(err as Error).message}`);
         process.exit(1);
       }
     });

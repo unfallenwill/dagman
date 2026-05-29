@@ -24,14 +24,14 @@ import { computeTopologicalLayers } from "../utils/topology.js";
 import { appendEvent } from "./event-service.js";
 import { resolveCurrentRunId } from "./run-service.js";
 
-// ===== Run ID 解析 =====
+// ===== Run ID Resolution =====
 
 async function resolveRun(runId?: string): Promise<string> {
   if (runId) return runId;
   return resolveCurrentRunId();
 }
 
-// ===== JSONL 读写 =====
+// ===== JSONL Read/Write =====
 
 async function readRecords(runId: string): Promise<WorkflowRecord[]> {
   const filePath = getWorkflowFile(runId);
@@ -60,13 +60,13 @@ async function appendRecord(
   await fs.appendFile(path.resolve(filePath), line, "utf-8");
 }
 
-// ===== 状态加载 =====
+// ===== State Loading =====
 
 export async function loadState(runId?: string): Promise<WorkflowState> {
   const rid = await resolveRun(runId);
   const records = await readRecords(rid);
   if (records.length === 0) {
-    throw new Error("工作流尚未初始化");
+    throw new Error("workflow not initialized");
   }
 
   const channels: Record<string, Channel> = {};
@@ -80,7 +80,7 @@ export async function loadState(runId?: string): Promise<WorkflowState> {
   };
 }
 
-// ===== Channel 操作 =====
+// ===== Channel Operations =====
 
 export async function getChannel(
   name: string,
@@ -129,7 +129,7 @@ export async function setChannel(
     updatedAt: now,
   };
 
-  // 更新当前 record 的 channelChanges 并追加
+  // Update current record's channelChanges and append
   const record: WorkflowRecord = {
     ...state.currentRecord,
     channelChanges: {
@@ -182,7 +182,7 @@ export async function setGlobalChannel(
   return setChannel(globalChannelName(key), value, runId);
 }
 
-// ===== Edge Channel 初始化 =====
+// ===== Edge Channel Initialization =====
 
 export async function initEdgeChannels(
   edges: Edge[],
@@ -198,11 +198,11 @@ export async function initEdgeChannels(
     }
   }
 
-  // 边 channels 在第一条 record 初始化时写入
+  // Edge channels are written when the first record is initialized
   const records = await readRecords(runId);
   if (records.length > 0) {
     records[0].channelChanges = { ...records[0].channelChanges, ...changes };
-    // 重写整个文件
+    // Rewrite the entire file
     const filePath = getWorkflowFile(runId);
     const content = records.map((r) => JSON.stringify(r)).join("\n") + "\n";
     await fs.writeFile(path.resolve(filePath), content, "utf-8");
@@ -234,7 +234,7 @@ function updateEdgeChannelsForNode(
   return changes;
 }
 
-// ===== Task 生命周期 =====
+// ===== Task Lifecycle =====
 
 export async function startTask(
   nodeId: string,
@@ -245,10 +245,10 @@ export async function startTask(
   const task = findTaskInRecord(state.currentRecord, nodeId);
 
   if (!task) {
-    throw new Error(`节点 '${nodeId}' 不在当前 superstep 中`);
+    throw new Error(`node '${nodeId}' not in current superstep`);
   }
   if (task.status !== "ready") {
-    throw new Error(`任务 '${nodeId}' 当前状态为 '${task.status}'，无法启动（需要 'ready'）`);
+    throw new Error(`task '${nodeId}' is '${task.status}', cannot start (expected 'ready')`);
   }
 
   const now = new Date().toISOString();
@@ -275,17 +275,17 @@ export async function completeTask(
   const task = findTaskInRecord(state.currentRecord, nodeId);
 
   if (!task) {
-    throw new Error(`节点 '${nodeId}' 不在当前 superstep 中`);
+    throw new Error(`node '${nodeId}' not in current superstep`);
   }
   if (task.status !== "running") {
-    throw new Error(`任务 '${nodeId}' 当前状态为 '${task.status}'，无法完成（需要 'running'）`);
+    throw new Error(`task '${nodeId}' is '${task.status}', cannot complete (expected 'running')`);
   }
 
   const now = new Date().toISOString();
   task.status = "success";
   task.completedAt = now;
 
-  // 更新 edge channels
+  // Update edge channels
   const edgeChanges = updateEdgeChannelsForNode(
     nodeId,
     "success",
@@ -293,7 +293,7 @@ export async function completeTask(
     state.channels
   );
 
-  // 检查 superstep 是否完成
+  // Check if superstep is complete
   const allTerminal = state.currentRecord.tasks.every((t) =>
     isTerminalStatus(t.status)
   );
@@ -301,7 +301,7 @@ export async function completeTask(
   let advanced = false;
 
   if (allTerminal) {
-    // Superstep 完成：收集所有 channelChanges，执行快照
+    // Superstep complete: collect all channelChanges, take snapshot
     const record: WorkflowRecord = {
       ...state.currentRecord,
       status: "completed" as SuperstepStatus,
@@ -312,10 +312,10 @@ export async function completeTask(
     await appendRecord(record, rid);
     await appendEvent(nodeId, "running", "success", rid);
 
-    // 自动推进到下一层
+    // Auto-advance to next layer
     advanced = await tryAdvanceStep(rid);
   } else {
-    // 还有未完成的 task
+    // Still has incomplete tasks
     const record: WorkflowRecord = {
       ...state.currentRecord,
       channelChanges: { ...state.currentRecord.channelChanges, ...edgeChanges },
@@ -338,10 +338,10 @@ export async function failTask(
   const task = findTaskInRecord(state.currentRecord, nodeId);
 
   if (!task) {
-    throw new Error(`节点 '${nodeId}' 不在当前 superstep 中`);
+    throw new Error(`node '${nodeId}' not in current superstep`);
   }
   if (task.status !== "running") {
-    throw new Error(`任务 '${nodeId}' 当前状态为 '${task.status}'，无法标记失败（需要 'running'）`);
+    throw new Error(`task '${nodeId}' is '${task.status}', cannot fail (expected 'running')`);
   }
 
   const now = new Date().toISOString();
@@ -369,10 +369,10 @@ export async function skipTask(
   const task = findTaskInRecord(state.currentRecord, nodeId);
 
   if (!task) {
-    throw new Error(`节点 '${nodeId}' 不在当前 superstep 中`);
+    throw new Error(`node '${nodeId}' not in current superstep`);
   }
   if (task.status !== "ready" && task.status !== "running") {
-    throw new Error(`任务 '${nodeId}' 当前状态为 '${task.status}'，无法跳过`);
+    throw new Error(`task '${nodeId}' is '${task.status}', cannot skip`);
   }
 
   const fromStatus = task.status;
@@ -380,7 +380,7 @@ export async function skipTask(
   task.status = "skipped";
   task.completedAt = now;
 
-  // 更新 edge channels
+  // Update edge channels
   const edgeChanges = updateEdgeChannelsForNode(
     nodeId,
     "skipped",
@@ -407,7 +407,7 @@ export async function skipTask(
       await appendEvent(nodeId, fromStatus, "skipped", rid);
       advanced = await tryAdvanceStep(rid);
     } else {
-      // 仍有 failed task，保持暂停
+      // Still has failed tasks, remain paused
       const record: WorkflowRecord = {
         ...state.currentRecord,
         channelChanges: { ...state.currentRecord.channelChanges, ...edgeChanges },
@@ -436,15 +436,15 @@ export async function retryTask(
   const task = findTaskInRecord(state.currentRecord, nodeId);
 
   if (!task) {
-    throw new Error(`节点 '${nodeId}' 不在当前 superstep 中`);
+    throw new Error(`node '${nodeId}' not in current superstep`);
   }
   if (task.status !== "failed") {
-    throw new Error(`任务 '${nodeId}' 当前状态为 '${task.status}'，无法重试（需要 'failed'）`);
+    throw new Error(`task '${nodeId}' is '${task.status}', cannot retry (expected 'failed')`);
   }
 
   const now = new Date().toISOString();
 
-  // 清除该 task 的 output channels
+  // Clear output channels for this task
   const changes: Record<string, Channel> = {};
   for (const [name, ch] of Object.entries(state.channels)) {
     if (isNodeChannel(name, nodeId)) {
@@ -477,7 +477,7 @@ export async function getTask(
   const records = await readRecords(rid);
   if (records.length === 0) return null;
 
-  // 查找最新记录
+  // Find latest record
   let record: WorkflowRecord;
   if (step !== undefined) {
     record = records.find((r) => r.step === step) ?? records[records.length - 1];
@@ -510,7 +510,7 @@ export async function findReadyTasks(runId?: string): Promise<Task[]> {
   return state.currentRecord.tasks.filter((t) => t.status === "ready");
 }
 
-// ===== Superstep 控制 =====
+// ===== Superstep Control =====
 
 function findTaskInRecord(
   record: WorkflowRecord,
@@ -528,7 +528,7 @@ export async function initWorkflow(
 ): Promise<void> {
   const now = new Date().toISOString();
 
-  // 初始化 edge channels
+  // Initialize edge channels
   const edgeChanges: Record<string, Channel> = {};
   for (const edge of edges) {
     const name = edgeChannelName(edge.to, edge.from);
@@ -537,7 +537,7 @@ export async function initWorkflow(
     }
   }
 
-  // 创建 Layer 0 的 tasks
+  // Create tasks for Layer 0
   const layer0Nodes = layers.get(0) ?? [];
   const tasks = layer0Nodes.map((nodeId) => createTask(nodeId, 0));
 
@@ -562,7 +562,7 @@ async function tryAdvanceStep(runId: string): Promise<boolean> {
   const currentStep = runInfo.currentStep;
   const nextStep = currentStep + 1;
 
-  // 查找下一层的节点
+  // Find nodes in the next layer
   const nextLayerNodes: string[] = [];
   for (const [node, layer] of Object.entries(runInfo.layerAssignment)) {
     if (layer === nextStep) {
@@ -571,14 +571,14 @@ async function tryAdvanceStep(runId: string): Promise<boolean> {
   }
 
   if (nextLayerNodes.length === 0) {
-    // 工作流完成
+    // Workflow complete
     runInfo.status = "completed";
     runInfo.currentStep = currentStep;
     await writeJSON(getRunMetaFile(runId), runInfo);
     return false;
   }
 
-  // 创建下一个 superstep
+  // Create next superstep
   const now = new Date().toISOString();
   const tasks = nextLayerNodes.map((nodeId) => createTask(nodeId, nextStep));
 
@@ -592,7 +592,7 @@ async function tryAdvanceStep(runId: string): Promise<boolean> {
 
   await appendRecord(record, runId);
 
-  // 更新 run.json
+  // Update run.json
   runInfo.currentStep = nextStep;
   runInfo.status = "running";
   await writeJSON(getRunMetaFile(runId), runInfo);
@@ -614,7 +614,7 @@ export async function advanceStep(
 
   if (state.currentRecord.status !== "completed") {
     throw new Error(
-      `当前 superstep 状态为 '${state.currentRecord.status}'，无法推进（需要 'completed'）`
+      `current superstep is '${state.currentRecord.status}', cannot advance (expected 'completed')`
     );
   }
 

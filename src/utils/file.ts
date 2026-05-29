@@ -22,7 +22,7 @@ export async function readJSON<T>(filePath: string): Promise<T> {
   try {
     return JSON.parse(content) as T;
   } catch {
-    throw new ValidationError(`文件 '${filePath}' 不是合法的 JSON`);
+    throw new ValidationError(`file '${filePath}' is not valid JSON`);
   }
 }
 
@@ -47,7 +47,7 @@ export async function readYAML<T>(filePath: string): Promise<T> {
   try {
     return yaml.load(content) as T;
   } catch {
-    throw new ValidationError(`文件 '${filePath}' 不是合法的 YAML`);
+    throw new ValidationError(`file '${filePath}' is not valid YAML`);
   }
 }
 
@@ -69,7 +69,7 @@ export async function readYAMLAll<T>(filePath: string): Promise<T[]> {
     });
     return docs;
   } catch {
-    throw new ValidationError(`文件 '${filePath}' 不是合法的 YAML`);
+    throw new ValidationError(`file '${filePath}' is not valid YAML`);
   }
 }
 

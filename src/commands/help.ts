@@ -4,12 +4,12 @@ import * as path from "path";
 
 function getVersion(): string {
   try {
-    // 从脚本所在目录向上查找 package.json（dist/commands/help.js → package.json）
+    // Search upward from script directory for package.json (dist/commands/help.js -> package.json)
     const pkgPath = path.resolve(__dirname, "../../package.json");
     const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
     return pkg.version ?? "0.0.0";
   } catch {
-    // 回退到 cwd
+    // Fallback to cwd
     try {
       const pkgPath = path.resolve("package.json");
       const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
@@ -21,51 +21,51 @@ function getVersion(): string {
 }
 
 function buildGuide(version: string): string {
-  return `dagman v${version} — 通用 agent 任务编排 CLI 工具
+  return `dagman v${version} — DAG-based agent task orchestration CLI
 
-━━━ 概述 ━━━
+━━━ Overview ━━━
 
-dagman 是基于有向无环图（DAG）的任务调度器。它本身不执行任务，
-而是通过 \`dagman next\` 告诉外部 agent 下一步该做什么。
+dagman is a task scheduler based on directed acyclic graphs (DAGs). It does not
+execute tasks itself, but tells an external agent what to do next via \`dagman next\`.
 
-核心执行循环：
-  import → run create → 循环 { next → task start → 执行 → task complete } → 结束
+Core execution loop:
+  import -> run create -> loop { next -> task start -> execute -> task complete } -> done
 
-━━━ 核心概念 ━━━
+━━━ Core Concepts ━━━
 
-Node      静态任务定义（name, description, instructions），不含运行时状态
-Graph     DAG 拓扑结构，通过 edges 列表声明节点间的依赖关系
-Run       图的执行实例，\`run create --graph <name>\` 创建时自动计算拓扑层级
-Task      运行时实体，由 Node 创建，生命周期：ready → running → success / failed / skipped
-Superstep BFS 分层执行，层内所有 ready tasks 可并行，全部到达终态后推进到下一层
-Channel   带版本号的 key-value 存储，用于节点间传递数据：
-            节点输出 {node}.{key}    边信号 edge:{from}→{to}    全局 _global.{key}
+Node      Static task definition (name, description, instructions), no runtime state
+Graph     DAG topology, declares dependencies between nodes via an edges list
+Run       Execution instance of a graph, \`run create --graph <name>\` auto-computes topological layers
+Task      Runtime entity, created from a Node, lifecycle: ready -> running -> success / failed / skipped
+Superstep BFS-layered execution, all ready tasks within a layer can run in parallel, advance when all reach terminal state
+Channel   Versioned key-value store for passing data between nodes:
+            Node output {node}.{key}    Edge signal edge:{from}->{to}    Global _global.{key}
 
-━━━ 标准工作流 ━━━
+━━━ Workflow ━━━
 
-1. 编写 YAML 定义文件（见下方格式）
-2. dagman import plan.yaml                # 导入节点和图定义
-3. dagman run create --graph <name> -s    # 创建运行实例并切换
-4. dagman next                            # 获取下一个可执行任务
-5. dagman task start <node>               # 标记任务运行中
-6. （agent 执行实际工作）
-7. dagman channel set <node> <key> <val>  # 存储产出（可选）
-8. dagman task complete <node>            # 标记任务完成
-9. 回到步骤 4，重复直到 "没有可执行的任务"
+1. Write YAML definition files (see format below)
+2. dagman import plan.yaml                # Import node and graph definitions
+3. dagman run create --graph <name> -s    # Create a run and switch to it
+4. dagman next                            # Get the next executable task
+5. dagman task start <node>               # Mark task as running
+6. (agent performs the actual work)
+7. dagman channel set <node> <key> <val>  # Store output (optional)
+8. dagman task complete <node>            # Mark task as completed
+9. Go back to step 4, repeat until "No executable tasks"
 
-━━━ YAML 导入格式 ━━━
+━━━ YAML Import Format ━━━
 
-用 \`---\` 分隔多个文档，可混合 Node 和 Graph：
+Separate multiple documents with \`---\`, can mix Node and Graph:
 
   kind: Node
   name: setup
-  description: 初始化项目环境
-  instructions: 安装依赖并创建配置文件
+  description: Initialize project environment
+  instructions: Install dependencies and create config files
   ---
   kind: Node
   name: build
-  description: 构建
-  instructions: 运行构建命令
+  description: Build
+  instructions: Run build command
   ---
   kind: Graph
   name: pipeline
@@ -73,71 +73,71 @@ Channel   带版本号的 key-value 存储，用于节点间传递数据：
     - from: build
       to: setup
 
-━━━ 边语义 ━━━
+━━━ Edge Semantics ━━━
 
-Edge { from, to } 表示 from 依赖于 to（to 先执行）。
-expect 默认为 "success"；当 expect 为 "success" 时，to 节点状态为 "skipped" 也视为满足。
+Edge { from, to } means from depends on to (to executes first).
+expect defaults to "success"; when expect is "success", a "skipped" status on the to node also satisfies the dependency.
 
-━━━ 命令速查 ━━━
+━━━ Command Reference ━━━
 
-定义层：
-  node create <name>              创建节点
-  node list                       列出节点
-  node remove <name>              删除节点
-  graph list                      列出图
-  graph show [--graph <name>]     展示图结构
-  graph validate [--graph <name>] 校验图合法性
+Definitions:
+  node create <name>              Create a node
+  node list                       List nodes
+  node remove <name>              Remove a node
+  graph list                      List graphs
+  graph show [--graph <name>]     Show graph structure
+  graph validate [--graph <name>] Validate graph
 
-执行层：
-  import [file]                   导入 YAML（默认从 stdin）
-  export [file]                   导出为 YAML（默认到 stdout）
-  run create --graph <name> [-s]  创建运行实例（-s 自动切换）
-  run list                        列出运行实例
-  run switch <run-id>             切换当前运行实例
-  run show [run-id]               查看运行详情
+Execution:
+  import [file]                   Import YAML (default: stdin)
+  export [file]                   Export as YAML (default: stdout)
+  run create --graph <name> [-s]  Create a run (-s auto-switch)
+  run list                        List runs
+  run switch <run-id>             Switch current run
+  run show [run-id]               Show run details
 
-调度（核心）：
-  next [--all] [--json]           获取下一个/所有可执行任务
-  task start <node>               启动任务
-  task complete <node>            完成任务
-  task fail <node>                标记失败
-  task skip <node>                跳过任务
-  task retry <node>               重试失败任务
+Scheduling (core):
+  next [--all] [--json]           Get next/all executable tasks
+  task start <node>               Start task
+  task complete <node>            Complete task
+  task fail <node>                Mark as failed
+  task skip <node>                Skip task
+  task retry <node>               Retry failed task
 
-数据层：
-  channel set <node> <key> <val>  写入 channel
-  channel get <node> <key>        读取 channel
-  channel list [node]             列出 channels
-  step show                       当前 superstep 状态
-  step advance                    手动推进 superstep
-  log [node]                      查看执行日志
+Data:
+  channel set <node> <key> <val>  Set channel
+  channel get <node> <key>        Get channel
+  channel list [node]             List channels
+  step show                       Current superstep status
+  step advance                    Manually advance superstep
+  log [node]                      View execution log
 
-━━━ 变量引用 ━━━
+━━━ Variable References ━━━
 
-节点 instructions 支持 Handlebars 模板，引用上游产出：
-  {{key}}              当前节点自身 channel
-  {{node-name.key}}    上游节点 channel（import 时校验依赖关系）
-  {{global.key}}       全局 channel
+Node instructions support Handlebars templates to reference upstream outputs:
+  {{key}}              Current node's own channel
+  {{node-name.key}}    Upstream node channel (dependencies validated at import time)
+  {{global.key}}       Global channel
 
-━━━ 更多帮助 ━━━
+━━━ More Help ━━━
 
-  dagman <command> --help    查看子命令详细用法
+  dagman <command> --help    Show subcommand usage
 `;
 }
 
 export function registerHelpCommand(program: Command): void {
-  program.description("dagman - 通用 agent 任务编排 CLI 工具").version(getVersion());
+  program.description("DAG-based agent task orchestration CLI").version(getVersion());
 
   program
     .command("help [subcommand]")
-    .description("显示使用指南或子命令帮助")
+    .description("Show usage guide or subcommand help")
     .action((subcommand?: string) => {
       if (subcommand) {
         const cmd = program.commands.find((c) => c.name() === subcommand);
         if (cmd) {
           cmd.outputHelp();
         } else {
-          console.error(`未知命令: ${subcommand}`);
+          console.error(`Unknown command: ${subcommand}`);
           process.exit(1);
         }
       } else {
