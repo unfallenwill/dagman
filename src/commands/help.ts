@@ -4,11 +4,19 @@ import * as path from "path";
 
 function getVersion(): string {
   try {
-    const pkgPath = path.resolve("package.json");
+    // 从脚本所在目录向上查找 package.json（dist/commands/help.js → package.json）
+    const pkgPath = path.resolve(__dirname, "../../package.json");
     const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
     return pkg.version ?? "0.0.0";
   } catch {
-    return "0.0.0";
+    // 回退到 cwd
+    try {
+      const pkgPath = path.resolve("package.json");
+      const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
+      return pkg.version ?? "0.0.0";
+    } catch {
+      return "0.0.0";
+    }
   }
 }
 
