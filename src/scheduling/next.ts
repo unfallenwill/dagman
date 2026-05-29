@@ -188,7 +188,7 @@ async function executeWorkflowNode(
     const graph = await loadGraphForRun(graphName)
     await workflowService.completeTask(node.name, graph.edges, runId)
   } catch (err) {
-    await workflowService.failTask(node.name, String((err as Error).message), runId)
+    await workflowService.failTask(node.name, runId, String((err as Error).message))
     throw err
   }
 }
@@ -223,7 +223,7 @@ async function executeCondEdge(
     const graph = await loadGraphForRun(graphName)
     await workflowService.completeTask(node.name, graph.edges, runId)
   } catch (err) {
-    await workflowService.failTask(node.name, String((err as Error).message), runId)
+    await workflowService.failTask(node.name, runId, String((err as Error).message))
     throw err
   }
 }
@@ -257,7 +257,7 @@ async function executeFanOutNode(
     const graph = await loadGraphForRun(graphName)
     await workflowService.completeTask(node.name, graph.edges, runId)
   } catch (err) {
-    await workflowService.failTask(node.name, String((err as Error).message), runId)
+    await workflowService.failTask(node.name, runId, String((err as Error).message))
     throw err
   }
 }

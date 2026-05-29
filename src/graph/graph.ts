@@ -1,9 +1,10 @@
 import type { Node } from '../models/node.js'
 import type { Edge, Graph } from '../models/graph.js'
 import type { Task } from '../models/task.js'
-import { GRAPHS_DIR } from '../constants.js'
+import { getGraphsDir } from '../constants.js'
 import { ensureDir, writeJSON, fileExists, listFiles } from '../utils/file.js'
 import { GraphNotFoundError } from '../errors.js'
+import * as path from 'path'
 
 // ── Graph CRUD ──
 
@@ -14,13 +15,14 @@ export async function loadGraph(name: string): Promise<Graph> {
 
 export async function listGraphs(): Promise<Graph[]> {
   const graphs: Graph[] = []
+  const graphsDir = getGraphsDir()
 
   // Load compiled JSON graphs only
-  const jsonFiles = await listFiles(GRAPHS_DIR, '.json')
+  const jsonFiles = await listFiles(graphsDir, '.json')
   for (const file of jsonFiles) {
     try {
       const fs = await import('fs/promises')
-      const content = await fs.readFile(GRAPHS_DIR + '/' + file, 'utf-8')
+      const content = await fs.readFile(path.join(graphsDir, file), 'utf-8')
       graphs.push(JSON.parse(content) as Graph)
     } catch {
       // Skip if a single file fails to parse
@@ -31,12 +33,12 @@ export async function listGraphs(): Promise<Graph[]> {
 }
 
 export async function graphExists(name: string): Promise<boolean> {
-  return fileExists(GRAPHS_DIR + '/' + name + '.json')
+  return fileExists(path.join(getGraphsDir(), name + '.json'))
 }
 
 /** Load a compiled JSON graph (from tsx workflow compilation) */
 export async function loadCompiledGraph(name: string): Promise<Graph> {
-  const filePath = GRAPHS_DIR + '/' + name + '.json'
+  const filePath = path.join(getGraphsDir(), name + '.json')
   if (!(await fileExists(filePath))) {
     throw new GraphNotFoundError(name)
   }
@@ -47,8 +49,9 @@ export async function loadCompiledGraph(name: string): Promise<Graph> {
 
 /** Save a compiled graph as JSON (from tsx workflow compilation) */
 export async function saveCompiledGraph(graph: Graph): Promise<void> {
-  await ensureDir(GRAPHS_DIR)
-  const filePath = GRAPHS_DIR + '/' + graph.name + '.json'
+  const graphsDir = getGraphsDir()
+  await ensureDir(graphsDir)
+  const filePath = path.join(graphsDir, graph.name + '.json')
   await writeJSON(filePath, graph)
 }
 

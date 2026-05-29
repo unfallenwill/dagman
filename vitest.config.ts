@@ -2,7 +2,7 @@ import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   test: {
-    setupFiles: ['tests/helpers/setup.ts'],
+    setupFiles: [],
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts', 'bin/**/*.ts'],

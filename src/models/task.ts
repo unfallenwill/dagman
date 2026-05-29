@@ -34,6 +34,20 @@ export function isTerminalStatus(status: TaskStatus): boolean {
   return (TERMINAL_STATUSES as readonly string[]).includes(status)
 }
 
+/** Allowed state transitions for task lifecycle */
+const ALLOWED_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
+  ready: ['running', 'skipped'],
+  running: ['success', 'failed'],
+  success: [],
+  failed: ['ready'],
+  skipped: [],
+}
+
+/** Check whether a task can transition from current to target status */
+export function canTransition(current: TaskStatus, target: TaskStatus): boolean {
+  return ALLOWED_TRANSITIONS[current].includes(target)
+}
+
 /** Create an initial Task */
 export function createTask(
   nodeId: string,

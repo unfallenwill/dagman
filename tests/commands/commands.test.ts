@@ -62,7 +62,7 @@ describe('task commands', () => {
     expect(info.graphName).toBe('test')
 
     // List tasks
-    const tasks = await workflowService.listTasks(undefined, info.id)
+    const tasks = await workflowService.listTasks(info.id)
     expect(tasks.length).toBe(1) // Only node-a is in layer 0
     expect(tasks[0]!.nodeId).toBe('node-a')
     expect(tasks[0]!.status).toBe('ready')

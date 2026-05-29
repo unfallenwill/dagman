@@ -1,32 +1,35 @@
-import { beforeEach, afterEach } from 'vitest'
 import * as path from 'path'
 import * as os from 'os'
 import * as fs from 'fs/promises'
 import { mkdtempSync } from 'fs'
+import { setBasePath } from '../../src/constants.js'
 import * as runService from '../../src/runtime/run.js'
 import type { Edge } from '../../src/models/graph.js'
 
-let originalCwd: string
 let tmpDir: string
 
 /**
- * Create a unique temporary directory and chdir into it before each test.
- * Automatically cleans up after each test.
- *
- * Usage in test files:
- *   Just import this file — the hooks are registered globally.
- *   Access `tmpDir` via `useTmpdir()` to get the current test's temp path.
+ * Create a unique temporary directory, set it as dagman's basePath, and chdir into it.
+ * Call this in beforeEach(). Call cleanupTmpDir() in afterEach().
  */
-beforeEach(async () => {
-  originalCwd = process.cwd()
+export function initTmpDir(): string {
   tmpDir = mkdtempSync(path.join(os.tmpdir(), 'dagman-test-'))
+  setBasePath(tmpDir)
   process.chdir(tmpDir)
-})
+  return tmpDir
+}
 
-afterEach(async () => {
-  process.chdir(originalCwd)
-  await fs.rm(tmpDir, { recursive: true, force: true })
-})
+/**
+ * Reset basePath and remove the temporary directory.
+ * Call this in afterEach().
+ */
+export async function cleanupTmpDir(): Promise<void> {
+  setBasePath('')
+  process.chdir(path.resolve('..'))
+  if (tmpDir) {
+    await fs.rm(tmpDir, { recursive: true, force: true })
+  }
+}
 
 /** Get the current test's temporary directory path. */
 export function getTmpDir(): string {

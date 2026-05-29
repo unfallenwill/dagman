@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs'
 import * as path from 'path'
-import { RUNS_DIR, getRunDir, getRunMetaFile } from '../constants.js'
+import { getRunDir, getRunMetaFile, getRunsDir } from '../constants.js'
 import { ensureDir, readJSON, writeJSON, fileExists } from '../utils/file.js'
 import { RunNotFoundError, RunExistsError } from '../errors.js'
 import type { RunInfo, RunStatus } from '../models/superstep.js'
@@ -92,10 +92,13 @@ export async function createRun(
   label?: string,
   graphName?: string,
   switchTo?: boolean,
+  explicitRunId?: string,
 ): Promise<RunInfo> {
   let runId: string
 
-  if (graphName) {
+  if (explicitRunId) {
+    runId = explicitRunId
+  } else if (graphName) {
     // When bound to a graph/workflow, generate <name>@<suffix>
     runId = generateInstanceId(graphName)
   } else if (label) {
@@ -124,7 +127,7 @@ export async function createRun(
 
 export async function listRuns(): Promise<RunInfo[]> {
   const runs: RunInfo[] = []
-  const abs = path.resolve(RUNS_DIR)
+  const abs = path.resolve(getRunsDir())
 
   try {
     const entries = await fs.readdir(abs)

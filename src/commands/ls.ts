@@ -1,5 +1,5 @@
 import type { Command } from 'commander'
-import { WORKFLOWS_DIR } from '../constants.js'
+import { WORKFLOWS_DIR, getWorkflowsDir } from '../constants.js'
 import { withErrorHandler } from '../utils/output.js'
 import { readYAML } from '../utils/file.js'
 import { promises as fs } from 'fs'
@@ -14,7 +14,7 @@ interface DiscoveredWorkflow {
 /** Scan .dagman/workflows/ subdirectories for manifest.yaml files */
 async function discoverWorkflows(): Promise<DiscoveredWorkflow[]> {
   const workflows: DiscoveredWorkflow[] = []
-  const absDir = path.resolve(WORKFLOWS_DIR)
+  const absDir = path.resolve(getWorkflowsDir())
 
   try {
     const entries = await fs.readdir(absDir, { withFileTypes: true })

@@ -122,7 +122,7 @@ describe('initWorkflow', () => {
       ],
     )
 
-    const tasks = await workflowService.listTasks(undefined, runId)
+    const tasks = await workflowService.listTasks(runId)
     expect(tasks.length).toBe(2)
     const ids = tasks.map((t) => t.nodeId).sort()
     expect(ids).toEqual(['a', 'b'])
@@ -153,7 +153,7 @@ describe('task lifecycle', () => {
   it('should fail a running task', async () => {
     const runId = await setupGraph(['a'], [])
     await workflowService.startTask('a', runId)
-    const task = await workflowService.failTask('a', 'something went wrong', runId)
+    const task = await workflowService.failTask('a', runId, 'something went wrong')
     expect(task.status).toBe('failed')
     expect(task.error).toBe('something went wrong')
   })
@@ -161,7 +161,7 @@ describe('task lifecycle', () => {
   it('should retry a failed task', async () => {
     const runId = await setupGraph(['a'], [])
     await workflowService.startTask('a', runId)
-    await workflowService.failTask('a', undefined, runId)
+    await workflowService.failTask('a', runId)
 
     const task = await workflowService.retryTask('a', runId)
     expect(task.status).toBe('ready')
@@ -210,10 +210,10 @@ describe('channel operations', () => {
     await workflowService.setChannel('a.key2', 'val2', runId)
     await workflowService.setChannel('b.key1', 'val3', runId)
 
-    const aChannels = await workflowService.listChannels('a', runId)
+    const aChannels = await workflowService.listChannels(runId, 'a')
     expect(aChannels.length).toBe(2)
 
-    const allChannels = await workflowService.listChannels(undefined, runId)
+    const allChannels = await workflowService.listChannels(runId)
     expect(allChannels.length).toBe(3)
   })
 
@@ -262,7 +262,7 @@ describe('superstep advancement', () => {
     expect(adv1).toBe(true)
 
     // Layer 1: b
-    const tasks1 = await workflowService.listTasks(undefined, runId)
+    const tasks1 = await workflowService.listTasks(runId)
     expect(tasks1.length).toBe(1)
     expect(tasks1[0]!.nodeId).toBe('b')
 
@@ -278,7 +278,7 @@ describe('superstep advancement', () => {
     expect(adv2).toBe(true)
 
     // Layer 2: c
-    const tasks2 = await workflowService.listTasks(undefined, runId)
+    const tasks2 = await workflowService.listTasks(runId)
     expect(tasks2.length).toBe(1)
     expect(tasks2[0]!.nodeId).toBe('c')
   })
@@ -287,7 +287,7 @@ describe('superstep advancement', () => {
     const runId = await setupGraph(['a'], [])
 
     await workflowService.startTask('a', runId)
-    await workflowService.failTask('a', 'error', runId)
+    await workflowService.failTask('a', runId, 'error')
 
     const ready = await workflowService.findReadyTasks(runId)
     expect(ready.length).toBe(0) // No tasks should be ready when failed
