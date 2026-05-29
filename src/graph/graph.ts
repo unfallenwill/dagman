@@ -6,23 +6,50 @@ import { ensureDir, writeJSON, fileExists, listFiles } from '../infra/fs/file-op
 import { GraphNotFoundError } from '../shared/errors.js'
 import * as path from 'path'
 
-// ── Graph CRUD ──
+// ===== Dependency Injection =====
 
-export async function loadGraph(name: string): Promise<Graph> {
-  // Only load compiled JSON graphs (from TS workflow)
-  return loadCompiledGraph(name)
+export interface GraphDeps {
+  getGraphsDir?: typeof getGraphsDir
+  ensureDir?: typeof ensureDir
+  writeJSON?: typeof writeJSON
+  fileExists?: typeof fileExists
+  listFiles?: typeof listFiles
+  readFile?: (filePath: string) => Promise<string>
 }
 
-export async function listGraphs(): Promise<Graph[]> {
+function resolveGraphDeps(deps?: GraphDeps) {
+  return {
+    getGraphsDir: deps?.getGraphsDir ?? getGraphsDir,
+    ensureDir: deps?.ensureDir ?? ensureDir,
+    writeJSON: deps?.writeJSON ?? writeJSON,
+    fileExists: deps?.fileExists ?? fileExists,
+    listFiles: deps?.listFiles ?? listFiles,
+    readFile:
+      deps?.readFile ??
+      (async (filePath: string) => {
+        const fs = await import('fs/promises')
+        return fs.readFile(filePath, 'utf-8')
+      }),
+  }
+}
+
+// ── Graph CRUD ──
+
+export async function loadGraph(name: string, deps?: GraphDeps): Promise<Graph> {
+  // Only load compiled JSON graphs (from TS workflow)
+  return loadCompiledGraph(name, deps)
+}
+
+export async function listGraphs(deps?: GraphDeps): Promise<Graph[]> {
+  const d = resolveGraphDeps(deps)
   const graphs: Graph[] = []
-  const graphsDir = getGraphsDir()
+  const graphsDir = d.getGraphsDir()
 
   // Load compiled JSON graphs only
-  const jsonFiles = await listFiles(graphsDir, '.json')
+  const jsonFiles = await d.listFiles(graphsDir, '.json')
   for (const file of jsonFiles) {
     try {
-      const fs = await import('fs/promises')
-      const content = await fs.readFile(path.join(graphsDir, file), 'utf-8')
+      const content = await d.readFile(path.join(graphsDir, file))
       graphs.push(JSON.parse(content) as Graph)
     } catch {
       // Skip if a single file fails to parse
@@ -32,27 +59,29 @@ export async function listGraphs(): Promise<Graph[]> {
   return graphs
 }
 
-export async function graphExists(name: string): Promise<boolean> {
-  return fileExists(path.join(getGraphsDir(), name + '.json'))
+export async function graphExists(name: string, deps?: GraphDeps): Promise<boolean> {
+  const d = resolveGraphDeps(deps)
+  return d.fileExists(path.join(d.getGraphsDir(), name + '.json'))
 }
 
 /** Load a compiled JSON graph (from tsx workflow compilation) */
-export async function loadCompiledGraph(name: string): Promise<Graph> {
-  const filePath = path.join(getGraphsDir(), name + '.json')
-  if (!(await fileExists(filePath))) {
+export async function loadCompiledGraph(name: string, deps?: GraphDeps): Promise<Graph> {
+  const d = resolveGraphDeps(deps)
+  const filePath = path.join(d.getGraphsDir(), name + '.json')
+  if (!(await d.fileExists(filePath))) {
     throw new GraphNotFoundError(name)
   }
-  const fs = await import('fs/promises')
-  const content = await fs.readFile(filePath, 'utf-8')
+  const content = await d.readFile(filePath)
   return JSON.parse(content) as Graph
 }
 
 /** Save a compiled graph as JSON (from tsx workflow compilation) */
-export async function saveCompiledGraph(graph: Graph): Promise<void> {
-  const graphsDir = getGraphsDir()
-  await ensureDir(graphsDir)
+export async function saveCompiledGraph(graph: Graph, deps?: GraphDeps): Promise<void> {
+  const d = resolveGraphDeps(deps)
+  const graphsDir = d.getGraphsDir()
+  await d.ensureDir(graphsDir)
   const filePath = path.join(graphsDir, graph.name + '.json')
-  await writeJSON(filePath, graph)
+  await d.writeJSON(filePath, graph)
 }
 
 // ── Graph Display ──

@@ -20,9 +20,6 @@ import { systemClock } from '../shared/utils/clock.js'
 import { aggregateChannels, computeEdgeChannelUpdates } from './channel-ops.js'
 import { createTasksForLayer, getFanoutItemsForNode } from './superstep-logic.js'
 import { computeTopologicalLayers } from '../shared/utils/topology.js'
-import { FsWorkflowRepository } from '../infra/fs/fs-workflow-repo.js'
-import { FsEventRepository } from '../infra/fs/fs-event-repo.js'
-import { FsRunRepository } from '../infra/fs/fs-run-repo.js'
 
 // ===== Dependency Injection =====
 
@@ -33,19 +30,20 @@ export interface WorkflowDeps {
   runRepo?: RunRepository
 }
 
-const defaultDeps: Required<WorkflowDeps> = {
-  clock: systemClock,
-  repo: new FsWorkflowRepository(),
-  eventRepo: new FsEventRepository(),
-  runRepo: new FsRunRepository(),
+let _defaults: WorkflowDeps = {}
+
+/** Set default deps — called by engine/composition root at startup */
+export function setDefaultWorkflowDeps(defaults: WorkflowDeps): void {
+  _defaults = { ..._defaults, ...defaults }
 }
 
 function resolveDeps(deps?: WorkflowDeps): Required<WorkflowDeps> {
+  const merged = { ..._defaults, ...deps }
   return {
-    clock: deps?.clock ?? defaultDeps.clock,
-    repo: deps?.repo ?? defaultDeps.repo,
-    eventRepo: deps?.eventRepo ?? defaultDeps.eventRepo,
-    runRepo: deps?.runRepo ?? defaultDeps.runRepo,
+    clock: merged.clock ?? systemClock,
+    repo: merged.repo!,
+    eventRepo: merged.eventRepo!,
+    runRepo: merged.runRepo!,
   }
 }
 

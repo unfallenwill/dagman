@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { initTmpDir, cleanupTmpDir } from '../helpers/setup.js'
+import '../../src/engine/default-deps.js'
 import * as next from '../../src/scheduling/next.js'
 import * as workflowService from '../../src/workflow/workflow.js'
 import * as runService from '../../src/runtime/run.js'

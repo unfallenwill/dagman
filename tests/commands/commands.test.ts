@@ -5,6 +5,7 @@ import * as fs from 'fs/promises'
 import { Command } from 'commander'
 import { registerHelpCommand } from '../../src/commands/help.js'
 import { registerLsCommand } from '../../src/commands/ls.js'
+import '../../src/engine/default-deps.js'
 import * as runService from '../../src/runtime/run.js'
 import * as workflowService from '../../src/workflow/workflow.js'
 

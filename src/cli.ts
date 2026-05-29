@@ -1,4 +1,5 @@
 import { Command } from 'commander'
+import './engine/default-deps.js'
 import { registerHelpCommand } from './commands/help.js'
 import { registerNextCommand } from './commands/next.js'
 import { registerLogCommand } from './commands/log.js'
