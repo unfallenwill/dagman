@@ -5,8 +5,6 @@ import { GRAPHS_DIR } from "../constants.js";
 import { ensureDir, readYAML, writeYAML, fileExists, deleteFile, listFiles } from "../utils/file.js";
 import { GraphNotFoundError } from "../errors.js";
 import * as nodeService from "./node-service.js";
-import * as workflowService from "./workflow-service.js";
-import * as eventService from "./event-service.js";
 
 // ── Graph CRUD ──
 
@@ -51,27 +49,6 @@ export async function removeGraph(name: string): Promise<void> {
 }
 
 // ── Graph Display ──
-
-export async function buildGraph(graphName: string, runId?: string): Promise<{
-  nodes: Node[];
-  edges: Edge[];
-  tasks: Task[];
-  timestamps: Record<string, string>;
-}> {
-  const graph = await loadGraph(graphName);
-  const nodes = await nodeService.listNodes();
-  const timestamps = await eventService.getNodeTimestamps(runId);
-
-  let tasks: Task[] = [];
-  try {
-    const currentStep = await workflowService.getCurrentStep(runId);
-    tasks = currentStep.tasks;
-  } catch {
-    // workflow not initialized
-  }
-
-  return { nodes, edges: graph.edges, tasks, timestamps };
-}
 
 function formatTimestamp(iso: string): string {
   const d = new Date(iso);

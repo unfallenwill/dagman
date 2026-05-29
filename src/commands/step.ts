@@ -1,5 +1,5 @@
 import type { Command } from "commander";
-import * as workflowService from "../services/workflow-service.js";
+import * as workflowService from "../workflow/workflow-service.js";
 
 export function registerStepCommand(program: Command): void {
   const step = program.command("step").description("Superstep management");

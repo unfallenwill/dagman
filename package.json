@@ -4,15 +4,16 @@
   "description": "dagman - DAG-based agent task orchestration CLI",
   "main": "dist/index.js",
   "bin": {
-    "dagman": "dist/index.js"
+    "dagman": "dist/bin/dagman.js"
   },
   "engines": {
     "node": ">=18"
   },
   "scripts": {
     "build": "tsc",
-    "dev": "tsx src/index.ts",
+    "dev": "tsx bin/dagman.ts",
     "test": "vitest",
+    "lint:deps": "depcruise src bin",
     "prepublishOnly": "npm run build"
   },
   "files": [
@@ -31,6 +32,7 @@
     "@types/handlebars": "^4.0.40",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^25.6.0",
+    "dependency-cruiser": "^17.4.2",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vitest": "^2.1.0"

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import * as path from "path";
 import * as os from "os";
 import * as fs from "fs/promises";
-import * as nodeService from "../../src/services/node-service.js";
+import * as nodeService from "../../src/graph/node-service.js";
 import { FileExistsError, NodeNotFoundError } from "../../src/errors.js";
 
 const TMP_DIR = path.join(os.tmpdir(), `dagman-test-${Date.now()}`);

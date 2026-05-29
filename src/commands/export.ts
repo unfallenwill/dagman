@@ -1,5 +1,5 @@
 import type { Command } from "commander";
-import * as exportService from "../services/export-service.js";
+import * as exportService from "../io/export-service.js";
 import * as fs from "fs/promises";
 
 export function registerExportCommand(program: Command): void {

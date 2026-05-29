@@ -1,6 +1,6 @@
 import type { Event } from "../models/event.js";
 import { getEventsFile } from "../constants.js";
-import { resolveCurrentRunId } from "./run-service.js";
+import { resolveCurrentRunId } from "../utils/run-resolver.js";
 import { promises as fs } from "fs";
 import * as path from "path";
 

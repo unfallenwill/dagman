@@ -1,36 +1,28 @@
-#!/usr/bin/env node
+// dagman — public API surface for programmatic use
 
-import { Command } from "commander";
-import { registerHelpCommand } from "./commands/help.js";
-import { registerNodeCommand } from "./commands/node.js";
-import { registerGraphCommand } from "./commands/graph.js";
-import { registerRunCommand } from "./commands/run.js";
-import { registerNextCommand } from "./commands/next.js";
-import { registerTaskCommand } from "./commands/task.js";
-import { registerChannelCommand } from "./commands/channel.js";
-import { registerStepCommand } from "./commands/step.js";
-import { registerLogCommand } from "./commands/log.js";
-import { registerImportCommand } from "./commands/import.js";
-import { registerExportCommand } from "./commands/export.js";
+// Core domain
+export * from "./workflow/workflow-service.js";
+export * from "./scheduling/next-service.js";
+export * from "./runtime/run-service.js";
+export * from "./runtime/event-service.js";
+export * from "./graph/graph-service.js";
+export * from "./graph/node-service.js";
+export * from "./graph/validator.js";
+export * from "./io/import-service.js";
+export * from "./io/export-service.js";
 
-process.on("uncaughtException", (err: Error) => {
-  console.error(`Error: ${err.message}`);
-  process.exit(1);
-});
+// Models
+export * from "./models/node.js";
+export * from "./models/graph.js";
+export * from "./models/channel.js";
+export * from "./models/task.js";
+export * from "./models/superstep.js";
+export * from "./models/event.js";
+export * from "./models/context.js";
+export * from "./models/state.js";
 
-const program = new Command();
-program.name("dagman");
+// Utilities
+export * from "./utils/run-resolver.js";
 
-registerHelpCommand(program);
-registerNodeCommand(program);
-registerGraphCommand(program);
-registerRunCommand(program);
-registerNextCommand(program);
-registerTaskCommand(program);
-registerChannelCommand(program);
-registerStepCommand(program);
-registerLogCommand(program);
-registerImportCommand(program);
-registerExportCommand(program);
-
-program.parse();
+// Shared
+export * from "./errors.js";

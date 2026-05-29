@@ -1,8 +1,6 @@
 import type { Node } from "../models/node.js";
-import { NODES_DIR, RUNS_DIR } from "../constants.js";
+import { NODES_DIR } from "../constants.js";
 import { ensureDir, readYAML, writeYAML, fileExists, deleteFile, listFiles } from "../utils/file.js";
-import { readdir } from "fs/promises";
-import * as path from "path";
 import { NodeNotFoundError, FileExistsError } from "../errors.js";
 
 export async function createTemplate(name: string): Promise<string> {
@@ -29,20 +27,6 @@ export async function removeNode(name: string): Promise<void> {
     throw new NodeNotFoundError(name);
   }
   await deleteFile(filePath);
-  // Clean up channels for this node across all runs
-  try {
-    const entries = await readdir(path.resolve(RUNS_DIR));
-    for (const entry of entries) {
-      try {
-        const { clearChannels } = await import("./workflow-service.js");
-        await clearChannels(name, entry);
-      } catch {
-        // Ignore if workflow is not initialized
-      }
-    }
-  } catch {
-    // Ignore if runs directory does not exist
-  }
 }
 
 export async function getNode(name: string): Promise<Node> {

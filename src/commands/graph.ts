@@ -1,7 +1,11 @@
 import type { Command } from "commander";
-import * as graphService from "../services/graph-service.js";
-import * as validatorService from "../services/validator.js";
-import * as nodeService from "./../services/node-service.js";
+import type { Task } from "../models/task.js";
+import * as graphService from "../graph/graph-service.js";
+import * as validatorService from "../graph/validator.js";
+import * as nodeService from "../graph/node-service.js";
+import * as workflowService from "../workflow/workflow-service.js";
+import * as eventService from "../runtime/event-service.js";
+import { resolveCurrentRunId } from "../utils/run-resolver.js";
 
 export function registerGraphCommand(program: Command): void {
   const graph = program.command("graph").description("Graph operations");
@@ -32,11 +36,22 @@ export function registerGraphCommand(program: Command): void {
     .option("--run <runId>", "specify run")
     .action(async (options: { graph: string; run?: string }) => {
       try {
-        const { nodes, edges, tasks, timestamps } = await graphService.buildGraph(
-          options.graph,
-          options.run
+        const runId = options.run ?? (await resolveCurrentRunId());
+        const graphData = await graphService.loadGraph(options.graph);
+        const nodes = await nodeService.listNodes();
+
+        let tasks: Task[] = [];
+        try {
+          const currentStep = await workflowService.getCurrentStep(runId);
+          tasks = currentStep.tasks;
+        } catch {
+          // workflow not initialized
+        }
+
+        const timestamps = await eventService.getNodeTimestamps(runId);
+        console.log(
+          graphService.formatGraph(nodes, graphData.edges, tasks, timestamps)
         );
-        console.log(graphService.formatGraph(nodes, edges, tasks, timestamps));
       } catch (err: unknown) {
         console.error(`Error: ${(err as Error).message}`);
         process.exit(1);
@@ -49,10 +64,10 @@ export function registerGraphCommand(program: Command): void {
     .requiredOption("--graph <name>", "graph name")
     .action(async (options: { graph: string }) => {
       try {
-        const graph = await graphService.loadGraph(options.graph);
+        const graphData = await graphService.loadGraph(options.graph);
         const nodes = await nodeService.listNodes();
         const nodeNames = nodes.map((n) => n.name);
-        const results = validatorService.validateGraph(nodeNames, graph.edges);
+        const results = validatorService.validateGraph(nodeNames, graphData.edges);
         console.log(validatorService.formatValidationResults(results));
         if (results.some((r) => r.level === "error" && !r.passed)) {
           process.exit(1);

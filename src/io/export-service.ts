@@ -1,7 +1,7 @@
 import type { Graph } from "../models/graph.js";
 import * as yaml from "js-yaml";
-import * as nodeService from "./node-service.js";
-import * as graphService from "./graph-service.js";
+import * as nodeService from "../graph/node-service.js";
+import * as graphService from "../graph/graph-service.js";
 
 /**
  * Export the specified graph and all referenced nodes as a multi-document YAML string.

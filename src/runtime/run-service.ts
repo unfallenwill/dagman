@@ -2,7 +2,6 @@ import { promises as fs } from "fs";
 import * as path from "path";
 import {
   RUNS_DIR,
-  CURRENT_RUN_FILE,
   DEFAULT_RUN_ID,
   getRunDir,
   getRunMetaFile,
@@ -10,35 +9,22 @@ import {
 import { ensureDir, readJSON, writeJSON, fileExists } from "../utils/file.js";
 import { RunNotFoundError, RunExistsError } from "../errors.js";
 import type { RunInfo, RunStatus } from "../models/superstep.js";
-import * as graphService from "./graph-service.js";
-import * as nodeService from "./node-service.js";
-import * as workflowService from "./workflow-service.js";
+import * as graphService from "../graph/graph-service.js";
+import * as nodeService from "../graph/node-service.js";
+import * as workflowService from "../workflow/workflow-service.js";
 import { computeTopologicalLayers } from "../utils/topology.js";
+import {
+  setCurrentRunId,
+  resolveCurrentRunId,
+} from "../utils/run-resolver.js";
 
 export type { RunInfo, RunStatus };
-
-export async function getCurrentRunId(): Promise<string | null> {
-  if (!(await fileExists(CURRENT_RUN_FILE))) {
-    return null;
-  }
-  const content = await fs.readFile(path.resolve(CURRENT_RUN_FILE), "utf-8");
-  return content.trim() || null;
-}
-
-export async function setCurrentRunId(runId: string): Promise<void> {
-  await ensureDir(".dagman");
-  await fs.writeFile(path.resolve(CURRENT_RUN_FILE), runId, "utf-8");
-}
-
-export async function resolveCurrentRunId(): Promise<string> {
-  const current = await getCurrentRunId();
-  if (current) return current;
-
-  // Fresh start — legacy migration no longer supported
-  await createRunInternal(DEFAULT_RUN_ID);
-  await setCurrentRunId(DEFAULT_RUN_ID);
-  return DEFAULT_RUN_ID;
-}
+export {
+  getCurrentRunId,
+  setCurrentRunId,
+  resolveCurrentRunId,
+  listRunIds,
+} from "../utils/run-resolver.js";
 
 async function createRunInternal(
   runId: string,

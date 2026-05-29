@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import * as path from "path";
 import * as os from "os";
 import * as fs from "fs/promises";
-import * as runService from "../../src/services/run-service.js";
+import * as runService from "../../src/runtime/run-service.js";
 import { RunNotFoundError, RunExistsError } from "../../src/errors.js";
 
 const TMP_DIR = path.join(os.tmpdir(), `dagman-run-test-${Date.now()}`);
@@ -21,23 +21,9 @@ afterEach(async () => {
 });
 
 describe("resolveCurrentRunId", () => {
-  it("should auto-create default run when no current run", async () => {
+  it("should return default when no current run exists", async () => {
     const runId = await runService.resolveCurrentRunId();
     expect(runId).toBe("default");
-
-    // Should have created the run structure
-    const metaExists = await fs
-      .access(path.join(TMP_DIR, ".dagman/runs/default/run.json"))
-      .then(() => true)
-      .catch(() => false);
-    expect(metaExists).toBe(true);
-
-    // Should have set .current-run
-    const currentRun = await fs.readFile(
-      path.join(TMP_DIR, ".dagman/.current-run"),
-      "utf-8"
-    );
-    expect(currentRun.trim()).toBe("default");
   });
 
   it("should return existing current run", async () => {

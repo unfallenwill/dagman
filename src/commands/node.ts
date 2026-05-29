@@ -1,8 +1,10 @@
 import type { Command } from "commander";
-import * as nodeService from "../services/node-service.js";
-import * as graphService from "../services/graph-service.js";
+import * as nodeService from "../graph/node-service.js";
+import * as graphService from "../graph/graph-service.js";
+import * as workflowService from "../workflow/workflow-service.js";
 import { confirmPrompt } from "../utils/prompt.js";
 import { collectDownstream } from "../utils/topology.js";
+import { listRunIds } from "../utils/run-resolver.js";
 import { FileExistsError, NodeNotFoundError } from "../errors.js";
 
 const NAME_REGEX = /^[a-zA-Z0-9_-]+$/;
@@ -80,6 +82,17 @@ export function registerNodeCommand(program: Command): void {
         }
 
         await nodeService.removeNode(name);
+
+        // Clean up channels for this node across all runs
+        const runIds = await listRunIds();
+        for (const rid of runIds) {
+          try {
+            await workflowService.clearChannels(name, rid);
+          } catch {
+            // Ignore if workflow is not initialized
+          }
+        }
+
         console.log(`Node removed: ${name}`);
       } catch (err: unknown) {
         if (err instanceof NodeNotFoundError) {
