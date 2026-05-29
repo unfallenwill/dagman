@@ -4,3 +4,4 @@ specs/
 .dagman/
 .cache/
 .eslintcache
+coverage/
