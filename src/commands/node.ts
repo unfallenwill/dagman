@@ -1,6 +1,5 @@
 import type { Command } from "commander";
 import * as nodeService from "../services/node-service.js";
-import * as stateService from "../services/state-service.js";
 import * as graphService from "../services/graph-service.js";
 import { confirmPrompt } from "../utils/prompt.js";
 import { collectDownstream } from "../utils/topology.js";
@@ -81,7 +80,6 @@ export function registerNodeCommand(program: Command): void {
         }
 
         await nodeService.removeNode(name);
-        await stateService.removeState(name);
         console.log(`已移除节点: ${name}`);
       } catch (err: unknown) {
         if (err instanceof NodeNotFoundError) {

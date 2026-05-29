@@ -34,6 +34,17 @@ export function registerRunCommand(program: Command): void {
           if (info.graphName) {
             console.log(`绑定图: ${info.graphName}`);
           }
+          if (info.layerAssignment) {
+            const layers = new Map<number, number>();
+            for (const layer of Object.values(info.layerAssignment)) {
+              layers.set(layer, (layers.get(layer) ?? 0) + 1);
+            }
+            const layerInfo = [...layers.entries()]
+              .sort(([a], [b]) => a - b)
+              .map(([, count]) => `${count}`)
+              .join(" → ");
+            console.log(`层级: ${layerInfo} (${Object.keys(info.layerAssignment).length} 个节点)`);
+          }
           if (options?.switch) {
             console.log(`已切换到运行: ${info.id}`);
           }
@@ -58,8 +69,9 @@ export function registerRunCommand(program: Command): void {
         for (const r of runs) {
           const marker = r.id === currentRunId ? " *" : "";
           const graph = r.graphName ? ` [${r.graphName}]` : "";
+          const status = r.status !== "idle" ? ` [${r.status}]` : "";
           console.log(
-            `  ${r.id}${r.label ? ` (${r.label})` : ""}${graph}${marker}`
+            `  ${r.id}${r.label ? ` (${r.label})` : ""}${graph}${status}${marker}`
           );
         }
       } catch (err: unknown) {
@@ -95,8 +107,10 @@ export function registerRunCommand(program: Command): void {
         console.log(`运行 ID: ${info.id}`);
         if (info.label) console.log(`标签: ${info.label}`);
         if (info.graphName) console.log(`绑定图: ${info.graphName}`);
+        console.log(`状态: ${info.status}`);
+        console.log(`当前步骤: ${info.currentStep}`);
         console.log(`创建时间: ${info.createdAt}`);
-        console.log(`状态记录数: ${info.stateCount}`);
+        console.log(`任务: ${info.completedTasks}/${info.taskCount} 已完成`);
       } catch (err: unknown) {
         if (err instanceof RunNotFoundError) {
           console.error(`错误: 运行实例 '${runId}' 不存在`);

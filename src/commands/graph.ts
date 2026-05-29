@@ -32,11 +32,11 @@ export function registerGraphCommand(program: Command): void {
     .option("--run <runId>", "指定运行实例")
     .action(async (options: { graph: string; run?: string }) => {
       try {
-        const { nodes, edges, states, timestamps } = await graphService.buildGraph(
+        const { nodes, edges, tasks, timestamps } = await graphService.buildGraph(
           options.graph,
           options.run
         );
-        console.log(graphService.formatGraph(nodes, edges, states, timestamps));
+        console.log(graphService.formatGraph(nodes, edges, tasks, timestamps));
       } catch (err: unknown) {
         console.error(`错误: ${(err as Error).message}`);
         process.exit(1);

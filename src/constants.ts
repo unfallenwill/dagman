@@ -5,7 +5,7 @@ export const RUNS_DIR = ".dagman/runs";
 export const CURRENT_RUN_FILE = ".dagman/.current-run";
 export const DEFAULT_RUN_ID = "default";
 
-// Legacy paths (kept for migration detection)
+// Legacy paths (kept until old services are removed in Phase 4)
 export const LEGACY_STATE_FILE = ".dagman/state.json";
 export const LEGACY_CONTEXT_DIR = ".dagman/context";
 
@@ -18,6 +18,11 @@ export function getRunMetaFile(runId: string): string {
   return `${RUNS_DIR}/${runId}/run.json`;
 }
 
+export function getWorkflowFile(runId: string): string {
+  return `${RUNS_DIR}/${runId}/workflow.jsonl`;
+}
+
+// Legacy path resolvers (kept until old services are removed in Phase 4)
 export function getStateFile(runId: string): string {
   return `${RUNS_DIR}/${runId}/state.json`;
 }

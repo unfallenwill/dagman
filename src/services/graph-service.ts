@@ -1,12 +1,11 @@
 import type { Node } from "../models/node.js";
 import type { Edge, Graph } from "../models/graph.js";
-import type { StateMap } from "../models/state.js";
-import { DEFAULT_STATE } from "../models/state.js";
+import type { Task } from "../models/task.js";
 import { GRAPHS_DIR } from "../constants.js";
 import { ensureDir, readYAML, writeYAML, fileExists, deleteFile, listFiles } from "../utils/file.js";
 import { GraphNotFoundError } from "../errors.js";
 import * as nodeService from "./node-service.js";
-import * as stateService from "./state-service.js";
+import * as workflowService from "./workflow-service.js";
 import * as eventService from "./event-service.js";
 
 // ── Graph CRUD ──
@@ -56,14 +55,22 @@ export async function removeGraph(name: string): Promise<void> {
 export async function buildGraph(graphName: string, runId?: string): Promise<{
   nodes: Node[];
   edges: Edge[];
-  states: StateMap;
+  tasks: Task[];
   timestamps: Record<string, string>;
 }> {
   const graph = await loadGraph(graphName);
   const nodes = await nodeService.listNodes();
-  const states = await stateService.getState(runId);
   const timestamps = await eventService.getNodeTimestamps(runId);
-  return { nodes, edges: graph.edges, states, timestamps };
+
+  let tasks: Task[] = [];
+  try {
+    const currentStep = await workflowService.getCurrentStep(runId);
+    tasks = currentStep.tasks;
+  } catch {
+    // workflow not initialized
+  }
+
+  return { nodes, edges: graph.edges, tasks, timestamps };
 }
 
 function formatTimestamp(iso: string): string {
@@ -76,7 +83,7 @@ function formatTimestamp(iso: string): string {
 export function formatGraph(
   nodes: Node[],
   edges: Edge[],
-  states: StateMap,
+  tasks: Task[],
   timestamps?: Record<string, string>
 ): string {
   if (nodes.length === 0) {
@@ -84,11 +91,13 @@ export function formatGraph(
   }
 
   const ts = timestamps ?? {};
+  const taskMap = new Map(tasks.map((t) => [t.nodeId, t]));
   const sorted = [...nodes].sort((a, b) => a.name.localeCompare(b.name));
 
   return sorted
     .map((node) => {
-      const status = states[node.name] ?? DEFAULT_STATE;
+      const task = taskMap.get(node.name);
+      const status = task?.status ?? "pending";
       const statusDisplay = ts[node.name]
         ? `${status} ${formatTimestamp(ts[node.name])}`
         : status;

@@ -1,27 +1,25 @@
 import type { Node } from "../models/node.js";
 import type { Edge } from "../models/graph.js";
-import type { StateMap } from "../models/state.js";
-import type { ContextData } from "../models/context.js";
+import type { Task } from "../models/task.js";
+import type { Channel } from "../models/channel.js";
 import * as nodeService from "./node-service.js";
-import * as stateService from "./state-service.js";
-import * as contextService from "./context-service.js";
 import * as graphService from "./graph-service.js";
 import * as runService from "./run-service.js";
-import { areDepsSatisfied, collectUpstream } from "../utils/topology.js";
+import * as workflowService from "./workflow-service.js";
+import { nodeChannelName, globalChannelName } from "../models/channel.js";
+import { collectUpstream } from "../utils/topology.js";
 import { renderTemplate } from "../utils/template.js";
 
 export interface NextResult {
   node: Node;
+  task: Task;
   instructions: string;
-  context: ContextData;
-  upstreamContext: Record<string, ContextData>;
+  channels: Record<string, Channel>;
 }
 
 interface RunContext {
   runId: string;
   edges: Edge[];
-  nodes: Node[];
-  states: StateMap;
 }
 
 async function resolveRunContext(runId?: string): Promise<RunContext> {
@@ -32,86 +30,87 @@ async function resolveRunContext(runId?: string): Promise<RunContext> {
   }
 
   const graph = await graphService.loadGraph(graphName);
-  const nodes = await nodeService.listNodes();
-  const states = await stateService.getState(resolvedRunId);
-  return { runId: resolvedRunId, edges: graph.edges, nodes, states };
+  return { runId: resolvedRunId, edges: graph.edges };
 }
 
-export async function findNextNode(runId?: string): Promise<NextResult | null> {
-  const { runId: rid, edges, nodes, states } = await resolveRunContext(runId);
-  const sorted = [...nodes].sort((a, b) => a.name.localeCompare(b.name));
+export async function findNext(runId?: string): Promise<NextResult | null> {
+  const { runId: rid, edges } = await resolveRunContext(runId);
+  const readyTasks = await workflowService.findReadyTasks(rid);
+  if (readyTasks.length === 0) return null;
 
-  for (const node of sorted) {
-    const currentState = states[node.name];
-    if (currentState !== undefined) continue;
-    if (areDepsSatisfied(node.name, edges, states)) {
-      return await buildResult(node, edges, rid);
-    }
-  }
-
-  return null;
+  // 按节点名字母序取第一个
+  const sorted = [...readyTasks].sort((a, b) =>
+    a.nodeId.localeCompare(b.nodeId)
+  );
+  const task = sorted[0];
+  return await buildResult(task, edges, rid);
 }
 
-export async function findAllNextNodes(runId?: string): Promise<NextResult[]> {
-  const { runId: rid, edges, nodes, states } = await resolveRunContext(runId);
-  const sorted = [...nodes].sort((a, b) => a.name.localeCompare(b.name));
+export async function findAllNext(runId?: string): Promise<NextResult[]> {
+  const { runId: rid, edges } = await resolveRunContext(runId);
+  const readyTasks = await workflowService.findReadyTasks(rid);
+
+  const sorted = [...readyTasks].sort((a, b) =>
+    a.nodeId.localeCompare(b.nodeId)
+  );
+
   const results: NextResult[] = [];
-
-  for (const node of sorted) {
-    const currentState = states[node.name];
-    if (currentState !== undefined) continue;
-    if (areDepsSatisfied(node.name, edges, states)) {
-      results.push(await buildResult(node, edges, rid));
-    }
+  for (const task of sorted) {
+    results.push(await buildResult(task, edges, rid));
   }
-
   return results;
 }
 
-async function buildResult(node: Node, edges: Edge[], runId: string): Promise<NextResult> {
-  const context = await contextService.getContext(node.name, runId);
-  const globalContext = await contextService.getGlobalContext(runId);
-  const upstreamContext: Record<string, ContextData> = {};
-
-  const upstream = collectUpstream(node.name, edges);
-  for (const depName of upstream) {
-    upstreamContext[depName] = await contextService.getContext(depName, runId);
-  }
+async function buildResult(
+  task: Task,
+  edges: Edge[],
+  runId: string
+): Promise<NextResult> {
+  const node = await nodeService.getNode(task.nodeId);
+  const state = await workflowService.loadState(runId);
 
   const instructions = renderInstructions(
     node.instructions,
-    context,
-    globalContext,
-    upstreamContext
+    task.nodeId,
+    edges,
+    state.channels
   );
 
-  return { node, instructions, context, upstreamContext };
+  return { node, task, instructions, channels: state.channels };
 }
 
 /**
- * 渲染节点指令中的变量引用。
- * 解析优先级：self > global > upstream node
- * 缺少值时抛出错误。
+ * 从 workflow channels 渲染节点指令中的变量引用。
+ * {{key}} → channel {currentNode}.{key}
+ * {{global.key}} → channel _global.{key}
+ * {{node-name.key}} → channel {node-name}.{key}
  */
 function renderInstructions(
   raw: string,
-  selfContext: ContextData,
-  globalContext: ContextData,
-  upstreamContext: Record<string, ContextData>
+  currentNode: string,
+  edges: Edge[],
+  channels: Record<string, Channel>
 ): string {
   const { text, missing } = renderTemplate(
     raw,
     (source, key, nodeName) => {
+      let channelName: string;
       switch (source) {
         case "self":
-          return key in selfContext ? String(selfContext[key]) : undefined;
+          channelName = nodeChannelName(currentNode, key);
+          break;
         case "global":
-          return key in globalContext ? String(globalContext[key]) : undefined;
-        case "node": {
-          const ctx = upstreamContext[nodeName!];
-          return ctx && key in ctx ? String(ctx[key]) : undefined;
-        }
+          channelName = globalChannelName(key);
+          break;
+        case "node":
+          channelName = nodeChannelName(nodeName!, key);
+          break;
       }
+
+      const ch = channels[channelName];
+      // version = 0 视为从未写入（缺失）
+      if (!ch || ch.version === 0) return undefined;
+      return String(ch.value);
     }
   );
 

@@ -4,10 +4,13 @@ import * as os from "os";
 import * as fs from "fs/promises";
 import { Command } from "commander";
 import { registerNodeCommand } from "../../src/commands/node.js";
-import { registerStatusCommand } from "../../src/commands/status.js";
-import { registerContextCommand } from "../../src/commands/context.js";
 import { registerGraphCommand } from "../../src/commands/graph.js";
 import { registerHelpCommand } from "../../src/commands/help.js";
+import { registerChannelCommand } from "../../src/commands/channel.js";
+import { registerTaskCommand } from "../../src/commands/task.js";
+import { registerStepCommand } from "../../src/commands/step.js";
+import * as runService from "../../src/services/run-service.js";
+import * as workflowService from "../../src/services/workflow-service.js";
 
 const TMP_DIR = path.join(os.tmpdir(), `dagman-cmd-test-${Date.now()}`);
 
@@ -32,9 +35,10 @@ function createProgram(): Command {
   });
   registerHelpCommand(program);
   registerNodeCommand(program);
-  registerStatusCommand(program);
-  registerContextCommand(program);
   registerGraphCommand(program);
+  registerChannelCommand(program);
+  registerTaskCommand(program);
+  registerStepCommand(program);
   return program;
 }
 
@@ -61,136 +65,73 @@ describe("node create command", () => {
   });
 });
 
-describe("status command", () => {
-  it("should update node state", async () => {
-    // Setup: create node definition and run structure
-    const node = {
-      kind: "Node",
-      name: "changer",
-      description: "test",
-      instructions: "test",
-    };
-    await fs.mkdir(path.join(TMP_DIR, ".dagman/nodes"), { recursive: true });
-    const yaml = await import("js-yaml");
-    await fs.writeFile(
-      path.join(TMP_DIR, ".dagman/nodes/changer.yaml"),
-      yaml.dump(node, { lineWidth: -1 })
-    );
-    await fs.mkdir(path.join(TMP_DIR, ".dagman/runs/default"), { recursive: true });
-    await fs.writeFile(
-      path.join(TMP_DIR, ".dagman/runs/default/state.json"),
-      JSON.stringify({ changer: "success" })
-    );
-    await fs.writeFile(
-      path.join(TMP_DIR, ".dagman/.current-run"),
-      "default"
-    );
-
-    const program = createProgram();
-    await program.parseAsync(["node", "dagman", "status", "set", "changer", "failed"]);
-
-    const state = JSON.parse(
-      await fs.readFile(
-        path.join(TMP_DIR, ".dagman/runs/default/state.json"),
-        "utf-8"
-      )
-    );
-    expect(state.changer).toBe("failed");
-  });
-
-  it("should fail for invalid status", async () => {
-    const node = {
-      kind: "Node",
-      name: "strict",
-      description: "test",
-      instructions: "test",
-    };
-    await fs.mkdir(path.join(TMP_DIR, ".dagman/nodes"), {
-      recursive: true,
-    });
-    const yaml = await import("js-yaml");
-    await fs.writeFile(
-      path.join(TMP_DIR, ".dagman/nodes/strict.yaml"),
-      yaml.dump(node, { lineWidth: -1 })
-    );
-    await fs.mkdir(path.join(TMP_DIR, ".dagman/runs/default"), { recursive: true });
-    await fs.writeFile(
-      path.join(TMP_DIR, ".dagman/.current-run"),
-      "default"
-    );
-
-    const program = createProgram();
-    await expect(
-      program.parseAsync(["node", "dagman", "status", "set", "strict", "invalid"])
-    ).rejects.toThrow();
-  });
-});
-
-describe("context commands", () => {
-  beforeEach(async () => {
-    const node = {
-      kind: "Node",
-      name: "ctx-node",
-      description: "test",
-      instructions: "test",
-    };
-    await fs.mkdir(path.join(TMP_DIR, ".dagman/nodes"), {
-      recursive: true,
-    });
-    const yaml = await import("js-yaml");
-    await fs.writeFile(
-      path.join(TMP_DIR, ".dagman/nodes/ctx-node.yaml"),
-      yaml.dump(node, { lineWidth: -1 })
-    );
-    await fs.mkdir(path.join(TMP_DIR, ".dagman/runs/default"), { recursive: true });
-    await fs.writeFile(
-      path.join(TMP_DIR, ".dagman/.current-run"),
-      "default"
-    );
-  });
-
-  it("should show empty context", async () => {
-    const program = createProgram();
-    // Should not throw
-    await program.parseAsync(["node", "dagman", "context", "show", "ctx-node"]);
-  });
-
-  it("should set and get context", async () => {
-    const setProgram = createProgram();
-    await setProgram.parseAsync([
-      "node", "dagman", "context", "set", "ctx-node", "mykey", "myvalue",
-    ]);
-
-    const getProgram = createProgram();
-    await getProgram.parseAsync([
-      "node", "dagman", "context", "get", "ctx-node", "mykey",
-    ]);
-  });
-
-  it("should clear context", async () => {
-    // Set first
-    const setProgram = createProgram();
-    await setProgram.parseAsync([
-      "node", "dagman", "context", "set", "ctx-node", "k", "v",
-    ]);
-
-    const clearProgram = createProgram();
-    await clearProgram.parseAsync([
-      "node", "dagman", "context", "clear", "ctx-node",
-    ]);
-
-    // Context file should be gone
-    const exists = await fs
-      .access(path.join(TMP_DIR, ".dagman/runs/default/context/ctx-node.json"))
-      .then(() => true)
-      .catch(() => false);
-    expect(exists).toBe(false);
-  });
-});
-
 describe("graph commands", () => {
   it("should list empty graphs", async () => {
     const program = createProgram();
     await program.parseAsync(["node", "dagman", "graph", "list"]);
+  });
+});
+
+describe("task commands", () => {
+  it("should list tasks for a workflow run", async () => {
+    // Setup: create nodes, graph, and run
+    const yaml = await import("js-yaml");
+    await fs.mkdir(path.join(TMP_DIR, ".dagman/nodes"), { recursive: true });
+
+    for (const name of ["node-a", "node-b"]) {
+      await fs.writeFile(
+        path.join(TMP_DIR, `.dagman/nodes/${name}.yaml`),
+        yaml.dump({ kind: "Node", name, description: "test", instructions: "test" }, { lineWidth: -1 })
+      );
+    }
+
+    await fs.mkdir(path.join(TMP_DIR, ".dagman/graphs"), { recursive: true });
+    await fs.writeFile(
+      path.join(TMP_DIR, ".dagman/graphs/test.yaml"),
+      yaml.dump({
+        kind: "Graph",
+        name: "test",
+        edges: [{ from: "node-b", to: "node-a" }],
+      }, { lineWidth: -1 })
+    );
+
+    const info = await runService.createRun("task-test", "test", true);
+    expect(info.graphName).toBe("test");
+
+    // List tasks
+    const tasks = await workflowService.listTasks(undefined, "task-test");
+    expect(tasks.length).toBe(1); // Only node-a is in layer 0
+    expect(tasks[0].nodeId).toBe("node-a");
+    expect(tasks[0].status).toBe("ready");
+  });
+});
+
+describe("channel commands", () => {
+  it("should set and get a channel", async () => {
+    // Setup: create a run with workflow
+    const yaml = await import("js-yaml");
+    await fs.mkdir(path.join(TMP_DIR, ".dagman/nodes"), { recursive: true });
+    await fs.writeFile(
+      path.join(TMP_DIR, ".dagman/nodes/test-node.yaml"),
+      yaml.dump({ kind: "Node", name: "test-node", description: "test", instructions: "test" }, { lineWidth: -1 })
+    );
+
+    await fs.mkdir(path.join(TMP_DIR, ".dagman/graphs"), { recursive: true });
+    await fs.writeFile(
+      path.join(TMP_DIR, ".dagman/graphs/single.yaml"),
+      yaml.dump({ kind: "Graph", name: "single", edges: [] }, { lineWidth: -1 })
+    );
+
+    await runService.createRun("ch-test", "single", true);
+
+    // Set channel
+    const ch = await workflowService.setChannel("test-node.mykey", "myvalue", "ch-test");
+    expect(ch.version).toBe(1);
+    expect(ch.value).toBe("myvalue");
+
+    // Get channel
+    const retrieved = await workflowService.getChannel("test-node.mykey", "ch-test");
+    expect(retrieved?.value).toBe("myvalue");
+    expect(retrieved?.version).toBe(1);
   });
 });

@@ -60,21 +60,13 @@ describe("removeNode", () => {
     );
   });
 
-  it("should also delete context file across runs", async () => {
+  it("should succeed even without runs directory", async () => {
     await nodeService.createTemplate("ctx-test");
-    // Create run structure with context
-    const runDir = path.join(TMP_DIR, ".dagman/runs/default");
-    const ctxDir = path.join(runDir, "context");
-    await fs.mkdir(ctxDir, { recursive: true });
-    await fs.writeFile(
-      path.join(ctxDir, "ctx-test.json"),
-      '{"key":"value"}'
-    );
-
+    // No runs directory exists - should not throw
     await nodeService.removeNode("ctx-test");
-    await expect(
-      fs.access(path.join(ctxDir, "ctx-test.json"))
-    ).rejects.toThrow();
+    await expect(nodeService.getNode("ctx-test")).rejects.toThrow(
+      NodeNotFoundError
+    );
   });
 });
 

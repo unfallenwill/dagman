@@ -4,22 +4,18 @@ import {
   RUNS_DIR,
   CURRENT_RUN_FILE,
   DEFAULT_RUN_ID,
-  LEGACY_STATE_FILE,
-  LEGACY_CONTEXT_DIR,
   getRunDir,
   getRunMetaFile,
-  getStateFile,
-  getContextDir,
 } from "../constants.js";
-import { ensureDir, readJSON, writeJSON, fileExists, deleteFile, listFiles } from "../utils/file.js";
+import { ensureDir, readJSON, writeJSON, fileExists } from "../utils/file.js";
 import { RunNotFoundError, RunExistsError } from "../errors.js";
+import type { RunInfo, RunStatus } from "../models/superstep.js";
+import * as graphService from "./graph-service.js";
+import * as nodeService from "./node-service.js";
+import * as workflowService from "./workflow-service.js";
+import { computeTopologicalLayers } from "../utils/topology.js";
 
-export interface RunInfo {
-  id: string;
-  createdAt: string;
-  label?: string;
-  graphName?: string;
-}
+export type { RunInfo, RunStatus };
 
 export async function getCurrentRunId(): Promise<string | null> {
   if (!(await fileExists(CURRENT_RUN_FILE))) {
@@ -38,56 +34,85 @@ export async function resolveCurrentRunId(): Promise<string> {
   const current = await getCurrentRunId();
   if (current) return current;
 
-  // Check for legacy layout and migrate
-  const legacyStateExists = await fileExists(LEGACY_STATE_FILE);
-  const legacyContextExists = await fileExists(LEGACY_CONTEXT_DIR);
-
-  if (legacyStateExists || legacyContextExists) {
-    await createRunInternal(DEFAULT_RUN_ID, "自动迁移");
-    if (legacyStateExists) {
-      const stateData = await readJSON<Record<string, string>>(LEGACY_STATE_FILE);
-      await writeJSON(getStateFile(DEFAULT_RUN_ID), stateData);
-      await deleteFile(LEGACY_STATE_FILE);
-    }
-    if (legacyContextExists) {
-      const files = await listFiles(LEGACY_CONTEXT_DIR);
-      for (const file of files) {
-        const content = await readJSON(`${LEGACY_CONTEXT_DIR}/${file}`);
-        await writeJSON(`${getContextDir(DEFAULT_RUN_ID)}/${file}`, content);
-      }
-      await fs.rm(path.resolve(LEGACY_CONTEXT_DIR), { recursive: true, force: true });
-    }
-    await setCurrentRunId(DEFAULT_RUN_ID);
-    return DEFAULT_RUN_ID;
-  }
-
-  // Fresh start
+  // Fresh start — 不再支持 legacy 迁移
   await createRunInternal(DEFAULT_RUN_ID);
   await setCurrentRunId(DEFAULT_RUN_ID);
   return DEFAULT_RUN_ID;
 }
 
-async function createRunInternal(runId: string, label?: string, graphName?: string): Promise<RunInfo> {
+async function createRunInternal(
+  runId: string,
+  label?: string,
+  graphName?: string
+): Promise<RunInfo> {
   const runDir = getRunDir(runId);
   if (await fileExists(getRunMetaFile(runId))) {
     throw new RunExistsError(runId);
   }
 
   await ensureDir(runDir);
-  await writeJSON(getStateFile(runId), {});
+
+  let layerAssignment: Record<string, number> | undefined;
+  let currentStep = 0;
+  let status: RunStatus = "idle";
+
+  // 如果绑定了 graph，计算层级并初始化 workflow
+  if (graphName) {
+    const graph = await graphService.loadGraph(graphName);
+    const nodes = await nodeService.listNodes();
+    const nodeNames = nodes.map((n) => n.name);
+    const layers = computeTopologicalLayers(graph.edges, nodeNames);
+
+    layerAssignment = {};
+    for (const [layer, names] of layers.entries()) {
+      for (const name of names) {
+        layerAssignment[name] = layer;
+      }
+    }
+
+    status = "running";
+
+    const info: RunInfo = {
+      id: runId,
+      createdAt: new Date().toISOString(),
+      label,
+      graphName,
+      currentStep,
+      status,
+      layerAssignment,
+    };
+    await writeJSON(getRunMetaFile(runId), info);
+
+    // 初始化 workflow.jsonl
+    await workflowService.initWorkflow(runId, layers, graph.edges);
+
+    return info;
+  }
+
   const info: RunInfo = {
     id: runId,
     createdAt: new Date().toISOString(),
     label,
     graphName,
+    currentStep,
+    status,
+    layerAssignment,
   };
   await writeJSON(getRunMetaFile(runId), info);
   return info;
 }
 
-export async function createRun(label?: string, graphName?: string, switchTo?: boolean): Promise<RunInfo> {
+export async function createRun(
+  label?: string,
+  graphName?: string,
+  switchTo?: boolean
+): Promise<RunInfo> {
   const runId = label
-    ? label.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "")
+    ? label
+        .toLowerCase()
+        .replace(/[^a-z0-9-]/g, "-")
+        .replace(/-+/g, "-")
+        .replace(/^-|-$/g, "")
     : `run-${Date.now()}`;
 
   if (!runId) {
@@ -144,19 +169,28 @@ export async function resolveRunId(runId?: string): Promise<string> {
   return resolveCurrentRunId();
 }
 
-export async function showRun(runId: string): Promise<RunInfo & { stateCount: number }> {
+export async function showRun(
+  runId: string
+): Promise<RunInfo & { taskCount: number; completedTasks: number }> {
   const metaFile = getRunMetaFile(runId);
   if (!(await fileExists(metaFile))) {
     throw new RunNotFoundError(runId);
   }
 
   const info = await readJSON<RunInfo>(metaFile);
-  const stateFile = getStateFile(runId);
-  let stateCount = 0;
-  if (await fileExists(stateFile)) {
-    const state = await readJSON<Record<string, string>>(stateFile);
-    stateCount = Object.keys(state).length;
+
+  let taskCount = 0;
+  let completedTasks = 0;
+
+  try {
+    const currentStep = await workflowService.getCurrentStep(runId);
+    taskCount = currentStep.tasks.length;
+    completedTasks = currentStep.tasks.filter(
+      (t) => t.status === "success" || t.status === "skipped"
+    ).length;
+  } catch {
+    // workflow not initialized
   }
 
-  return { ...info, stateCount };
+  return { ...info, taskCount, completedTasks };
 }

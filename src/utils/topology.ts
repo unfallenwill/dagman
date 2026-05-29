@@ -1,5 +1,4 @@
 import type { Edge } from "../models/graph.js";
-import type { StateMap } from "../models/state.js";
 
 /**
  * 构建正向邻接表：from -> [to, ...]
@@ -78,7 +77,7 @@ export function hasCycle(edges: Edge[]): boolean {
 export function areDepsSatisfied(
   nodeName: string,
   edges: Edge[],
-  states: StateMap
+  states: Record<string, string>
 ): boolean {
   const deps = edges.filter((e) => e.from === nodeName);
   if (deps.length === 0) return true;
@@ -195,4 +194,69 @@ export function findCyclePaths(edges: Edge[]): string[][] {
   }
 
   return cycles;
+}
+
+/**
+ * BFS 拓扑分层：将节点按依赖关系分层。
+ * Layer 0: 无依赖的节点（没有入边）
+ * Layer N: 所有依赖都在 Layer 0..N-1 中的节点
+ */
+export function computeTopologicalLayers(
+  edges: Edge[],
+  nodeNames: string[]
+): Map<number, string[]> {
+  if (nodeNames.length === 0) return new Map();
+
+  // 计算每个节点的入度（被依赖数）
+  const inDegree = new Map<string, number>();
+  for (const name of nodeNames) {
+    inDegree.set(name, 0);
+  }
+  for (const edge of edges) {
+    // edge.from 依赖于 edge.to，所以 from 有入度
+    if (inDegree.has(edge.from)) {
+      inDegree.set(edge.from, inDegree.get(edge.from)! + 1);
+    }
+  }
+
+  // 反向邻接表：to -> [from, ...]（to 被谁依赖）
+  const reverseAdj = new Map<string, string[]>();
+  for (const edge of edges) {
+    const dependents = reverseAdj.get(edge.to) ?? [];
+    dependents.push(edge.from);
+    reverseAdj.set(edge.to, dependents);
+  }
+
+  const layers = new Map<number, string[]>();
+  let currentLayer = [...inDegree.entries()]
+    .filter(([, deg]) => deg === 0)
+    .map(([name]) => name);
+
+  let layerIndex = 0;
+  const assigned = new Set<string>();
+
+  while (currentLayer.length > 0) {
+    layers.set(layerIndex, currentLayer);
+    for (const name of currentLayer) {
+      assigned.add(name);
+    }
+
+    const nextLayer: string[] = [];
+    for (const name of currentLayer) {
+      const dependents = reverseAdj.get(name) ?? [];
+      for (const dep of dependents) {
+        if (assigned.has(dep)) continue;
+        const deg = inDegree.get(dep)! - 1;
+        inDegree.set(dep, deg);
+        if (deg === 0 && !assigned.has(dep)) {
+          nextLayer.push(dep);
+        }
+      }
+    }
+
+    currentLayer = nextLayer;
+    layerIndex++;
+  }
+
+  return layers;
 }

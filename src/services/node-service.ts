@@ -29,11 +29,16 @@ export async function removeNode(name: string): Promise<void> {
     throw new NodeNotFoundError(name);
   }
   await deleteFile(filePath);
-  // 清理所有运行实例中的上下文文件
+  // 清理所有运行实例中该节点的 channels
   try {
     const entries = await readdir(path.resolve(RUNS_DIR));
     for (const entry of entries) {
-      await deleteFile(`${RUNS_DIR}/${entry}/context/${name}.json`);
+      try {
+        const { clearChannels } = await import("./workflow-service.js");
+        await clearChannels(name, entry);
+      } catch {
+        // workflow 未初始化时忽略
+      }
     }
   } catch {
     // runs 目录不存在时忽略
