@@ -1,5 +1,5 @@
 {
-  "name": "@unfallenwill/dagman",
+  "name": "dagman",
   "version": "1.0.2",
   "description": "dagman - DAG-based agent task orchestration CLI",
   "main": "dist/index.js",
@@ -50,6 +50,7 @@
     "commander": "^12.1.0",
     "handlebars": "^4.7.9",
     "js-yaml": "^4.1.1",
+    "tsx": "^4.19.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
@@ -63,7 +64,6 @@
     "husky": "^9.1.7",
     "lint-staged": "^17.0.5",
     "prettier": "^3.8.3",
-    "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "typescript-eslint": "^8.60.0",
     "vitest": "^4.1.7"
