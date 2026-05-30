@@ -2,13 +2,14 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import * as path from 'path'
 import * as fs from 'fs/promises'
 import { initTmpDir, cleanupTmpDir } from '../../helpers/setup.js'
+import '../../../src/engine/default-deps.js'
 import {
   getCurrentRunId,
   setCurrentRunId,
   resolveCurrentRunId,
   listRunIds,
   resolveActiveRunId,
-} from '../../../src/shared/utils/run-resolver.js'
+} from '../../../src/domain/run/run-resolver.js'
 import { getDagmanDir, getRunDir, getRunMetaFile, getRunsDir } from '../../../src/infra/fs/paths.js'
 import { ensureDir } from '../../../src/infra/fs/file-ops.js'
 

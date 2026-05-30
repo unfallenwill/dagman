@@ -3,15 +3,31 @@ import type { Graph } from '../../shared/models/graph.js'
 import type { Node } from '../../shared/models/node.js'
 import type { WorkflowManifest } from '../../shared/models/workflow-def.js'
 import type { WorkflowLoader } from '../../shared/utils/loader.js'
-import { getWorkflowTsFile, getWorkflowManifest } from '../../infra/fs/paths.js'
 import { hasCycle } from '../../shared/utils/topology.js'
 import { ValidationError } from '../../shared/errors.js'
 import { saveCompiledGraph } from '../graph/graph-service.js'
 import { expandWorkflow } from './node-gen.js'
-import { createDefaultLoader } from '../../infra/loader/tsx-loader.js'
 
 export interface CompilerDeps {
   loader?: WorkflowLoader
+  getWorkflowTsFile?: (name: string) => string
+  getWorkflowManifest?: (name: string) => string
+}
+
+let _defaults: Partial<CompilerDeps> = {}
+
+/** Set default deps — called by engine/composition root at startup */
+export function setDefaultCompilerDeps(defaults: Partial<CompilerDeps>): void {
+  _defaults = { ..._defaults, ...defaults }
+}
+
+function resolveCompilerDeps(deps?: CompilerDeps) {
+  const merged = { ..._defaults, ...deps }
+  return {
+    loader: merged.loader!,
+    getWorkflowTsFile: merged.getWorkflowTsFile!,
+    getWorkflowManifest: merged.getWorkflowManifest!,
+  }
 }
 
 export interface CompileResult {
@@ -27,15 +43,15 @@ export async function compileWorkflow(
   workflowName: string,
   deps?: CompilerDeps,
 ): Promise<CompileResult> {
-  const tsFile = getWorkflowTsFile(workflowName)
-  const manifestFile = getWorkflowManifest(workflowName)
+  const d = resolveCompilerDeps(deps)
+  const tsFile = d.getWorkflowTsFile(workflowName)
+  const manifestFile = d.getWorkflowManifest(workflowName)
 
   // 1. Load manifest
   const manifest = await loadManifest(manifestFile)
 
   // 2. tsx dynamic import → execute TS file → get WorkflowDefinition
-  const loader = deps?.loader ?? createDefaultLoader()
-  const definition = await loader.load(tsFile)
+  const definition = await d.loader.load(tsFile)
 
   // 3. Validate definition name matches workflow name
   if (definition.name !== workflowName) {

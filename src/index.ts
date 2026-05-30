@@ -22,7 +22,7 @@ export * from './shared/models/workflow-def.js'
 export * from './api/index.js'
 
 // Utilities
-export * from './shared/utils/run-resolver.js'
+export * from './domain/run/run-resolver.js'
 export * from './shared/utils/state.js'
 
 // Shared

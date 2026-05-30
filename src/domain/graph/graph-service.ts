@@ -1,31 +1,37 @@
 import type { Node } from '../../shared/models/node.js'
 import type { Edge, Graph } from '../../shared/models/graph.js'
 import type { Task } from '../../shared/models/task.js'
-import { getGraphsDir } from '../../infra/fs/paths.js'
-import { ensureDir, writeJSON, fileExists, listFiles } from '../../infra/fs/file-ops.js'
 import { GraphNotFoundError } from '../../shared/errors.js'
 import * as path from 'path'
 
 // ===== Dependency Injection =====
 
 export interface GraphDeps {
-  getGraphsDir?: typeof getGraphsDir
-  ensureDir?: typeof ensureDir
-  writeJSON?: typeof writeJSON
-  fileExists?: typeof fileExists
-  listFiles?: typeof listFiles
+  getGraphsDir?: () => string
+  ensureDir?: (dirPath: string) => Promise<void>
+  writeJSON?: <T>(filePath: string, data: T) => Promise<void>
+  fileExists?: (filePath: string) => Promise<boolean>
+  listFiles?: (dirPath: string, ext?: string) => Promise<string[]>
   readFile?: (filePath: string) => Promise<string>
 }
 
+let _defaults: Partial<GraphDeps> = {}
+
+/** Set default deps — called by engine/composition root at startup */
+export function setDefaultGraphDeps(defaults: Partial<GraphDeps>): void {
+  _defaults = { ..._defaults, ...defaults }
+}
+
 function resolveGraphDeps(deps?: GraphDeps) {
+  const merged = { ..._defaults, ...deps }
   return {
-    getGraphsDir: deps?.getGraphsDir ?? getGraphsDir,
-    ensureDir: deps?.ensureDir ?? ensureDir,
-    writeJSON: deps?.writeJSON ?? writeJSON,
-    fileExists: deps?.fileExists ?? fileExists,
-    listFiles: deps?.listFiles ?? listFiles,
+    getGraphsDir: merged.getGraphsDir!,
+    ensureDir: merged.ensureDir!,
+    writeJSON: merged.writeJSON!,
+    fileExists: merged.fileExists!,
+    listFiles: merged.listFiles!,
     readFile:
-      deps?.readFile ??
+      merged.readFile ??
       (async (filePath: string) => {
         const fs = await import('fs/promises')
         return fs.readFile(filePath, 'utf-8')

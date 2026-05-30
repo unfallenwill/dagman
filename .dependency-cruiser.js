@@ -4,200 +4,196 @@ module.exports = {
     // === Global Rules ===
 
     {
-      name: "no-circular",
-      severity: "error",
-      comment: "Circular dependencies are not allowed",
+      name: 'no-circular',
+      severity: 'error',
+      comment: 'Circular dependencies are not allowed',
       from: {},
       to: { circular: true },
     },
     {
-      name: "no-test-in-prod",
-      severity: "error",
-      comment: "Production code must not import test code",
-      from: { pathNot: "^tests/" },
-      to: { path: "^tests/" },
+      name: 'no-test-in-prod',
+      severity: 'error',
+      comment: 'Production code must not import test code',
+      from: { pathNot: '^tests/' },
+      to: { path: '^tests/' },
     },
     {
-      name: "no-dev-deps-in-src",
-      severity: "error",
-      comment: "Production code must not use devDependencies",
-      from: { path: "^src/" },
+      name: 'no-dev-deps-in-src',
+      severity: 'error',
+      comment: 'Production code must not use devDependencies',
+      from: { path: '^src/' },
       to: {
-        dependencyTypes: ["npm-dev"],
-        pathNot: ["tsx"],
+        dependencyTypes: ['npm-dev'],
+        pathNot: ['tsx'],
       },
     },
 
-    // === Command Layer ===
+    // === Vertical Slice Rules ===
 
     {
-      name: "commands-no-cross-import",
-      severity: "error",
-      comment: "Command files must not import from other command files",
-      from: { path: "^src/commands/" },
-      to: { path: "^src/commands/" },
+      name: 'slices-no-cross-import',
+      severity: 'error',
+      comment:
+        'Slice commands must not import from other slice commands (_shared is OK)',
+      from: { path: '^src/slices/([^/]+)/' },
+      to: { path: '^src/slices/(?!_shared/|\\1/)' },
     },
 
     {
-      name: "commands-only-to-domain-and-shared",
-      severity: "error",
+      name: 'slices-only-to-domain-infra-shared',
+      severity: 'error',
       comment:
-        "Commands should only import from domain modules, compiler, models, utils, and shared files",
-      from: { path: "^src/commands/" },
+        'Slices should only import from domain/, infra/, shared/, _shared/',
+      from: { path: '^src/slices/' },
       to: {
-        path: "^src/",
+        path: '^src/',
         pathNot: [
-          "^src/(workflow|scheduling|runtime|graph|compiler)/",
-          "^src/models/",
-          "^src/utils/",
-          "^src/constants\\.ts$",
-          "^src/errors\\.ts$",
-          "^src/cli\\.ts$",
-          "^src/commands/",
+          '^src/slices/', // internal + _shared
+          '^src/domain/',
+          '^src/infra/',
+          '^src/shared/',
         ],
       },
     },
 
-    // === Domain Layer Rules (inner = more foundational) ===
+    // === Domain Layer Rules ===
 
     {
-      name: "compiler-only-to-graph-and-shared",
-      severity: "error",
-      comment: "compiler/ should only import from graph/, models/, utils/, constants, errors",
-      from: { path: "^src/compiler/" },
-      to: {
-        path: "^src/",
-        pathNot: [
-          "^src/graph/",
-          "^src/models/",
-          "^src/utils/",
-          "^src/constants\\.ts$",
-          "^src/errors\\.ts$",
-          "^src/compiler/",
-        ],
-      },
+      name: 'domain-no-infra-imports',
+      severity: 'error',
+      comment: 'domain/ must not import infra/ (use DI instead)',
+      from: { path: '^src/domain/' },
+      to: { path: '^src/infra/' },
     },
 
     {
-      name: "graph-no-upward-deps",
-      severity: "error",
+      name: 'domain-no-slice-imports',
+      severity: 'error',
+      comment: 'domain/ must not import slices/',
+      from: { path: '^src/domain/' },
+      to: { path: '^src/slices/' },
+    },
+
+    {
+      name: 'domain-no-engine-imports',
+      severity: 'error',
+      comment: 'domain/ must not import engine/',
+      from: { path: '^src/domain/' },
+      to: { path: '^src/engine/' },
+    },
+
+    {
+      name: 'domain-internal-layers',
+      severity: 'error',
       comment:
-        "graph/ is the innermost domain — must not depend on workflow/, runtime/, scheduling/",
-      from: { path: "^src/graph/" },
+        'Domain layering: graph < compiler < run < workflow < scheduling',
+      from: {
+        path: [
+          '^src/domain/graph/',
+          '^src/domain/compiler/',
+          '^src/domain/run/',
+          '^src/domain/workflow/',
+        ],
+      },
       to: {
         path: [
-          "^src/workflow/",
-          "^src/runtime/",
-          "^src/scheduling/",
-          "^src/commands/",
+          '^src/domain/scheduling/',
         ],
       },
+      // Allow: graph ← compiler ← run ← workflow ← scheduling
+      // scheduling is the outermost domain, nothing should depend on it
     },
 
     {
-      name: "workflow-only-to-runtime-and-shared",
-      severity: "error",
-      comment:
-        "workflow/ should only import from runtime/, models/, utils/, constants, errors",
-      from: { path: "^src/workflow/" },
+      name: 'domain-only-to-shared',
+      severity: 'error',
+      comment: 'domain/ should only import from shared/ and other domain/',
+      from: { path: '^src/domain/' },
       to: {
-        path: "^src/",
+        path: '^src/',
         pathNot: [
-          "^src/workflow/",
-          "^src/runtime/",
-          "^src/models/",
-          "^src/utils/",
-          "^src/constants\\.ts$",
-          "^src/errors\\.ts$",
+          '^src/domain/',
+          '^src/shared/',
         ],
       },
     },
 
+    // === Infra Layer Rules ===
+
     {
-      name: "runtime-only-to-graph-workflow-and-shared",
-      severity: "error",
-      comment:
-        "runtime/ should only import from graph/, workflow/, models/, utils/, constants, errors",
-      from: { path: "^src/runtime/" },
+      name: 'infra-only-to-shared',
+      severity: 'error',
+      comment: 'infra/ should only import from shared/',
+      from: { path: '^src/infra/' },
       to: {
-        path: "^src/",
+        path: '^src/',
         pathNot: [
-          "^src/graph/",
-          "^src/workflow/",
-          "^src/models/",
-          "^src/utils/",
-          "^src/constants\\.ts$",
-          "^src/errors\\.ts$",
+          '^src/infra/',
+          '^src/shared/',
         ],
       },
     },
 
+    // === Shared Layer Purity ===
+
     {
-      name: "scheduling-only-to-domain-and-shared",
-      severity: "error",
+      name: 'shared-no-domain-infra-engine-slices',
+      severity: 'error',
       comment:
-        "scheduling/ should only import from workflow/, graph/, runtime/, models/, utils/, constants, errors",
-      from: { path: "^src/scheduling/" },
-      to: {
-        path: "^src/",
-        pathNot: [
-          "^src/workflow/",
-          "^src/graph/",
-          "^src/runtime/",
-          "^src/models/",
-          "^src/utils/",
-          "^src/constants\\.ts$",
-          "^src/errors\\.ts$",
-        ],
-      },
-    },
-
-    // === Foundation Purity ===
-
-    {
-      name: "models-no-domain-deps",
-      severity: "error",
-      comment: "Models are pure data — no domain/service imports",
-      from: { path: "^src/models/" },
+        'shared/ is foundational — no upward imports to domain/, infra/, engine/, slices/',
+      from: { path: '^src/shared/' },
       to: {
         path: [
-          "^src/(workflow|scheduling|runtime|graph|commands|compiler)/",
+          '^src/domain/',
+          '^src/infra/',
+          '^src/engine/',
+          '^src/slices/',
         ],
       },
     },
 
-    {
-      name: "utils-no-domain-deps",
-      severity: "error",
-      comment: "Utils are foundational — no domain imports",
-      from: { path: "^src/utils/" },
-      to: {
-        path: [
-          "^src/(workflow|scheduling|runtime|graph|commands|compiler)/",
-        ],
-      },
-    },
+    // === API Purity ===
 
     {
-      name: "api-no-domain-deps",
-      severity: "error",
-      comment: "API is pure builder — only models and internal types",
-      from: { path: "^src/api/" },
+      name: 'api-only-shared-models',
+      severity: 'error',
+      comment: 'api/ should only import from shared/models/',
+      from: { path: '^src/api/' },
       to: {
-        path: "^src/",
+        path: '^src/',
         pathNot: [
-          "^src/models/",
-          "^src/api/",
+          '^src/shared/models/',
+          '^src/api/',
+        ],
+      },
+    },
+
+    // === Engine Rules ===
+
+    {
+      name: 'engine-only-slices-domain-infra-shared',
+      severity: 'error',
+      comment:
+        'engine/ should only import from slices/, domain/, infra/, shared/',
+      from: { path: '^src/engine/' },
+      to: {
+        path: '^src/',
+        pathNot: [
+          '^src/engine/',
+          '^src/slices/',
+          '^src/domain/',
+          '^src/infra/',
+          '^src/shared/',
         ],
       },
     },
   ],
   options: {
-    doNotFollow: { path: "node_modules" },
-    tsConfig: { fileName: "tsconfig.json" },
+    doNotFollow: { path: 'node_modules' },
+    tsConfig: { fileName: 'tsconfig.json' },
     enhancedResolveOptions: {
-      exportsFields: ["exports"],
-      conditionNames: ["import", "require", "node", "default"],
+      exportsFields: ['exports'],
+      conditionNames: ['import', 'require', 'node', 'default'],
     },
   },
-};
+}

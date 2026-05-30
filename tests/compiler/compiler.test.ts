@@ -212,6 +212,8 @@ describe('compileWorkflow error handling', () => {
     process.chdir(tmpDir)
     const { setBasePath } = await import('../../src/infra/fs/paths.js')
     setBasePath(tmpDir)
+    // Wire up DI defaults for compiler and graph-service
+    await import('../../src/engine/default-deps.js')
   })
 
   afterEach(async () => {

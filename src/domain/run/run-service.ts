@@ -1,7 +1,5 @@
 import { promises as fs } from 'fs'
 import * as path from 'path'
-import { getRunDir, getRunMetaFile, getRunsDir } from '../../infra/fs/paths.js'
-import { ensureDir, readJSON, writeJSON, fileExists } from '../../infra/fs/file-ops.js'
 import { RunNotFoundError, RunExistsError } from '../../shared/errors.js'
 import type { RunInfo, RunStatus } from '../../shared/models/superstep.js'
 import type { Node } from '../../shared/models/node.js'
@@ -9,7 +7,7 @@ import * as graphService from '../graph/graph-service.js'
 import * as workflowService from '../workflow/workflow-engine.js'
 import { computeTopologicalLayers } from '../../shared/utils/topology.js'
 import { generateInstanceId } from '../../shared/utils/id.js'
-import { setCurrentRunId, resolveCurrentRunId } from '../../shared/utils/run-resolver.js'
+import { setCurrentRunId, resolveCurrentRunId } from './run-resolver.js'
 
 export type { RunInfo, RunStatus }
 export {
@@ -18,19 +16,19 @@ export {
   resolveCurrentRunId,
   resolveActiveRunId,
   listRunIds,
-} from '../../shared/utils/run-resolver.js'
+} from './run-resolver.js'
 
 // ===== Dependency Injection =====
 
 export interface RunDeps {
-  getRunDir?: typeof getRunDir
-  getRunMetaFile?: typeof getRunMetaFile
-  getRunsDir?: typeof getRunsDir
-  ensureDir?: typeof ensureDir
-  readJSON?: typeof readJSON
-  writeJSON?: typeof writeJSON
-  fileExists?: typeof fileExists
-  readdir?: (path: string) => Promise<string[]>
+  getRunDir?: (runId: string) => string
+  getRunMetaFile?: (runId: string) => string
+  getRunsDir?: () => string
+  ensureDir?: (dirPath: string) => Promise<void>
+  readJSON?: <T>(filePath: string) => Promise<T>
+  writeJSON?: <T>(filePath: string, data: T) => Promise<void>
+  fileExists?: (filePath: string) => Promise<boolean>
+  readdir?: (dirPath: string) => Promise<string[]>
   loadCompiledGraph?: typeof graphService.loadCompiledGraph
   loadGraph?: typeof graphService.loadGraph
   initWorkflow?: typeof workflowService.initWorkflow
@@ -41,24 +39,32 @@ export interface RunDeps {
   resolveCurrentRunId?: typeof resolveCurrentRunId
 }
 
+let _defaults: Partial<RunDeps> = {}
+
+/** Set default deps — called by engine/composition root at startup */
+export function setDefaultRunDeps(defaults: Partial<RunDeps>): void {
+  _defaults = { ..._defaults, ...defaults }
+}
+
 function resolveRunDeps(deps?: RunDeps) {
+  const merged = { ..._defaults, ...deps }
   return {
-    getRunDir: deps?.getRunDir ?? getRunDir,
-    getRunMetaFile: deps?.getRunMetaFile ?? getRunMetaFile,
-    getRunsDir: deps?.getRunsDir ?? getRunsDir,
-    ensureDir: deps?.ensureDir ?? ensureDir,
-    readJSON: deps?.readJSON ?? readJSON,
-    writeJSON: deps?.writeJSON ?? writeJSON,
-    fileExists: deps?.fileExists ?? fileExists,
-    readdir: deps?.readdir ?? ((dir: string) => fs.readdir(dir)),
-    loadCompiledGraph: deps?.loadCompiledGraph ?? graphService.loadCompiledGraph,
-    loadGraph: deps?.loadGraph ?? graphService.loadGraph,
-    initWorkflow: deps?.initWorkflow ?? workflowService.initWorkflow,
-    getCurrentStep: deps?.getCurrentStep ?? workflowService.getCurrentStep,
-    computeTopologicalLayers: deps?.computeTopologicalLayers ?? computeTopologicalLayers,
-    generateInstanceId: deps?.generateInstanceId ?? generateInstanceId,
-    setCurrentRunId: deps?.setCurrentRunId ?? setCurrentRunId,
-    resolveCurrentRunId: deps?.resolveCurrentRunId ?? resolveCurrentRunId,
+    getRunDir: merged.getRunDir!,
+    getRunMetaFile: merged.getRunMetaFile!,
+    getRunsDir: merged.getRunsDir!,
+    ensureDir: merged.ensureDir!,
+    readJSON: merged.readJSON!,
+    writeJSON: merged.writeJSON!,
+    fileExists: merged.fileExists!,
+    readdir: merged.readdir ?? ((dir: string) => fs.readdir(dir)),
+    loadCompiledGraph: merged.loadCompiledGraph ?? graphService.loadCompiledGraph,
+    loadGraph: merged.loadGraph ?? graphService.loadGraph,
+    initWorkflow: merged.initWorkflow ?? workflowService.initWorkflow,
+    getCurrentStep: merged.getCurrentStep ?? workflowService.getCurrentStep,
+    computeTopologicalLayers: merged.computeTopologicalLayers ?? computeTopologicalLayers,
+    generateInstanceId: merged.generateInstanceId ?? generateInstanceId,
+    setCurrentRunId: merged.setCurrentRunId ?? setCurrentRunId,
+    resolveCurrentRunId: merged.resolveCurrentRunId ?? resolveCurrentRunId,
   }
 }
 

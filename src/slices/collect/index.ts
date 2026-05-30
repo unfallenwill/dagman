@@ -9,7 +9,7 @@ import * as workflowService from '../../domain/workflow/workflow-engine.js'
 import { stateChannelName } from '../../shared/models/channel.js'
 import { ValidationError } from '../../shared/errors.js'
 import { parseNodeRef } from '../../shared/utils/id.js'
-import { listRunIds } from '../../shared/utils/run-resolver.js'
+import { listRunIds } from '../../domain/run/run-resolver.js'
 
 export function registerCollectCommand(program: Command): void {
   const collectCmd = program.command('collect').summary('Collect results for a workflow node')

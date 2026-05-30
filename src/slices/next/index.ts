@@ -2,7 +2,7 @@ import type { Command } from 'commander'
 import * as nextService from '../../domain/scheduling/scheduler.js'
 import { setCommandMeta } from '../_shared/command-meta.js'
 import { withErrorHandler, outputJson } from '../_shared/output.js'
-import { resolveActiveRunId } from '../../shared/utils/run-resolver.js'
+import { resolveActiveRunId } from '../../domain/run/run-resolver.js'
 
 export function registerNextCommand(program: Command): void {
   const nextCmd = program.command('next').summary('Get the next executable task')

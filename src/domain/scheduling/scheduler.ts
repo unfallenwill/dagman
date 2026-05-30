@@ -9,14 +9,29 @@ import * as workflowService from '../workflow/workflow-engine.js'
 import type { WorkflowDeps } from '../workflow/workflow-engine.js'
 import type { WorkflowLoader } from '../../shared/utils/loader.js'
 import type { Clock } from '../../shared/utils/clock.js'
-import { getWorkflowTsFile } from '../../infra/fs/paths.js'
 import { buildGraphState } from '../../shared/utils/state.js'
-import { createDefaultLoader } from '../../infra/loader/tsx-loader.js'
 
 export interface SchedulingDeps {
   loader?: WorkflowLoader
   clock?: Clock
   workflowDeps?: WorkflowDeps
+  getWorkflowTsFile?: (name: string) => string
+}
+
+let _defaults: Partial<SchedulingDeps> = {}
+
+/** Set default deps — called by engine/composition root at startup */
+export function setDefaultSchedulingDeps(defaults: Partial<SchedulingDeps>): void {
+  _defaults = { ..._defaults, ...defaults }
+}
+
+function resolveSchedulingDeps(deps?: SchedulingDeps) {
+  const merged = { ..._defaults, ...deps }
+  return {
+    loader: merged.loader!,
+    getWorkflowTsFile: merged.getWorkflowTsFile!,
+    workflowDeps: merged.workflowDeps,
+  }
 }
 
 export interface NextResult {
@@ -176,12 +191,12 @@ async function executeWorkflowNode(
   graphName: string,
   deps?: SchedulingDeps,
 ): Promise<void> {
-  await workflowService.startTask(node.name, runId, deps?.workflowDeps)
+  const d = resolveSchedulingDeps(deps)
+  await workflowService.startTask(node.name, runId, d.workflowDeps)
 
   try {
-    const loader = deps?.loader ?? createDefaultLoader()
-    const tsFile = getWorkflowTsFile(graphName)
-    const definition = await loader.load(tsFile)
+    const tsFile = d.getWorkflowTsFile(graphName)
+    const definition = await d.loader.load(tsFile)
     const nodeDef = definition.nodes.find((n) => n.name === node.name)
     if (!nodeDef) {
       throw new Error(`node '${node.name}' not found in workflow definition`)
@@ -191,14 +206,9 @@ async function executeWorkflowNode(
     nodeDef.fn(graphState)
 
     const graph = await loadGraphForRun(graphName)
-    await workflowService.completeTask(node.name, graph.edges, runId, deps?.workflowDeps)
+    await workflowService.completeTask(node.name, graph.edges, runId, d.workflowDeps)
   } catch (err) {
-    await workflowService.failTask(
-      node.name,
-      runId,
-      String((err as Error).message),
-      deps?.workflowDeps,
-    )
+    await workflowService.failTask(node.name, runId, String((err as Error).message), d.workflowDeps)
     throw err
   }
 }
@@ -216,12 +226,12 @@ async function executeCondEdge(
   _edges: Edge[],
   deps?: SchedulingDeps,
 ): Promise<void> {
-  await workflowService.startTask(node.name, runId, deps?.workflowDeps)
+  const d = resolveSchedulingDeps(deps)
+  await workflowService.startTask(node.name, runId, d.workflowDeps)
 
   try {
-    const loader = deps?.loader ?? createDefaultLoader()
-    const tsFile = getWorkflowTsFile(graphName)
-    const definition = await loader.load(tsFile)
+    const tsFile = d.getWorkflowTsFile(graphName)
+    const definition = await d.loader.load(tsFile)
     const condDef = definition.condEdges.find((c) => c.nodeName === node.name)
     if (!condDef) {
       throw new Error(`condEdge '${node.name}' not found in workflow definition`)
@@ -231,22 +241,12 @@ async function executeCondEdge(
     const targetNode = condDef.fn(graphState)
 
     // Write condEdge channel: value = target node name
-    await workflowService.setChannel(
-      condChannelName(node.name),
-      targetNode,
-      runId,
-      deps?.workflowDeps,
-    )
+    await workflowService.setChannel(condChannelName(node.name), targetNode, runId, d.workflowDeps)
 
     const graph = await loadGraphForRun(graphName)
-    await workflowService.completeTask(node.name, graph.edges, runId, deps?.workflowDeps)
+    await workflowService.completeTask(node.name, graph.edges, runId, d.workflowDeps)
   } catch (err) {
-    await workflowService.failTask(
-      node.name,
-      runId,
-      String((err as Error).message),
-      deps?.workflowDeps,
-    )
+    await workflowService.failTask(node.name, runId, String((err as Error).message), d.workflowDeps)
     throw err
   }
 }
@@ -263,12 +263,12 @@ async function executeFanOutNode(
   _edges: Edge[],
   deps?: SchedulingDeps,
 ): Promise<void> {
-  await workflowService.startTask(node.name, runId, deps?.workflowDeps)
+  const d = resolveSchedulingDeps(deps)
+  await workflowService.startTask(node.name, runId, d.workflowDeps)
 
   try {
-    const loader = deps?.loader ?? createDefaultLoader()
-    const tsFile = getWorkflowTsFile(graphName)
-    const definition = await loader.load(tsFile)
+    const tsFile = d.getWorkflowTsFile(graphName)
+    const definition = await d.loader.load(tsFile)
     const fanDef = definition.fanOuts.find((f) => f.nodeName === node.name)
     if (!fanDef) {
       throw new Error(`fanOut '${node.name}' not found in workflow definition`)
@@ -278,17 +278,12 @@ async function executeFanOutNode(
     const items = fanDef.fn(graphState)
 
     // Write fanout channel: value = items array
-    await workflowService.setChannel(fanoutChannelName(node.name), items, runId, deps?.workflowDeps)
+    await workflowService.setChannel(fanoutChannelName(node.name), items, runId, d.workflowDeps)
 
     const graph = await loadGraphForRun(graphName)
-    await workflowService.completeTask(node.name, graph.edges, runId, deps?.workflowDeps)
+    await workflowService.completeTask(node.name, graph.edges, runId, d.workflowDeps)
   } catch (err) {
-    await workflowService.failTask(
-      node.name,
-      runId,
-      String((err as Error).message),
-      deps?.workflowDeps,
-    )
+    await workflowService.failTask(node.name, runId, String((err as Error).message), d.workflowDeps)
     throw err
   }
 }
