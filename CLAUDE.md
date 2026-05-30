@@ -22,9 +22,30 @@ DAG-based agent task orchestration CLI. Developers write TypeScript workflow def
 - **Git hooks**: pre-commit runs lint-staged (eslint + prettier), pre-push runs typecheck
 - **Coverage**: v8 provider, thresholds 80% stmts/funcs/lines, 75% branches (baseline ~47%)
 
-## Project Structure
+## Project Structure (Vertical Slice Architecture)
 
-- `src/` — Source code: `commands/`, `workflow/`, `scheduling/`, `runtime/`, `graph/`, `compiler/`, `api/`, `models/`, `utils/`
+```
+src/
+  engine/       CLI startup + composition root (DI defaults)
+  slices/       Each command is a self-contained slice (start/, next/, collect/, …)
+    _shared/    CLI-only utilities (output, command-meta, format-help)
+  domain/       Business logic (pure functions or DI-injected)
+    workflow/   workflow-engine, channel-ops, superstep-logic, task-state-machine
+    scheduling/ scheduler (findNext, findAllNext)
+    compiler/   compiler, node-gen
+    graph/      graph-service, validator
+    run/        run-service, run-resolver
+  infra/        Infrastructure (file system)
+    fs/         paths, file-ops, fs-workflow-repo, fs-event-repo, fs-run-repo
+    loader/     tsx-loader (deduplicated createDefaultLoader)
+  shared/       Pure types and utilities (zero external deps)
+    models/     10 model files (node, graph, channel, task, etc.)
+    utils/      topology, clock, id, state, loader types
+    errors.ts
+  api/          Builder API (unchanged, imports only shared/models)
+  index.ts      Public API re-exports
+```
+
 - `tests/` — Vitest tests mirroring src layout, isolated via `setBasePath` + tmpdir
 
 ## Core Concepts
@@ -63,31 +84,30 @@ Append-only JSONL file, each line records a superstep state snapshot:
 
 - All imports use `.js` extension (Node16 module resolution requirement)
 - User-facing errors and messages are in English
-- Custom error classes are defined in `src/errors.ts`
+- Custom error classes are defined in `src/shared/errors.ts`
 - Node definitions are stored as YAML (`kind: Node`), no dependency info
 - Graph definitions are compiled to JSON from TypeScript workflows, edges declare dependencies
-- Schema validation uses zod in `src/utils/json.ts`
-- Topology computation (cycle detection, layer calculation, adjacency) is centralized in `src/utils/topology.ts`
+- Topology computation (cycle detection, layer calculation, adjacency) is centralized in `src/shared/utils/topology.ts`
+- DI pattern: domain files accept `deps?` parameters; defaults set via `setDefault*Deps()` in `engine/default-deps.ts`
 
 ## Architecture Dependency Rules
 
 Enforced by `npm run lint:deps` (dependency-cruiser). The dependency flow:
 
 ```
-commands/  →  workflow/, scheduling/, runtime/, graph/, compiler/
-scheduling/ →  workflow/, graph/, runtime/
-runtime/    →  graph/, workflow/
-workflow/   →  runtime/
-compiler/   →  graph/ only
-graph/      →  (no upward deps — innermost domain)
-all domains →  models/, utils/, constants.ts, errors.ts
+engine/    →  slices/, domain/, infra/, shared/
+slices/    →  domain/, infra/, shared/  (no cross-command imports)
+domain/    →  shared/ only             (infra via DI, not direct imports)
+infra/     →  shared/ only
+shared/    →  (no upward deps — innermost)
+api/       →  shared/models/ only
 ```
 
 - No circular dependencies allowed
-- Commands must not import from other commands
-- `graph/` is the innermost domain — no upward dependencies
-- `compiler/` may only import from `graph/`, `models/`, `utils/`, `constants.ts`, `errors.ts`
-- `models/` and `utils/` are foundational — no domain imports
+- Slice commands must not import from other slice commands (`_shared/` is OK)
+- `domain/` must not import `infra/` (use DI injection via `setDefault*Deps()`)
+- `shared/` is foundational — no upward imports to any layer
+- `engine/default-deps.ts` is the composition root that wires infra to domain
 
 ## Commit Convention
 
