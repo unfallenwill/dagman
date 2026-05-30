@@ -3,7 +3,8 @@ import * as path from 'path'
 import { RunNotFoundError, RunExistsError } from '../../shared/errors.js'
 import type { RunInfo, RunStatus } from '../../shared/models/superstep.js'
 import type { Node } from '../../shared/models/node.js'
-import * as graphService from '../graph/graph-service.js'
+import type { Graph } from '../../shared/models/graph.js'
+import { loadWorkflowGraph } from '../compiler/compiler.js'
 import * as workflowService from '../workflow/workflow-engine.js'
 import { computeTopologicalLayers } from '../../shared/utils/topology.js'
 import { generateInstanceId } from '../../shared/utils/id.js'
@@ -29,8 +30,7 @@ export interface RunDeps {
   writeJSON?: <T>(filePath: string, data: T) => Promise<void>
   fileExists?: (filePath: string) => Promise<boolean>
   readdir?: (dirPath: string) => Promise<string[]>
-  loadCompiledGraph?: typeof graphService.loadCompiledGraph
-  loadGraph?: typeof graphService.loadGraph
+  loadGraph?: (graphName: string) => Promise<Graph>
   initWorkflow?: typeof workflowService.initWorkflow
   getCurrentStep?: typeof workflowService.getCurrentStep
   computeTopologicalLayers?: typeof computeTopologicalLayers
@@ -57,8 +57,7 @@ function resolveRunDeps(deps?: RunDeps) {
     writeJSON: merged.writeJSON!,
     fileExists: merged.fileExists!,
     readdir: merged.readdir ?? ((dir: string) => fs.readdir(dir)),
-    loadCompiledGraph: merged.loadCompiledGraph ?? graphService.loadCompiledGraph,
-    loadGraph: merged.loadGraph ?? graphService.loadGraph,
+    loadGraph: merged.loadGraph ?? loadWorkflowGraph,
     initWorkflow: merged.initWorkflow ?? workflowService.initWorkflow,
     getCurrentStep: merged.getCurrentStep ?? workflowService.getCurrentStep,
     computeTopologicalLayers: merged.computeTopologicalLayers ?? computeTopologicalLayers,
@@ -88,13 +87,7 @@ async function createRunInternal(
 
   // If bound to a graph, compute layers and initialize workflow
   if (graphName) {
-    // Try compiled JSON graph first (from TS workflow), then manifest YAML
-    let graph
-    try {
-      graph = await d.loadCompiledGraph(graphName)
-    } catch {
-      graph = await d.loadGraph(graphName)
-    }
+    const graph = await d.loadGraph(graphName)
     const nodes: Node[] = graph.nodes ?? []
     const nodeNames = nodes.map((n: Node) => n.name)
     const layers = d.computeTopologicalLayers(graph.edges, nodeNames)

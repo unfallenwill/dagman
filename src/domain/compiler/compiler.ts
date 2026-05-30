@@ -5,7 +5,6 @@ import type { WorkflowManifest } from '../../shared/models/workflow-def.js'
 import type { WorkflowLoader } from '../../shared/utils/loader.js'
 import { hasCycle } from '../../shared/utils/topology.js'
 import { ValidationError } from '../../shared/errors.js'
-import { saveCompiledGraph } from '../graph/graph-service.js'
 import { expandWorkflow } from './node-gen.js'
 
 export interface CompilerDeps {
@@ -37,37 +36,16 @@ export interface CompileResult {
 }
 
 /**
- * Compile a TS workflow: tsx import → expand collect/condEdge nodes → persist.
+ * Load and expand a TS workflow into a Graph (no manifest, no persistence).
+ * Used by scheduler and collect commands that only need the graph structure.
  */
-export async function compileWorkflow(
-  workflowName: string,
-  deps?: CompilerDeps,
-): Promise<CompileResult> {
+export async function loadWorkflowGraph(workflowName: string, deps?: CompilerDeps): Promise<Graph> {
   const d = resolveCompilerDeps(deps)
   const tsFile = d.getWorkflowTsFile(workflowName)
-  const manifestFile = d.getWorkflowManifest(workflowName)
 
-  // 1. Load manifest
-  const manifest = await loadManifest(manifestFile)
-
-  // 2. tsx dynamic import → execute TS file → get WorkflowDefinition
   const definition = await d.loader.load(tsFile)
-
-  // 3. Validate definition name matches workflow name
-  if (definition.name !== workflowName) {
-    throw new ValidationError(
-      "workflow name mismatch: file exports '" +
-        definition.name +
-        "' but expected '" +
-        workflowName +
-        "'",
-    )
-  }
-
-  // 4. Expand: generate collect nodes, condEdge nodes, rewire edges
   const { allNodes, allEdges } = expandWorkflow(definition)
 
-  // 5. Build compiled Graph
   const graph: Graph = {
     name: workflowName,
     edges: allEdges,
@@ -76,15 +54,41 @@ export async function compileWorkflow(
     workflowName,
   }
 
-  // 6. Cycle detection
   if (hasCycle(graph.edges)) {
     throw new ValidationError('compiled graph contains cycle dependency')
   }
 
-  // 7. Persist: graph as compiled JSON (nodes embedded)
-  await persistCompiledGraph(graph, allNodes)
+  return graph
+}
 
-  return { graph, nodes: allNodes, manifest }
+/**
+ * Compile a TS workflow: load manifest → tsx import → expand → validate.
+ */
+export async function compileWorkflow(
+  workflowName: string,
+  deps?: CompilerDeps,
+): Promise<CompileResult> {
+  const d = resolveCompilerDeps(deps)
+  const manifestFile = d.getWorkflowManifest(workflowName)
+
+  // 1. Load manifest
+  const manifest = await loadManifest(manifestFile)
+
+  // 2. Validate definition name matches workflow name
+  if (manifest.name !== workflowName) {
+    throw new ValidationError(
+      "workflow name mismatch: manifest has '" +
+        manifest.name +
+        "' but expected '" +
+        workflowName +
+        "'",
+    )
+  }
+
+  // 3. Load and expand graph
+  const graph = await loadWorkflowGraph(workflowName, deps)
+
+  return { graph, nodes: graph.nodes ?? [], manifest }
 }
 
 /**
@@ -115,12 +119,4 @@ async function loadManifest(manifestFile: string): Promise<WorkflowManifest> {
     repository: data.repository as string | undefined,
     license: data.license as string | undefined,
   }
-}
-
-/**
- * Persist compiled graph with embedded nodes.
- */
-async function persistCompiledGraph(graph: Graph, _nodes: Node[]): Promise<void> {
-  // Save graph as compiled JSON (nodes are embedded in graph.nodes)
-  await saveCompiledGraph(graph)
 }

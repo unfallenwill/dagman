@@ -1,7 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import * as path from 'path'
-import * as os from 'os'
-import * as fs from 'fs/promises'
+import {
+  initTmpDir,
+  cleanupTmpDir,
+  installMockLoadGraph,
+  storeGraph,
+  buildGraph,
+} from '../helpers/setup.js'
 import { Command } from 'commander'
 import { registerHelpCommand } from '../../src/slices/help/index.js'
 import { registerLsCommand } from '../../src/slices/ls/index.js'
@@ -9,19 +13,13 @@ import '../../src/engine/default-deps.js'
 import * as runService from '../../src/domain/run/run-service.js'
 import * as workflowService from '../../src/domain/workflow/workflow-engine.js'
 
-const TMP_DIR = path.join(os.tmpdir(), `dagman-cmd-test-${Date.now()}`)
-
-let originalCwd: string
-
-beforeEach(async () => {
-  originalCwd = process.cwd()
-  await fs.mkdir(TMP_DIR, { recursive: true })
-  process.chdir(TMP_DIR)
+beforeEach(() => {
+  initTmpDir()
+  installMockLoadGraph()
 })
 
 afterEach(async () => {
-  process.chdir(originalCwd)
-  await fs.rm(TMP_DIR, { recursive: true, force: true })
+  await cleanupTmpDir()
 })
 
 function createProgram(): Command {
@@ -44,20 +42,9 @@ describe('workflow commands', () => {
 
 describe('task commands', () => {
   it('should list tasks for a workflow run', async () => {
-    // Setup: create compiled graph and run
-    await fs.mkdir(path.join(TMP_DIR, '.dagman/graphs'), { recursive: true })
-    const graphData = {
-      name: 'test',
-      edges: [{ from: 'node-b', to: 'node-a' }],
-      nodes: [
-        { name: 'node-a', description: 'test', instructions: 'test', kind: 'user' },
-        { name: 'node-b', description: 'test', instructions: 'test', kind: 'user' },
-      ],
-    }
-    await fs.writeFile(
-      path.join(TMP_DIR, '.dagman/graphs/test.json'),
-      JSON.stringify(graphData, null, 2),
-    )
+    // Setup: store graph in memory and create a run
+    const graph = buildGraph(['node-a', 'node-b'], [{ from: 'node-b', to: 'node-a' }], 'test')
+    storeGraph('test', graph)
 
     const info = await runService.createRun('task-test', 'test', true)
     expect(info.graphName).toBe('test')

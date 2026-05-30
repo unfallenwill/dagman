@@ -1,7 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import * as path from 'path'
-import * as os from 'os'
-import * as fs from 'fs/promises'
+import {
+  initTmpDir,
+  cleanupTmpDir,
+  installMockLoadGraph,
+  clearGraphStore,
+  storeGraph,
+  buildGraph,
+} from '../helpers/setup.js'
 import '../../src/engine/default-deps.js'
 import * as workflowService from '../../src/domain/workflow/workflow-engine.js'
 import * as runService from '../../src/domain/run/run-service.js'
@@ -16,19 +21,14 @@ import type { Task } from '../../src/shared/models/task.js'
 import type { Channel } from '../../src/shared/models/channel.js'
 import { createTask } from '../../src/shared/models/task.js'
 
-const TMP_DIR = path.join(os.tmpdir(), `dagman-phase3-test-${Date.now()}`)
-
-let originalCwd: string
-
-beforeEach(async () => {
-  originalCwd = process.cwd()
-  await fs.mkdir(TMP_DIR, { recursive: true })
-  process.chdir(TMP_DIR)
+beforeEach(() => {
+  initTmpDir()
+  installMockLoadGraph()
+  clearGraphStore()
 })
 
 afterEach(async () => {
-  process.chdir(originalCwd)
-  await fs.rm(TMP_DIR, { recursive: true, force: true })
+  await cleanupTmpDir()
 })
 
 // Helper: create compiled graph with embedded nodes + run
@@ -37,25 +37,8 @@ async function setupCompiledRun(
   edges: Edge[],
   graphName = 'test-graph',
 ): Promise<string> {
-  await fs.mkdir(path.join(TMP_DIR, '.dagman/graphs'), { recursive: true })
-
-  const nodes = nodeNames.map((name) => ({
-    name,
-    description: `Node ${name}`,
-    instructions: '',
-    kind: 'user' as const,
-  }))
-
-  const graphData = {
-    name: graphName,
-    edges,
-    nodes,
-  }
-
-  await fs.writeFile(
-    path.join(TMP_DIR, `.dagman/graphs/${graphName}.json`),
-    JSON.stringify(graphData, null, 2) + '\n',
-  )
+  const graph = buildGraph(nodeNames, edges, graphName)
+  storeGraph(graphName, graph)
 
   const info = await runService.createRun('phase3-test', graphName, true)
   return info.id
@@ -200,36 +183,26 @@ describe('collect workflow', () => {
     ]
 
     // Nodes: a (user with stateKey), collect-a, b
-    const nodes = [
+    const graph = buildGraph(['a', 'collect-a', 'b'], edges, 'collect-test')
+    // Override nodes with specific kinds
+    graph.nodes = [
       {
         name: 'a',
-        description: 'Node a',
-        instructions: '',
         kind: 'user' as const,
         stateKey: 'output',
       },
       {
         name: 'collect-a',
-        description: 'Node collect-a',
-        instructions: '',
         kind: 'collect' as const,
         parentNodeId: 'a',
         stateKey: 'output',
       },
       {
         name: 'b',
-        description: 'Node b',
-        instructions: '',
         kind: 'user' as const,
       },
     ]
-
-    // Create run with the topology
-    await fs.mkdir(path.join(TMP_DIR, '.dagman/graphs'), { recursive: true })
-    await fs.writeFile(
-      path.join(TMP_DIR, '.dagman/graphs/collect-test.json'),
-      JSON.stringify({ name: 'collect-test', edges, nodes }, null, 2) + '\n',
-    )
+    storeGraph('collect-test', graph)
 
     const runId = (await runService.createRun('collect-test', 'collect-test', true)).id
 

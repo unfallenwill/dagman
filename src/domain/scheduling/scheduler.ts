@@ -1,9 +1,9 @@
 import type { Node } from '../../shared/models/node.js'
-import type { Edge } from '../../shared/models/graph.js'
+import type { Edge, Graph } from '../../shared/models/graph.js'
 import type { Task } from '../../shared/models/task.js'
 import type { Channel } from '../../shared/models/channel.js'
 import { condChannelName, fanoutChannelName } from '../../shared/models/channel.js'
-import * as graphService from '../graph/graph-service.js'
+import { loadWorkflowGraph } from '../compiler/compiler.js'
 import * as runService from '../run/run-service.js'
 import * as workflowService from '../workflow/workflow-engine.js'
 import type { WorkflowDeps } from '../workflow/workflow-engine.js'
@@ -16,6 +16,7 @@ export interface SchedulingDeps {
   clock?: Clock
   workflowDeps?: WorkflowDeps
   getWorkflowTsFile?: (name: string) => string
+  loadGraph?: (graphName: string) => Promise<Graph>
 }
 
 let _defaults: Partial<SchedulingDeps> = {}
@@ -31,6 +32,7 @@ function resolveSchedulingDeps(deps?: SchedulingDeps) {
     loader: merged.loader!,
     getWorkflowTsFile: merged.getWorkflowTsFile!,
     workflowDeps: merged.workflowDeps,
+    loadGraph: merged.loadGraph ?? loadWorkflowGraph,
   }
 }
 
@@ -47,20 +49,15 @@ interface RunContext {
   graphName: string
 }
 
-async function resolveRunContext(runId?: string): Promise<RunContext> {
+async function resolveRunContext(runId?: string, deps?: SchedulingDeps): Promise<RunContext> {
+  const d = resolveSchedulingDeps(deps)
   const resolvedRunId = await runService.resolveRunId(runId)
   const graphName = await runService.getGraphForRun(resolvedRunId)
   if (!graphName) {
     throw new Error('current run is not bound to a graph, use run create --graph <name>')
   }
 
-  // Try compiled JSON graph first (from TS workflow), then YAML manifest graph
-  let graph
-  try {
-    graph = await graphService.loadCompiledGraph(graphName)
-  } catch {
-    graph = await graphService.loadGraph(graphName)
-  }
+  const graph = await d.loadGraph(graphName)
   const nodes: Node[] = graph.nodes ?? []
   return { runId: resolvedRunId, edges: graph.edges, nodes, graphName }
 }
@@ -114,7 +111,7 @@ export async function filterByCondEdge(
 }
 
 export async function findNext(runId?: string, deps?: SchedulingDeps): Promise<NextResult | null> {
-  const { runId: rid, edges, nodes, graphName } = await resolveRunContext(runId)
+  const { runId: rid, edges, nodes, graphName } = await resolveRunContext(runId, deps)
   const readyTasks = await workflowService.findReadyTasks(rid, deps?.workflowDeps)
   if (readyTasks.length === 0) return null
 
@@ -147,7 +144,7 @@ export async function findNext(runId?: string, deps?: SchedulingDeps): Promise<N
 }
 
 export async function findAllNext(runId?: string, deps?: SchedulingDeps): Promise<NextResult[]> {
-  const { runId: rid, edges, nodes, graphName } = await resolveRunContext(runId)
+  const { runId: rid, edges, nodes, graphName } = await resolveRunContext(runId, deps)
   const readyTasks = await workflowService.findReadyTasks(rid, deps?.workflowDeps)
   if (readyTasks.length === 0) return []
 
@@ -205,7 +202,7 @@ async function executeWorkflowNode(
     const graphState = buildGraphState(channels)
     nodeDef.fn(graphState)
 
-    const graph = await loadGraphForRun(graphName)
+    const graph = await d.loadGraph(graphName)
     await workflowService.completeTask(node.name, graph.edges, runId, d.workflowDeps)
   } catch (err) {
     await workflowService.failTask(node.name, runId, String((err as Error).message), d.workflowDeps)
@@ -243,7 +240,7 @@ async function executeCondEdge(
     // Write condEdge channel: value = target node name
     await workflowService.setChannel(condChannelName(node.name), targetNode, runId, d.workflowDeps)
 
-    const graph = await loadGraphForRun(graphName)
+    const graph = await d.loadGraph(graphName)
     await workflowService.completeTask(node.name, graph.edges, runId, d.workflowDeps)
   } catch (err) {
     await workflowService.failTask(node.name, runId, String((err as Error).message), d.workflowDeps)
@@ -280,22 +277,11 @@ async function executeFanOutNode(
     // Write fanout channel: value = items array
     await workflowService.setChannel(fanoutChannelName(node.name), items, runId, d.workflowDeps)
 
-    const graph = await loadGraphForRun(graphName)
+    const graph = await d.loadGraph(graphName)
     await workflowService.completeTask(node.name, graph.edges, runId, d.workflowDeps)
   } catch (err) {
     await workflowService.failTask(node.name, runId, String((err as Error).message), d.workflowDeps)
     throw err
-  }
-}
-
-/**
- * Load graph for a run, trying compiled JSON first then manifest YAML.
- */
-async function loadGraphForRun(graphName: string): Promise<{ edges: Edge[] }> {
-  try {
-    return await graphService.loadCompiledGraph(graphName)
-  } catch {
-    return await graphService.loadGraph(graphName)
   }
 }
 

@@ -1,27 +1,16 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import * as path from 'path'
-import * as os from 'os'
-import * as fs from 'fs/promises'
 import { Command } from 'commander'
 import '../../src/engine/default-deps.js'
 import { registerGraphCommand } from '../../src/slices/graph/index.js'
 
-const TMP_DIR = path.join(os.tmpdir(), `dagman-graph-cmd-test-${Date.now()}`)
-
-let originalCwd: string
 let logSpy: ReturnType<typeof vi.spyOn>
 
-beforeEach(async () => {
-  originalCwd = process.cwd()
-  await fs.mkdir(TMP_DIR, { recursive: true })
-  process.chdir(TMP_DIR)
+beforeEach(() => {
   logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
 })
 
-afterEach(async () => {
+afterEach(() => {
   logSpy.mockRestore()
-  process.chdir(originalCwd)
-  await fs.rm(TMP_DIR, { recursive: true, force: true })
 })
 
 function createProgram(...registerFns: Array<(program: Command) => void>): Command {
@@ -32,55 +21,11 @@ function createProgram(...registerFns: Array<(program: Command) => void>): Comma
   return program
 }
 
-// Helper: create a compiled graph JSON file directly (bypasses tsx import)
-async function createCompiledGraph(
-  name: string,
-  nodes: Array<{ name: string; description: string; instructions: string; kind: string }>,
-  edges: Array<{ from: string; to: string }>,
-): Promise<void> {
-  const graphsDir = path.join(TMP_DIR, '.dagman/graphs')
-  await fs.mkdir(graphsDir, { recursive: true })
-  const graphData = { name, edges, nodes }
-  await fs.writeFile(path.join(graphsDir, `${name}.json`), JSON.stringify(graphData, null, 2))
-}
-
-// Helper: create a workflow manifest (graph command calls compileWorkflow which needs this)
-async function createWorkflowManifest(
-  name: string,
-  version = '1.0',
-  description = 'Test workflow',
-): Promise<string> {
-  const workflowDir = path.join(TMP_DIR, `.dagman/workflows/${name}`)
-  await fs.mkdir(workflowDir, { recursive: true })
-  const manifest = `name: ${name}\nversion: '${version}'\ndescription: ${description}\n`
-  await fs.writeFile(path.join(workflowDir, 'manifest.yaml'), manifest)
-  return workflowDir
-}
-
 // ---------------------------------------------------------------------------
 // graph command — positive tests
 // ---------------------------------------------------------------------------
 describe('graph command — positive', () => {
   it('should display ASCII layer output with Layer 0 and node names', async () => {
-    // Create a compiled graph directly so we don't depend on tsx
-    await createCompiledGraph(
-      'ascii-test',
-      [
-        { name: 'alpha', description: 'A', instructions: 'Do A', kind: 'user' },
-        { name: 'beta', description: 'B', instructions: 'Do B', kind: 'user' },
-      ],
-      [{ from: 'beta', to: 'alpha' }],
-    )
-
-    // Also need a workflow manifest for compileWorkflow to find
-    await createWorkflowManifest('ascii-test')
-
-    // The graph command calls compileWorkflow, which tries to tsx-import.
-    // Since we already have a compiled graph, we test the output directly
-    // by manually triggering what the command does:
-    // Instead, test via the compiled graph path (loadCompiledGraph).
-    // The graph command actually recompiles, so for a clean test we
-    // verify the core function behavior through topology computation.
     const { computeTopologicalLayers } = await import('../../src/shared/utils/topology.js')
     const edges = [{ from: 'beta', to: 'alpha' }]
     const layers = computeTopologicalLayers(edges, ['alpha', 'beta'])
@@ -91,18 +36,6 @@ describe('graph command — positive', () => {
   })
 
   it('should output JSON with layers object and nodes array when --json is used', async () => {
-    await createCompiledGraph(
-      'json-test',
-      [
-        { name: 'alpha', description: 'A', instructions: 'Do A', kind: 'user' },
-        { name: 'beta', description: 'B', instructions: 'Do B', kind: 'user' },
-      ],
-      [{ from: 'beta', to: 'alpha' }],
-    )
-    await createWorkflowManifest('json-test')
-
-    // The graph command uses compileWorkflow then computeTopologicalLayers.
-    // We verify the JSON structure that the command would produce.
     const { computeTopologicalLayers } = await import('../../src/shared/utils/topology.js')
     const edges = [{ from: 'beta', to: 'alpha' }]
     const nodes = [

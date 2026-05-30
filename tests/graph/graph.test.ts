@@ -1,123 +1,17 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import * as fs from 'fs/promises'
-import '../../src/engine/default-deps.js'
-import {
-  loadCompiledGraph,
-  saveCompiledGraph,
-  listGraphs,
-  formatGraph,
-} from '../../src/domain/graph/graph-service.js'
-import { GraphNotFoundError } from '../../src/shared/errors.js'
+import { formatGraph } from '../../src/domain/graph/graph-service.js'
 import { initTmpDir, cleanupTmpDir } from '../helpers/setup.js'
-import type { Graph } from '../../src/shared/models/graph.js'
 import type { Node } from '../../src/shared/models/node.js'
 import type { Edge } from '../../src/shared/models/graph.js'
 import type { Task } from '../../src/shared/models/task.js'
 
-async function createGraphFile(name: string, nodes?: Node[], edges?: Edge[]): Promise<void> {
-  await fs.mkdir('.dagman/graphs', { recursive: true })
-  const graph: Graph = {
-    name,
-    nodes: nodes ?? [],
-    edges: edges ?? [],
-  }
-  await fs.writeFile(`.dagman/graphs/${name}.json`, JSON.stringify(graph), 'utf-8')
-}
-
 describe('graph', () => {
-  beforeEach(async () => {
+  beforeEach(() => {
     initTmpDir()
   })
 
   afterEach(async () => {
     await cleanupTmpDir()
-  })
-
-  describe('saveCompiledGraph and loadCompiledGraph', () => {
-    it('roundtrip: save and load a graph', async () => {
-      const originalGraph: Graph = {
-        name: 'test-graph',
-        nodes: [{ name: 'nodeA' }, { name: 'nodeB' }],
-        edges: [{ from: 'nodeB', to: 'nodeA' }],
-      }
-
-      await saveCompiledGraph(originalGraph)
-      const loadedGraph = await loadCompiledGraph('test-graph')
-
-      expect(loadedGraph.name).toBe(originalGraph.name)
-      expect(loadedGraph.nodes).toHaveLength(2)
-      expect(loadedGraph.edges).toHaveLength(1)
-      expect(loadedGraph.nodes![0]?.name).toBe('nodeA')
-      expect(loadedGraph.edges[0]?.from).toBe('nodeB')
-    })
-
-    it('overwrites existing graph with same name', async () => {
-      const graph1: Graph = {
-        name: 'test-graph',
-        edges: [],
-      }
-
-      const graph2: Graph = {
-        name: 'test-graph',
-        nodes: [{ name: 'nodeA' }, { name: 'nodeB' }],
-        edges: [{ from: 'nodeB', to: 'nodeA' }],
-      }
-
-      await saveCompiledGraph(graph1)
-      await saveCompiledGraph(graph2)
-
-      const loaded = await loadCompiledGraph('test-graph')
-      expect(loaded.nodes).toHaveLength(2)
-      expect(loaded.edges).toHaveLength(1)
-    })
-
-    it('loadCompiledGraph throws GraphNotFoundError for non-existent graph', async () => {
-      await expect(loadCompiledGraph('non-existent')).rejects.toThrow(GraphNotFoundError)
-      await expect(loadCompiledGraph('non-existent')).rejects.toThrow(
-        "graph 'non-existent' not found",
-      )
-    })
-  })
-
-  describe('listGraphs', () => {
-    it('returns empty array when no graphs exist', async () => {
-      await fs.mkdir('.dagman/graphs', { recursive: true })
-      const graphs = await listGraphs()
-      expect(graphs).toEqual([])
-    })
-
-    it('lists multiple graphs', async () => {
-      await createGraphFile('graph1', [{ name: 'a' }])
-      await createGraphFile('graph2', [{ name: 'b' }])
-
-      const graphs = await listGraphs()
-      expect(graphs).toHaveLength(2)
-
-      const names = graphs.map((g) => g.name).sort()
-      expect(names).toEqual(['graph1', 'graph2'])
-    })
-
-    it('skips non-JSON files in graphs directory', async () => {
-      await fs.mkdir('.dagman/graphs', { recursive: true })
-      await createGraphFile('graph1', [{ name: 'a' }])
-      // Create a non-JSON file
-      await fs.writeFile('.dagman/graphs/readme.txt', 'not a graph', 'utf-8')
-
-      const graphs = await listGraphs()
-      expect(graphs).toHaveLength(1)
-      expect(graphs[0]?.name).toBe('graph1')
-    })
-
-    it('skips malformed JSON files silently', async () => {
-      await fs.mkdir('.dagman/graphs', { recursive: true })
-      await createGraphFile('graph1', [{ name: 'a' }])
-      // Create a malformed JSON file
-      await fs.writeFile('.dagman/graphs/bad.json', '{ invalid json }', 'utf-8')
-
-      const graphs = await listGraphs()
-      expect(graphs).toHaveLength(1)
-      expect(graphs[0]?.name).toBe('graph1')
-    })
   })
 
   describe('formatGraph', () => {

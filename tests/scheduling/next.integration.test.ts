@@ -1,5 +1,12 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import { initTmpDir, cleanupTmpDir } from '../helpers/setup.js'
+import {
+  initTmpDir,
+  cleanupTmpDir,
+  installMockLoadGraph,
+  storeGraph,
+  buildGraph,
+  clearGraphStore,
+} from '../helpers/setup.js'
 import '../../src/engine/default-deps.js'
 import * as next from '../../src/domain/scheduling/scheduler.js'
 import * as workflowService from '../../src/domain/workflow/workflow-engine.js'
@@ -9,13 +16,11 @@ import type { Node } from '../../src/shared/models/node.js'
 import type { WorkflowDefinition } from '../../src/shared/models/workflow-def.js'
 import type { WorkflowLoader } from '../../src/shared/utils/loader.js'
 import { condChannelName, fanoutChannelName } from '../../src/shared/models/channel.js'
-import * as fs from 'fs/promises'
-import * as path from 'path'
 
 // ===== Test Helpers =====
 
 /**
- * Create a compiled graph JSON file in the test's tmpdir and start a run.
+ * Create a graph in the in-memory store and start a run.
  * Returns the run ID.
  */
 async function setupGraphAndRun(
@@ -23,14 +28,19 @@ async function setupGraphAndRun(
   edges: Edge[],
   graphName = 'test-graph',
 ): Promise<string> {
-  const tmpDir = initTmpDir()
-  await fs.mkdir(path.join(tmpDir, '.dagman/graphs'), { recursive: true })
-
-  const graphData = { name: graphName, edges, nodes }
-  await fs.writeFile(
-    path.join(tmpDir, `.dagman/graphs/${graphName}.json`),
-    JSON.stringify(graphData, null, 2),
+  const graph = buildGraph(
+    nodes.map((n) => n.name!),
+    edges,
+    graphName,
   )
+  // Override nodes with the full Node objects (preserving kind, targets, etc.)
+  graph.nodes = nodes.map((n) => ({
+    description: `Node ${n.name}`,
+    instructions: `Instructions for ${n.name}`,
+    kind: 'user' as const,
+    ...n,
+  }))
+  storeGraph(graphName, graph)
 
   const info = await runService.createRun(undefined, graphName, true)
   return info.id
@@ -63,6 +73,9 @@ describe('findNext (integration)', () => {
   })
 
   it('returns null when no tasks are ready', async () => {
+    initTmpDir()
+    installMockLoadGraph()
+    clearGraphStore()
     const nodes: Node[] = [{ name: 'a' }, { name: 'b' }]
     const edges: Edge[] = [{ from: 'b', to: 'a' }]
     const runId = await setupGraphAndRun(nodes, edges)
@@ -78,6 +91,9 @@ describe('findNext (integration)', () => {
   })
 
   it('returns the first ready task sorted alphabetically', async () => {
+    initTmpDir()
+    installMockLoadGraph()
+    clearGraphStore()
     const nodes: Node[] = [{ name: 'a' }, { name: 'b' }, { name: 'c' }]
     const edges: Edge[] = [
       { from: 'b', to: 'a' },
@@ -89,7 +105,16 @@ describe('findNext (integration)', () => {
     await completeTask('a', edges, runId)
 
     // Now 'b' and 'c' are ready; 'b' comes first alphabetically
-    const result = await next.findNext(runId)
+    // Provide a no-op loader so findNext auto-executes 'b' without crashing
+    const noopLoader = createMockLoader({
+      name: 'test-graph',
+      stateSchema: {},
+      nodes: [{ name: 'b', fn: () => {} }],
+      edges: [],
+      condEdges: [],
+      fanOuts: [],
+    })
+    const result = await next.findNext(runId, { loader: noopLoader })
     expect(result).not.toBeNull()
     expect(result!.task.nodeId).toBe('b')
     expect(result!.node.name).toBe('b')
@@ -97,17 +122,32 @@ describe('findNext (integration)', () => {
   })
 
   it('returns the single root task when no edges', async () => {
+    initTmpDir()
+    installMockLoadGraph()
+    clearGraphStore()
     const nodes: Node[] = [{ name: 'solo' }]
     const edges: Edge[] = []
     const runId = await setupGraphAndRun(nodes, edges)
 
-    const result = await next.findNext(runId)
+    // Provide a no-op loader so findNext auto-executes 'solo'
+    const noopLoader = createMockLoader({
+      name: 'test-graph',
+      stateSchema: {},
+      nodes: [{ name: 'solo', fn: () => {} }],
+      edges: [],
+      condEdges: [],
+      fanOuts: [],
+    })
+    const result = await next.findNext(runId, { loader: noopLoader })
     expect(result).not.toBeNull()
     expect(result!.task.nodeId).toBe('solo')
     expect(result!.node.name).toBe('solo')
   })
 
   it('returns null when all ready tasks are filtered by condEdge', async () => {
+    initTmpDir()
+    installMockLoadGraph()
+    clearGraphStore()
     const nodes: Node[] = [
       { name: 'classify' },
       { name: 'cond:classify→route', kind: 'cond', targets: ['tool', 'chat'] },
@@ -131,6 +171,9 @@ describe('findNext (integration)', () => {
   })
 
   it('skips cond-blocked tasks and returns the passing one', async () => {
+    initTmpDir()
+    installMockLoadGraph()
+    clearGraphStore()
     const nodes: Node[] = [
       { name: 'classify' },
       { name: 'cond:classify→route', kind: 'cond', targets: ['tool', 'chat'] },
@@ -151,12 +194,24 @@ describe('findNext (integration)', () => {
     // Set cond channel to 'tool'
     await workflowService.setChannel(condChannelName('cond:classify→route'), 'tool', runId)
 
-    const result = await next.findNext(runId)
+    // Provide a no-op loader so findNext auto-executes 'tool'
+    const noopLoader = createMockLoader({
+      name: 'test-graph',
+      stateSchema: {},
+      nodes: [{ name: 'tool', fn: () => {} }],
+      edges: [],
+      condEdges: [],
+      fanOuts: [],
+    })
+    const result = await next.findNext(runId, { loader: noopLoader })
     expect(result).not.toBeNull()
     expect(result!.task.nodeId).toBe('tool')
   })
 
   it('executes user node via loader and completes it', async () => {
+    initTmpDir()
+    installMockLoadGraph()
+    clearGraphStore()
     const nodes: Node[] = [{ name: 'a', kind: 'user' }]
     const edges: Edge[] = []
     const runId = await setupGraphAndRun(nodes, edges)
@@ -190,6 +245,9 @@ describe('findNext (integration)', () => {
   })
 
   it('executes cond node via loader and sets cond channel', async () => {
+    initTmpDir()
+    installMockLoadGraph()
+    clearGraphStore()
     const nodes: Node[] = [
       { name: 'classify' },
       { name: 'cond:classify→route', kind: 'cond', targets: ['tool', 'chat'] },
@@ -235,6 +293,9 @@ describe('findNext (integration)', () => {
   })
 
   it('executes fanout node via loader and sets fanout channel', async () => {
+    initTmpDir()
+    installMockLoadGraph()
+    clearGraphStore()
     const nodes: Node[] = [
       { name: 'source' },
       {
@@ -278,6 +339,9 @@ describe('findNext (integration)', () => {
   })
 
   it('throws when user node fn is not found in workflow definition', async () => {
+    initTmpDir()
+    installMockLoadGraph()
+    clearGraphStore()
     const nodes: Node[] = [{ name: 'a', kind: 'user' }]
     const edges: Edge[] = []
     const runId = await setupGraphAndRun(nodes, edges)
@@ -298,6 +362,9 @@ describe('findNext (integration)', () => {
   })
 
   it('throws when cond node fn is not found in workflow definition', async () => {
+    initTmpDir()
+    installMockLoadGraph()
+    clearGraphStore()
     const nodes: Node[] = [
       { name: 'classify' },
       { name: 'cond:classify→route', kind: 'cond', targets: ['tool'] },
@@ -324,6 +391,9 @@ describe('findNext (integration)', () => {
   })
 
   it('throws when fanout node fn is not found in workflow definition', async () => {
+    initTmpDir()
+    installMockLoadGraph()
+    clearGraphStore()
     const nodes: Node[] = [
       { name: 'source' },
       {
@@ -353,6 +423,9 @@ describe('findNext (integration)', () => {
   })
 
   it('fails task when user node fn throws an error', async () => {
+    initTmpDir()
+    installMockLoadGraph()
+    clearGraphStore()
     const nodes: Node[] = [{ name: 'a', kind: 'user' }]
     const edges: Edge[] = []
     const runId = await setupGraphAndRun(nodes, edges)
@@ -384,6 +457,9 @@ describe('findNext (integration)', () => {
   })
 
   it('fails task when cond node fn throws an error', async () => {
+    initTmpDir()
+    installMockLoadGraph()
+    clearGraphStore()
     const nodes: Node[] = [
       { name: 'classify' },
       { name: 'cond:classify→route', kind: 'cond', targets: ['tool'] },
@@ -422,6 +498,9 @@ describe('findNext (integration)', () => {
   })
 
   it('fails task when fanout node fn throws an error', async () => {
+    initTmpDir()
+    installMockLoadGraph()
+    clearGraphStore()
     const nodes: Node[] = [
       { name: 'source' },
       {
@@ -463,23 +542,25 @@ describe('findNext (integration)', () => {
   })
 
   it('throws when node is not found in graph definition', async () => {
+    initTmpDir()
+    installMockLoadGraph()
+    clearGraphStore()
     // Create a graph where the ready task's node name is missing from the graph's node list
     const nodes: Node[] = [{ name: 'a' }]
     const edges: Edge[] = []
     // We set up a run with node 'a', then manipulate the graph to remove it
     const runId = await setupGraphAndRun(nodes, edges)
 
-    // Overwrite the graph with empty nodes
-    const tmpDir = process.cwd()
-    await fs.writeFile(
-      path.join(tmpDir, '.dagman/graphs/test-graph.json'),
-      JSON.stringify({ name: 'test-graph', edges: [], nodes: [] }, null, 2),
-    )
+    // Overwrite the graph with empty nodes in the in-memory store
+    storeGraph('test-graph', buildGraph([], [], 'test-graph'))
 
     await expect(next.findNext(runId)).rejects.toThrow("node 'a' not found in graph")
   })
 
   it('handles agent/collect nodes without executing them', async () => {
+    initTmpDir()
+    installMockLoadGraph()
+    clearGraphStore()
     // 'collect' kind nodes are not handled by executeWorkflowNode/executeCondEdge/executeFanOutNode
     // They should just pass through to buildResult
     const nodes: Node[] = [
@@ -517,6 +598,9 @@ describe('findAllNext (integration)', () => {
   })
 
   it('returns empty array when no tasks are ready', async () => {
+    initTmpDir()
+    installMockLoadGraph()
+    clearGraphStore()
     const nodes: Node[] = [{ name: 'a' }]
     const edges: Edge[] = []
     const runId = await setupGraphAndRun(nodes, edges)
@@ -529,16 +613,35 @@ describe('findAllNext (integration)', () => {
   })
 
   it('returns all ready tasks sorted alphabetically', async () => {
+    initTmpDir()
+    installMockLoadGraph()
+    clearGraphStore()
     const nodes: Node[] = [{ name: 'a' }, { name: 'b' }, { name: 'c' }]
     const edges: Edge[] = []
     const runId = await setupGraphAndRun(nodes, edges)
 
-    const results = await next.findAllNext(runId)
+    // Provide a no-op loader so findAllNext auto-executes nodes
+    const noopLoader = createMockLoader({
+      name: 'test-graph',
+      stateSchema: {},
+      nodes: [
+        { name: 'a', fn: () => {} },
+        { name: 'b', fn: () => {} },
+        { name: 'c', fn: () => {} },
+      ],
+      edges: [],
+      condEdges: [],
+      fanOuts: [],
+    })
+    const results = await next.findAllNext(runId, { loader: noopLoader })
     expect(results).toHaveLength(3)
     expect(results.map((r) => r.task.nodeId)).toEqual(['a', 'b', 'c'])
   })
 
   it('returns empty array when all tasks are filtered by condEdge', async () => {
+    initTmpDir()
+    installMockLoadGraph()
+    clearGraphStore()
     const nodes: Node[] = [
       { name: 'classify' },
       { name: 'cond:classify→route', kind: 'cond', targets: ['tool', 'chat'] },
@@ -561,6 +664,9 @@ describe('findAllNext (integration)', () => {
   })
 
   it('returns only cond-passing tasks', async () => {
+    initTmpDir()
+    installMockLoadGraph()
+    clearGraphStore()
     const nodes: Node[] = [
       { name: 'classify' },
       { name: 'cond:classify→route', kind: 'cond', targets: ['tool', 'chat'] },
@@ -579,12 +685,24 @@ describe('findAllNext (integration)', () => {
     await completeTask('cond:classify→route', edges, runId)
     await workflowService.setChannel(condChannelName('cond:classify→route'), 'chat', runId)
 
-    const results = await next.findAllNext(runId)
+    // Provide a no-op loader so findAllNext auto-executes 'chat'
+    const noopLoader = createMockLoader({
+      name: 'test-graph',
+      stateSchema: {},
+      nodes: [{ name: 'chat', fn: () => {} }],
+      edges: [],
+      condEdges: [],
+      fanOuts: [],
+    })
+    const results = await next.findAllNext(runId, { loader: noopLoader })
     expect(results).toHaveLength(1)
     expect(results[0]!.task.nodeId).toBe('chat')
   })
 
   it('executes user nodes for each task', async () => {
+    initTmpDir()
+    installMockLoadGraph()
+    clearGraphStore()
     const nodes: Node[] = [
       { name: 'a', kind: 'user' },
       { name: 'b', kind: 'user' },
@@ -624,6 +742,9 @@ describe('findAllNext (integration)', () => {
   })
 
   it('executes multiple node kinds in one call', async () => {
+    initTmpDir()
+    installMockLoadGraph()
+    clearGraphStore()
     const nodes: Node[] = [
       { name: 'source' },
       {
@@ -663,21 +784,23 @@ describe('findAllNext (integration)', () => {
   })
 
   it('throws when node not found in graph', async () => {
+    initTmpDir()
+    installMockLoadGraph()
+    clearGraphStore()
     const nodes: Node[] = [{ name: 'a' }]
     const edges: Edge[] = []
     const runId = await setupGraphAndRun(nodes, edges)
 
-    // Overwrite graph with empty nodes
-    const tmpDir = process.cwd()
-    await fs.writeFile(
-      path.join(tmpDir, '.dagman/graphs/test-graph.json'),
-      JSON.stringify({ name: 'test-graph', edges: [], nodes: [] }, null, 2),
-    )
+    // Overwrite graph with empty nodes in the in-memory store
+    storeGraph('test-graph', buildGraph([], [], 'test-graph'))
 
     await expect(next.findAllNext(runId)).rejects.toThrow("node 'a' not found in graph")
   })
 
   it('executes cond nodes for each task in findAllNext', async () => {
+    initTmpDir()
+    installMockLoadGraph()
+    clearGraphStore()
     const nodes: Node[] = [
       { name: 'start' },
       { name: 'cond:start→branch', kind: 'cond', targets: ['branch-a'] },
@@ -728,6 +851,7 @@ describe('resolveRunContext error paths', () => {
 
   it('findNext throws when run has no graph binding', async () => {
     initTmpDir()
+    installMockLoadGraph()
     // Create a run without a graph
     const info = await runService.createRun('orphan-run', undefined, true)
 
@@ -736,6 +860,7 @@ describe('resolveRunContext error paths', () => {
 
   it('findAllNext throws when run has no graph binding', async () => {
     initTmpDir()
+    installMockLoadGraph()
     const info = await runService.createRun('orphan-run2', undefined, true)
 
     await expect(next.findAllNext(info.id)).rejects.toThrow('current run is not bound to a graph')

@@ -259,22 +259,22 @@ describe('compileWorkflow error handling', () => {
   })
 
   it('throws ValidationError for workflow name mismatch', async () => {
-    // Create a mock workflow definition with wrong name
+    // Create a mock workflow definition with wrong manifest name
     await fs.mkdir('.dagman/workflows/test-workflow', { recursive: true })
     await fs.writeFile(
       '.dagman/workflows/test-workflow/index.ts',
-      'export default { name: "wrong-name", stateSchema: {}, nodes: [], edges: [], condEdges: [], fanOuts: [] }',
+      'export default { name: "test-workflow", stateSchema: {}, nodes: [], edges: [], condEdges: [], fanOuts: [] }',
       'utf-8',
     )
     await fs.writeFile(
       '.dagman/workflows/test-workflow/manifest.yaml',
-      'name: test-workflow\nversion: 1.0.0',
+      'name: wrong-name\nversion: 1.0.0',
       'utf-8',
     )
 
     const { compileWorkflow } = await import('../../src/domain/compiler/compiler.js')
     await expect(compileWorkflow('test-workflow')).rejects.toThrow(
-      "workflow name mismatch: file exports 'wrong-name' but expected 'test-workflow'",
+      "workflow name mismatch: manifest has 'wrong-name' but expected 'test-workflow'",
     )
   })
 
@@ -296,37 +296,6 @@ describe('compileWorkflow error handling', () => {
     await expect(compileWorkflow('test-workflow')).rejects.toThrow(
       'compiled graph contains cycle dependency',
     )
-  })
-
-  it('persists compiled graph to filesystem', async () => {
-    // Create a simple workflow definition
-    await fs.mkdir('.dagman/workflows/test-workflow', { recursive: true })
-    await fs.writeFile(
-      '.dagman/workflows/test-workflow/index.ts',
-      'export default { name: "test-workflow", stateSchema: {}, nodes: [], edges: [], condEdges: [], fanOuts: [] }',
-      'utf-8',
-    )
-    await fs.writeFile(
-      '.dagman/workflows/test-workflow/manifest.yaml',
-      'name: test-workflow\nversion: 1.0.0',
-      'utf-8',
-    )
-
-    const { compileWorkflow } = await import('../../src/domain/compiler/compiler.js')
-    await compileWorkflow('test-workflow')
-
-    // Check that graph file was created
-    const exists = await fs
-      .access('.dagman/graphs/test-workflow.json')
-      .then(() => true)
-      .catch(() => false)
-    expect(exists).toBe(true)
-
-    // Load and verify content
-    const content = await fs.readFile('.dagman/graphs/test-workflow.json', 'utf-8')
-    const graph = JSON.parse(content)
-    expect(graph.name).toBe('test-workflow')
-    expect(graph.edges).toBeDefined()
   })
 
   it('returns manifest from workflow', async () => {

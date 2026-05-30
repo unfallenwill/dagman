@@ -4,7 +4,7 @@ import * as path from 'path'
 import { withErrorHandler, outputJson } from '../_shared/output.js'
 import { setCommandMeta } from '../_shared/command-meta.js'
 import * as runService from '../../domain/run/run-service.js'
-import * as graphService from '../../domain/graph/graph-service.js'
+import { loadWorkflowGraph } from '../../domain/compiler/compiler.js'
 import * as workflowService from '../../domain/workflow/workflow-engine.js'
 import { stateChannelName } from '../../shared/models/channel.js'
 import { ValidationError } from '../../shared/errors.js'
@@ -30,7 +30,7 @@ Usage: dagman collect <node-name@id-xxx> -f <result.json>`)
       },
       {
         description: 'Collect result with inline value',
-        command: 'dagman collect classify@abc123 --value \'{"intent":"need_tool\'}\'',
+        command: 'dagman collect classify@abc123 --value \'{"intent":"need_tool"}\'',
       },
     ],
     exitStatus: [
@@ -74,7 +74,7 @@ Usage: dagman collect <node-name@id-xxx> -f <result.json>`)
             throw new ValidationError(`workflow instance ${rid} is not bound to a graph`)
           }
 
-          const graph = await graphService.loadCompiledGraph(graphName)
+          const graph = await loadWorkflowGraph(graphName)
 
           // Look up node from graph.nodes
           const node = graph.nodes?.find((n) => n.name === nodeName)

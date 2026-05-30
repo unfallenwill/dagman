@@ -1,7 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import * as path from 'path'
-import * as os from 'os'
 import * as fs from 'fs/promises'
+import {
+  initTmpDir,
+  cleanupTmpDir,
+  installMockLoadGraph,
+  storeGraph,
+  buildGraph,
+} from '../helpers/setup.js'
 import { Command } from 'commander'
 import '../../src/engine/default-deps.js'
 import { registerHelpCommand } from '../../src/slices/help/index.js'
@@ -16,8 +22,6 @@ import { registerNextCommand } from '../../src/slices/next/index.js'
 import * as runService from '../../src/domain/run/run-service.js'
 import { CliError } from '../../src/shared/errors.js'
 
-const TMP_DIR = path.join(os.tmpdir(), `dagman-cmd-ext-test-${Date.now()}`)
-
 async function writeTestEvent(
   node: string,
   from: string,
@@ -29,20 +33,17 @@ async function writeTestEvent(
   await fs.appendFile(eventsFile, JSON.stringify(event) + '\n', 'utf-8')
 }
 
-let originalCwd: string
 let logSpy: ReturnType<typeof vi.spyOn>
 
-beforeEach(async () => {
-  originalCwd = process.cwd()
-  await fs.mkdir(TMP_DIR, { recursive: true })
-  process.chdir(TMP_DIR)
+beforeEach(() => {
+  initTmpDir()
+  installMockLoadGraph()
   logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
 })
 
 afterEach(async () => {
   logSpy.mockRestore()
-  process.chdir(originalCwd)
-  await fs.rm(TMP_DIR, { recursive: true, force: true })
+  await cleanupTmpDir()
 })
 
 function createProgram(...registerFns: Array<(program: Command) => void>): Command {
@@ -53,16 +54,25 @@ function createProgram(...registerFns: Array<(program: Command) => void>): Comma
   return program
 }
 
-// Helper: create a compiled graph JSON file
-async function createCompiledGraph(
+// Helper: store a compiled graph in the in-memory store
+function createCompiledGraph(
   name: string,
   nodes: Array<{ name: string; description: string; instructions: string; kind: string }>,
   edges: Array<{ from: string; to: string }>,
-): Promise<void> {
-  const graphsDir = path.join(TMP_DIR, '.dagman/graphs')
-  await fs.mkdir(graphsDir, { recursive: true })
-  const graphData = { name, edges, nodes }
-  await fs.writeFile(path.join(graphsDir, `${name}.json`), JSON.stringify(graphData, null, 2))
+): void {
+  const graph = buildGraph(
+    nodes.map((n) => n.name),
+    edges,
+    name,
+  )
+  // Preserve node overrides (description, instructions, kind)
+  graph.nodes = nodes.map((n) => ({
+    name: n.name,
+    description: n.description,
+    instructions: n.instructions,
+    kind: n.kind as 'user',
+  }))
+  storeGraph(name, graph)
 }
 
 // Helper: create a workflow manifest
@@ -71,7 +81,8 @@ async function createWorkflowManifest(
   version = '1.0',
   description = 'Test workflow',
 ): Promise<string> {
-  const workflowDir = path.join(TMP_DIR, `.dagman/workflows/${name}`)
+  const tmpDir = process.cwd()
+  const workflowDir = path.join(tmpDir, `.dagman/workflows/${name}`)
   await fs.mkdir(workflowDir, { recursive: true })
   const manifest = `name: ${name}\nversion: '${version}'\ndescription: ${description}\n`
   await fs.writeFile(path.join(workflowDir, 'manifest.yaml'), manifest)
@@ -90,7 +101,7 @@ describe('ps command', () => {
 
   it('should list runs when they exist', async () => {
     // Create a compiled graph and a run
-    await createCompiledGraph(
+    createCompiledGraph(
       'ps-test',
       [
         { name: 'node-a', description: 'A', instructions: 'Do A', kind: 'user' },
@@ -110,7 +121,7 @@ describe('ps command', () => {
   })
 
   it('should output JSON with --json flag', async () => {
-    await createCompiledGraph(
+    createCompiledGraph(
       'ps-json',
       [{ name: 'node-a', description: 'A', instructions: 'Do A', kind: 'user' }],
       [],
@@ -136,7 +147,7 @@ describe('ps command', () => {
     const idleRun = await runService.createRun('idle-label')
 
     // Create a running run
-    await createCompiledGraph(
+    createCompiledGraph(
       'filter-test',
       [{ name: 'node-a', description: 'A', instructions: 'Do A', kind: 'user' }],
       [],
@@ -183,7 +194,8 @@ describe('ls command', () => {
 
   it('should skip directories without valid manifest', async () => {
     // Create a directory without manifest
-    await fs.mkdir(path.join(TMP_DIR, '.dagman/workflows/no-manifest'), { recursive: true })
+    const tmpDir = process.cwd()
+    await fs.mkdir(path.join(tmpDir, '.dagman/workflows/no-manifest'), { recursive: true })
     // Create one valid workflow
     await createWorkflowManifest('valid-flow')
 
@@ -250,7 +262,7 @@ export default workflow('start-test')
 describe('log command', () => {
   it('should show empty log when no events exist', async () => {
     // Create a run
-    await createCompiledGraph(
+    createCompiledGraph(
       'log-test',
       [{ name: 'node-a', description: 'A', instructions: 'Do A', kind: 'user' }],
       [],
@@ -264,7 +276,7 @@ describe('log command', () => {
   })
 
   it('should show events when they exist', async () => {
-    await createCompiledGraph(
+    createCompiledGraph(
       'log-events',
       [{ name: 'node-a', description: 'A', instructions: 'Do A', kind: 'user' }],
       [],
@@ -288,7 +300,7 @@ describe('log command', () => {
   })
 
   it('should output JSON with --json flag', async () => {
-    await createCompiledGraph(
+    createCompiledGraph(
       'log-json',
       [{ name: 'node-a', description: 'A', instructions: 'Do A', kind: 'user' }],
       [],
@@ -308,7 +320,7 @@ describe('log command', () => {
   })
 
   it('should filter events by node name', async () => {
-    await createCompiledGraph(
+    createCompiledGraph(
       'log-filter',
       [
         { name: 'node-a', description: 'A', instructions: 'Do A', kind: 'user' },
@@ -331,7 +343,7 @@ describe('log command', () => {
   })
 
   it('should show empty log for non-existent node filter', async () => {
-    await createCompiledGraph(
+    createCompiledGraph(
       'log-nofilter',
       [{ name: 'node-a', description: 'A', instructions: 'Do A', kind: 'user' }],
       [],
@@ -459,26 +471,6 @@ describe('show command', () => {
     expect(calls.some((line: string) => line.includes('show-test'))).toBe(true)
     expect(calls.some((line: string) => line.includes('1.0'))).toBe(true)
     expect(calls.some((line: string) => line.includes('A test workflow'))).toBe(true)
-    expect(calls.some((line: string) => line.includes('Compiled:') && line.includes('no'))).toBe(
-      true,
-    )
-  })
-
-  it('should show compiled: yes when graph exists', async () => {
-    await createWorkflowManifest('show-compiled')
-    await createCompiledGraph(
-      'show-compiled',
-      [{ name: 'node-a', description: 'A', instructions: 'Do A', kind: 'user' }],
-      [],
-    )
-
-    const program = createProgram(registerShowCommand)
-    await program.parseAsync(['node', 'dagman', 'show', 'show-compiled'])
-
-    const calls = logSpy.mock.calls.map((args: unknown[]) => args.join(' '))
-    expect(calls.some((line: string) => line.includes('Compiled:') && line.includes('yes'))).toBe(
-      true,
-    )
   })
 
   it('should output JSON with --json flag', async () => {
@@ -492,7 +484,6 @@ describe('show command', () => {
     expect(parsed.name).toBe('show-json')
     expect(parsed.version).toBe('2.5')
     expect(parsed.description).toBe('JSON workflow')
-    expect(parsed.compiled).toBe(false)
   })
 
   it('should throw for non-existent workflow', async () => {

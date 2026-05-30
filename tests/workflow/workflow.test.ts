@@ -1,26 +1,24 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import * as path from 'path'
-import * as os from 'os'
-import * as fs from 'fs/promises'
+import {
+  initTmpDir,
+  cleanupTmpDir,
+  installMockLoadGraph,
+  storeGraph,
+  buildGraph,
+} from '../helpers/setup.js'
 import '../../src/engine/default-deps.js'
 import * as workflowService from '../../src/domain/workflow/workflow-engine.js'
 import * as runService from '../../src/domain/run/run-service.js'
 import { computeTopologicalLayers } from '../../src/shared/utils/topology.js'
 import type { Edge } from '../../src/shared/models/graph.js'
 
-const TMP_DIR = path.join(os.tmpdir(), `dagman-workflow-test-${Date.now()}`)
-
-let originalCwd: string
-
-beforeEach(async () => {
-  originalCwd = process.cwd()
-  await fs.mkdir(TMP_DIR, { recursive: true })
-  process.chdir(TMP_DIR)
+beforeEach(() => {
+  initTmpDir()
+  installMockLoadGraph()
 })
 
 afterEach(async () => {
-  process.chdir(originalCwd)
-  await fs.rm(TMP_DIR, { recursive: true, force: true })
+  await cleanupTmpDir()
 })
 
 // Helper: create compiled graph and run
@@ -29,25 +27,8 @@ async function setupGraph(
   edges: Edge[],
   graphName = 'test-graph',
 ): Promise<string> {
-  await fs.mkdir(path.join(TMP_DIR, '.dagman/graphs'), { recursive: true })
-
-  const nodes = nodeNames.map((name) => ({
-    name,
-    description: `Node ${name}`,
-    instructions: `Do ${name}`,
-    kind: 'user' as const,
-  }))
-
-  const graphData = {
-    name: graphName,
-    edges,
-    nodes,
-  }
-
-  await fs.writeFile(
-    path.join(TMP_DIR, `.dagman/graphs/${graphName}.json`),
-    JSON.stringify(graphData, null, 2),
-  )
+  const graph = buildGraph(nodeNames, edges, graphName)
+  storeGraph(graphName, graph)
 
   const info = await runService.createRun('wf-test', graphName, true)
   return info.id

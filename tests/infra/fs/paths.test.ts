@@ -14,7 +14,6 @@ import {
   getWorkflowDir,
   getWorkflowTsFile,
   getWorkflowManifest,
-  getGraphsDir,
   getCurrentRunFilePath,
   getWorkflowEntryFile,
 } from '../../../src/infra/fs/paths.js'
@@ -39,11 +38,6 @@ describe('paths', () => {
     it('should return runs dir under custom basePath', () => {
       setBasePath('/custom')
       expect(getRunsDir()).toBe(path.join('/custom', '.dagman', 'runs'))
-    })
-
-    it('should return graphs dir under custom basePath', () => {
-      setBasePath('/custom')
-      expect(getGraphsDir()).toBe(path.join('/custom', '.dagman', 'graphs'))
     })
 
     it('should return current-run file path under custom basePath', () => {

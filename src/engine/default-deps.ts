@@ -3,15 +3,8 @@ import type { Dirent } from 'fs'
 import { FsWorkflowRepository } from '../infra/fs/fs-workflow-repo.js'
 import { FsEventRepository } from '../infra/fs/fs-event-repo.js'
 import { FsRunRepository } from '../infra/fs/fs-run-repo.js'
-import { getGraphsDir, getWorkflowsDir } from '../infra/fs/paths.js'
-import {
-  ensureDir,
-  writeJSON,
-  fileExists,
-  listFiles,
-  readJSON,
-  readYAML,
-} from '../infra/fs/file-ops.js'
+import { getWorkflowsDir } from '../infra/fs/paths.js'
+import { ensureDir, writeJSON, fileExists, readJSON, readYAML } from '../infra/fs/file-ops.js'
 import {
   getRunDir,
   getRunMetaFile,
@@ -23,7 +16,6 @@ import {
 } from '../infra/fs/paths.js'
 import { createDefaultLoader } from '../infra/loader/tsx-loader.js'
 import { setDefaultWorkflowDeps } from '../domain/workflow/workflow-engine.js'
-import { setDefaultGraphDeps } from '../domain/graph/graph-service.js'
 import { setDefaultRunDeps } from '../domain/run/run-service.js'
 import { setDefaultRunResolverDeps } from '../domain/run/run-resolver.js'
 import { setDefaultSchedulingDeps } from '../domain/scheduling/scheduler.js'
@@ -37,15 +29,6 @@ setDefaultWorkflowDeps({
   repo: new FsWorkflowRepository(),
   eventRepo: new FsEventRepository(),
   runRepo: new FsRunRepository(),
-})
-
-// Graph deps
-setDefaultGraphDeps({
-  getGraphsDir,
-  ensureDir,
-  writeJSON,
-  fileExists,
-  listFiles,
 })
 
 // Run resolver deps

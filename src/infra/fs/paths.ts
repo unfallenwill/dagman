@@ -4,7 +4,6 @@ import { fileExists } from './file-ops.js'
 // --- Path constants (relative, never exported directly for path resolution) ---
 
 export const DAGMAN_DIR = '.dagman'
-export const GRAPHS_DIR = '.dagman/graphs'
 export const RUNS_DIR = '.dagman/runs'
 export const WORKFLOWS_DIR = '.dagman/workflows'
 export const CURRENT_RUN_FILE = '.dagman/.current-run'
@@ -37,10 +36,6 @@ export function getDagmanDir(): string {
 
 export function getRunsDir(): string {
   return resolve(RUNS_DIR)
-}
-
-export function getGraphsDir(): string {
-  return resolve(GRAPHS_DIR)
 }
 
 export function getWorkflowsDir(): string {

@@ -4,7 +4,7 @@
 export * from './domain/workflow/workflow-engine.js'
 export * from './domain/scheduling/scheduler.js'
 export * from './domain/run/run-service.js'
-export * from './domain/graph/graph-service.js'
+export { formatGraph } from './domain/graph/graph-service.js'
 export * from './domain/graph/validator.js'
 
 // Models

@@ -4,10 +4,16 @@ import * as fs from 'fs/promises'
 import { Command } from 'commander'
 import '../../src/engine/default-deps.js'
 import { registerCollectCommand } from '../../src/slices/collect/index.js'
-import { initTmpDir, cleanupTmpDir } from '../helpers/setup.js'
+import {
+  initTmpDir,
+  cleanupTmpDir,
+  installMockLoadGraph,
+  storeGraph,
+  buildGraph,
+} from '../helpers/setup.js'
 import * as runService from '../../src/domain/run/run-service.js'
 import * as workflowService from '../../src/domain/workflow/workflow-engine.js'
-import { getGraphsDir, getRunsDir } from '../../src/infra/fs/paths.js'
+import { getRunsDir } from '../../src/infra/fs/paths.js'
 import { createTask } from '../../src/shared/models/task.js'
 
 let logSpy: ReturnType<typeof vi.spyOn>
@@ -16,6 +22,7 @@ let exitSpy: ReturnType<typeof vi.spyOn>
 
 beforeEach(() => {
   initTmpDir()
+  installMockLoadGraph()
   logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
   errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
   exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as never)
@@ -37,38 +44,6 @@ function createProgram(): Command {
 }
 
 /**
- * Create a compiled graph JSON file with nodes that may have stateKey.
- */
-async function createCompiledGraph(
-  name: string,
-  nodes: Array<{
-    name: string
-    stateKey?: string
-    kind?: string
-    description?: string
-    instructions?: string
-    parentNodeId?: string
-  }>,
-  edges: Array<{ from: string; to: string; expect?: string }>,
-): Promise<void> {
-  const graphsDir = getGraphsDir()
-  await fs.mkdir(graphsDir, { recursive: true })
-  const graphData = {
-    name,
-    edges,
-    nodes: nodes.map((n) => ({
-      name: n.name,
-      description: n.description ?? `Node ${n.name}`,
-      instructions: n.instructions ?? `Instructions for ${n.name}`,
-      kind: n.kind ?? 'user',
-      ...(n.stateKey ? { stateKey: n.stateKey } : {}),
-      ...(n.parentNodeId ? { parentNodeId: n.parentNodeId } : {}),
-    })),
-  }
-  await fs.writeFile(path.join(graphsDir, `${name}.json`), JSON.stringify(graphData, null, 2))
-}
-
-/**
  * Full setup for collect command: graph with a node that has stateKey,
  * a run bound to that graph, and a workflow.jsonl containing a collect task.
  */
@@ -79,14 +54,40 @@ async function setupCollectScenario(
   taskStatus: 'ready' | 'running' | 'success' = 'ready',
 ): Promise<{ runId: string; suffix: string; nodeRef: string }> {
   // Create graph with a node that has a stateKey + its collect node
-  await createCompiledGraph(
+  storeGraph(
     graphName,
-    [
-      { name: nodeName, stateKey, kind: 'user' },
-      { name: `collect-${nodeName}`, kind: 'collect', parentNodeId: nodeName },
-    ],
-    [{ from: `collect-${nodeName}`, to: nodeName }],
+    buildGraph(
+      [nodeName, `collect-${nodeName}`],
+      [{ from: `collect-${nodeName}`, to: nodeName }],
+      graphName,
+    ),
   )
+  // Override the node definitions with stateKey and collect-specific fields
+  // buildGraph creates user-kind nodes by default; we need to patch the stored graph
+  const storedGraph = {
+    ...buildGraph(
+      [nodeName, `collect-${nodeName}`],
+      [{ from: `collect-${nodeName}`, to: nodeName }],
+      graphName,
+    ),
+    nodes: [
+      {
+        name: nodeName,
+        description: `Node ${nodeName}`,
+        instructions: `Instructions for ${nodeName}`,
+        kind: 'user' as const,
+        stateKey,
+      },
+      {
+        name: `collect-${nodeName}`,
+        description: `Node collect-${nodeName}`,
+        instructions: `Instructions for collect-${nodeName}`,
+        kind: 'collect' as const,
+        parentNodeId: nodeName,
+      },
+    ],
+  }
+  storeGraph(graphName, storedGraph)
 
   // Create run bound to the graph
   const info = await runService.createRun(undefined, graphName, true)
@@ -260,7 +261,7 @@ describe('collect command — negative cases', () => {
 
   it('should fail when node has no stateKey', async () => {
     // Create a graph with a node that has NO stateKey
-    await createCompiledGraph('no-statekey-graph', [{ name: 'bare-node' }], [])
+    storeGraph('no-statekey-graph', buildGraph(['bare-node'], [], 'no-statekey-graph'))
     const info = await runService.createRun(undefined, 'no-statekey-graph', true)
     const suffix = info.id.split('@')[1]!
 
@@ -274,11 +275,19 @@ describe('collect command — negative cases', () => {
 
   it('should fail when no collect task in current superstep', async () => {
     // Create a graph with a stateKey node but NO collect-<node> task in the step
-    await createCompiledGraph(
-      'no-collect-task-graph',
-      [{ name: 'classify', stateKey: 'intent' }],
-      [],
-    )
+    const graph = {
+      ...buildGraph(['classify'], [], 'no-collect-task-graph'),
+      nodes: [
+        {
+          name: 'classify',
+          description: 'Node classify',
+          instructions: 'Instructions for classify',
+          kind: 'user' as const,
+          stateKey: 'intent',
+        },
+      ],
+    }
+    storeGraph('no-collect-task-graph', graph)
     const info = await runService.createRun(undefined, 'no-collect-task-graph', true)
     const suffix = info.id.split('@')[1]!
 

@@ -1,13 +1,16 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import * as path from 'path'
-import * as fs from 'fs/promises'
 import { Command } from 'commander'
 import '../../src/engine/default-deps.js'
 import { registerNextCommand } from '../../src/slices/next/index.js'
-import { initTmpDir, cleanupTmpDir } from '../helpers/setup.js'
+import {
+  initTmpDir,
+  cleanupTmpDir,
+  installMockLoadGraph,
+  storeGraph,
+  buildGraph,
+} from '../helpers/setup.js'
 import * as runService from '../../src/domain/run/run-service.js'
 import * as workflowService from '../../src/domain/workflow/workflow-engine.js'
-import { getGraphsDir } from '../../src/infra/fs/paths.js'
 import type { Edge } from '../../src/shared/models/graph.js'
 
 let logSpy: ReturnType<typeof vi.spyOn>
@@ -16,6 +19,7 @@ let exitSpy: ReturnType<typeof vi.spyOn>
 
 beforeEach(() => {
   initTmpDir()
+  installMockLoadGraph()
   logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
   errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
   exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as never)
@@ -37,34 +41,6 @@ function createProgram(): Command {
 }
 
 /**
- * Create a compiled graph JSON file.
- */
-async function createCompiledGraph(
-  name: string,
-  nodes: Array<{
-    name: string
-    kind?: string
-    description?: string
-    instructions?: string
-  }>,
-  edges: Edge[],
-): Promise<void> {
-  const graphsDir = getGraphsDir()
-  await fs.mkdir(graphsDir, { recursive: true })
-  const graphData = {
-    name,
-    edges,
-    nodes: nodes.map((n) => ({
-      name: n.name,
-      description: n.description ?? `Node ${n.name}`,
-      instructions: n.instructions ?? `Instructions for ${n.name}`,
-      kind: n.kind ?? 'collect',
-    })),
-  }
-  await fs.writeFile(path.join(graphsDir, `${name}.json`), JSON.stringify(graphData, null, 2))
-}
-
-/**
  * Set up a running workflow with the given nodes and edges.
  * Returns the run ID. The workflow will have ready tasks for layer 0.
  */
@@ -73,11 +49,7 @@ async function setupRunningWorkflow(
   edges: Edge[] = [],
   graphName = 'next-test-graph',
 ): Promise<string> {
-  await createCompiledGraph(
-    graphName,
-    nodeNames.map((n) => ({ name: n })),
-    edges,
-  )
+  storeGraph(graphName, buildGraph(nodeNames, edges, graphName, { kind: 'collect' }))
   const info = await runService.createRun(undefined, graphName, true)
   return info.id
 }
