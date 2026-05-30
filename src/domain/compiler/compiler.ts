@@ -1,4 +1,3 @@
-import * as path from 'path'
 import type { Graph } from '../../shared/models/graph.js'
 import type { Node } from '../../shared/models/node.js'
 import type { WorkflowManifest } from '../../shared/models/workflow-def.js'
@@ -10,7 +9,6 @@ import { expandWorkflow } from './node-gen.js'
 export interface CompilerDeps {
   loader?: WorkflowLoader
   getWorkflowTsFile?: (name: string) => string
-  getWorkflowManifest?: (name: string) => string
 }
 
 let _defaults: Partial<CompilerDeps> = {}
@@ -25,7 +23,6 @@ function resolveCompilerDeps(deps?: CompilerDeps) {
   return {
     loader: merged.loader!,
     getWorkflowTsFile: merged.getWorkflowTsFile!,
-    getWorkflowManifest: merged.getWorkflowManifest!,
   }
 }
 
@@ -62,61 +59,60 @@ export async function loadWorkflowGraph(workflowName: string, deps?: CompilerDep
 }
 
 /**
- * Compile a TS workflow: load manifest → tsx import → expand → validate.
+ * Compile a TS workflow: tsx import → extract manifest → expand → validate.
  */
 export async function compileWorkflow(
   workflowName: string,
   deps?: CompilerDeps,
 ): Promise<CompileResult> {
   const d = resolveCompilerDeps(deps)
-  const manifestFile = d.getWorkflowManifest(workflowName)
+  const tsFile = d.getWorkflowTsFile(workflowName)
 
-  // 1. Load manifest
-  const manifest = await loadManifest(manifestFile)
+  const definition = await d.loader.load(tsFile)
+  const manifest = extractManifest(definition, workflowName)
 
-  // 2. Validate definition name matches workflow name
-  if (manifest.name !== workflowName) {
+  const { allNodes, allEdges } = expandWorkflow(definition)
+
+  const graph: Graph = {
+    name: workflowName,
+    edges: allEdges,
+    nodes: allNodes,
+    stateSchema: definition.stateSchema,
+    workflowName,
+  }
+
+  if (hasCycle(graph.edges)) {
+    throw new ValidationError('compiled graph contains cycle dependency')
+  }
+
+  return { graph, nodes: graph.nodes ?? [], manifest }
+}
+
+/**
+ * Extract WorkflowManifest from the loaded WorkflowDefinition.
+ * Validates that the definition name matches the expected workflow name.
+ */
+function extractManifest(
+  definition: { name?: string; version?: string; description?: string },
+  workflowName: string,
+): WorkflowManifest {
+  if (!definition.name || typeof definition.name !== 'string') {
+    throw new ValidationError("workflow definition must have a 'name' field")
+  }
+
+  if (definition.name !== workflowName) {
     throw new ValidationError(
-      "workflow name mismatch: manifest has '" +
-        manifest.name +
+      "workflow name mismatch: definition has '" +
+        definition.name +
         "' but expected '" +
         workflowName +
         "'",
     )
   }
 
-  // 3. Load and expand graph
-  const graph = await loadWorkflowGraph(workflowName, deps)
-
-  return { graph, nodes: graph.nodes ?? [], manifest }
-}
-
-/**
- * Load and validate manifest.yaml
- */
-async function loadManifest(manifestFile: string): Promise<WorkflowManifest> {
-  const fs = await import('fs/promises')
-  const yaml = await import('js-yaml')
-
-  let content: string
-  try {
-    content = await fs.readFile(path.resolve(manifestFile), 'utf-8')
-  } catch {
-    throw new ValidationError('manifest not found: ' + manifestFile)
-  }
-
-  const data = yaml.load(content) as Record<string, unknown>
-
-  if (!data.name || typeof data.name !== 'string') {
-    throw new ValidationError("manifest must have a 'name' field")
-  }
-
   return {
-    name: data.name,
-    version: (data.version as string) || '0.0.0',
-    description: (data.description as string) || '',
-    author: data.author as string | undefined,
-    repository: data.repository as string | undefined,
-    license: data.license as string | undefined,
+    name: definition.name,
+    version: definition.version ?? '0.0.0',
+    description: definition.description ?? '',
   }
 }

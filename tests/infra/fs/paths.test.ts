@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import * as path from 'path'
-import * as fs from 'fs/promises'
 import { initTmpDir, cleanupTmpDir } from '../../helpers/setup.js'
 import {
   setBasePath,
@@ -13,9 +12,7 @@ import {
   getEventsFile,
   getWorkflowDir,
   getWorkflowTsFile,
-  getWorkflowManifest,
   getCurrentRunFilePath,
-  getWorkflowEntryFile,
 } from '../../../src/infra/fs/paths.js'
 
 describe('paths', () => {
@@ -84,40 +81,6 @@ describe('paths', () => {
       const result = getWorkflowTsFile('demo')
       expect(result).toBe(path.join(tmpDir, '.dagman', 'workflows', 'demo', 'index.ts'))
       expect(result.endsWith('/index.ts')).toBe(true)
-    })
-
-    it('should return workflow manifest ending in manifest.yaml', () => {
-      setBasePath(tmpDir)
-      const result = getWorkflowManifest('demo')
-      expect(result).toBe(path.join(tmpDir, '.dagman', 'workflows', 'demo', 'manifest.yaml'))
-      expect(result.endsWith('manifest.yaml')).toBe(true)
-    })
-  })
-
-  describe('getWorkflowEntryFile', () => {
-    it('should return TS path when index.ts exists', async () => {
-      const wfDir = path.join(tmpDir, '.dagman', 'workflows', 'demo')
-      await fs.mkdir(wfDir, { recursive: true })
-      await fs.writeFile(path.join(wfDir, 'index.ts'), '', 'utf-8')
-
-      const result = await getWorkflowEntryFile('demo')
-      expect(result).toBe(getWorkflowTsFile('demo'))
-      expect(result.endsWith('/index.ts')).toBe(true)
-    })
-
-    it('should return JS path when index.ts does not exist but index.js does', async () => {
-      const wfDir = path.join(tmpDir, '.dagman', 'workflows', 'demo')
-      await fs.mkdir(wfDir, { recursive: true })
-      await fs.writeFile(path.join(wfDir, 'index.js'), '', 'utf-8')
-
-      const result = await getWorkflowEntryFile('demo')
-      expect(result.endsWith('/index.js')).toBe(true)
-    })
-
-    it('should return JS path (default fallback) when neither index.ts nor index.js exists', async () => {
-      // Do not create any workflow directory or files
-      const result = await getWorkflowEntryFile('demo')
-      expect(result.endsWith('/index.js')).toBe(true)
     })
   })
 

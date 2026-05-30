@@ -23,4 +23,10 @@ export interface WorkflowBuilderState {
   entryNodes: string[]
   /** Nodes connected to END (exit points) */
   exitNodes: string[]
+  /** Workflow metadata */
+  version?: string
+  description?: string
+  author?: string
+  repository?: string
+  license?: string
 }

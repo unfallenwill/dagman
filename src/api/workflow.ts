@@ -33,7 +33,14 @@ export interface WorkflowBuilder {
 
 export function workflow(
   name: string,
-  config: { state: Record<string, unknown> },
+  config: {
+    state: Record<string, unknown>
+    version?: string
+    description?: string
+    author?: string
+    repository?: string
+    license?: string
+  },
 ): WorkflowBuilder {
   const state: WorkflowBuilderState = {
     name,
@@ -46,6 +53,11 @@ export function workflow(
     fanOuts: [],
     entryNodes: [],
     exitNodes: [],
+    version: config.version,
+    description: config.description,
+    author: config.author,
+    repository: config.repository,
+    license: config.license,
   }
 
   const builder: WorkflowBuilder = {
@@ -141,6 +153,11 @@ export function workflow(
         fanOuts: state.fanOuts,
         entryNodes: state.entryNodes,
         exitNodes: state.exitNodes,
+        version: state.version,
+        description: state.description,
+        author: state.author,
+        repository: state.repository,
+        license: state.license,
       }
     },
   }

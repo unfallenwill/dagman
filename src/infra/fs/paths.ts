@@ -1,7 +1,6 @@
 import { existsSync } from 'fs'
 import * as os from 'os'
 import * as path from 'path'
-import { fileExists } from './file-ops.js'
 
 // --- Path constants (relative, never exported directly for path resolution) ---
 
@@ -105,20 +104,4 @@ export function getWorkflowDir(name: string): string {
 
 export function getWorkflowTsFile(name: string): string {
   return resolve(`${WORKFLOWS_DIR}/${name}/index.ts`)
-}
-
-export function getWorkflowManifest(name: string): string {
-  return resolve(`${WORKFLOWS_DIR}/${name}/manifest.yaml`)
-}
-
-/**
- * Get workflow entry file, checking index.ts first, then index.js.
- * Searches local first, then global. Supports both TS and compiled JS workflows.
- */
-export async function getWorkflowEntryFile(name: string): Promise<string> {
-  const tsFile = resolveWorkflowPathSync(`${name}/index.ts`)
-  if (await fileExists(tsFile)) {
-    return tsFile
-  }
-  return resolveWorkflowPathSync(`${name}/index.js`)
 }

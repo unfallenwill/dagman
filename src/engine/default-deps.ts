@@ -3,7 +3,7 @@ import type { Dirent } from 'fs'
 import { FsWorkflowRepository } from '../infra/fs/fs-workflow-repo.js'
 import { FsEventRepository } from '../infra/fs/fs-event-repo.js'
 import { FsRunRepository } from '../infra/fs/fs-run-repo.js'
-import { ensureDir, writeJSON, fileExists, readJSON, readYAML } from '../infra/fs/file-ops.js'
+import { ensureDir, writeJSON, fileExists, readJSON } from '../infra/fs/file-ops.js'
 import {
   getRunDir,
   getRunMetaFile,
@@ -21,6 +21,9 @@ import { setDefaultSchedulingDeps } from '../domain/scheduling/scheduler.js'
 import { setDefaultCompilerDeps } from '../domain/compiler/compiler.js'
 import { setDefaultDiscoveryDeps } from '../domain/workflow/workflow-discovery.js'
 import { systemClock } from '../shared/utils/clock.js'
+
+const tsxLoader = createDefaultLoader()
+const getWorkflowTsFile = (name: string) => resolveWorkflowPathSync(`${name}/index.ts`)
 
 // Workflow deps
 setDefaultWorkflowDeps({
@@ -54,22 +57,21 @@ setDefaultRunDeps({
 
 // Scheduling deps
 setDefaultSchedulingDeps({
-  loader: createDefaultLoader(),
-  getWorkflowTsFile: (name: string) => resolveWorkflowPathSync(`${name}/index.ts`),
+  loader: tsxLoader,
+  getWorkflowTsFile,
 })
 
 // Compiler deps
 setDefaultCompilerDeps({
-  loader: createDefaultLoader(),
-  getWorkflowTsFile: (name: string) => resolveWorkflowPathSync(`${name}/index.ts`),
-  getWorkflowManifest: (name: string) => resolveWorkflowPathSync(`${name}/manifest.yaml`),
+  loader: tsxLoader,
+  getWorkflowTsFile,
 })
 
-// Discovery deps (workflow listing and manifest reading)
+// Discovery deps (workflow listing — loads metadata from TS definitions)
 setDefaultDiscoveryDeps({
   getWorkflowsDirs,
   readdir: (dir: string, opts?: { withFileTypes?: boolean }) =>
     fs.readdir(dir, opts as Parameters<typeof fs.readdir>[1]) as unknown as Promise<Dirent[]>,
-  readYAML,
-  getWorkflowManifest: (name: string) => resolveWorkflowPathSync(`${name}/manifest.yaml`),
+  loader: tsxLoader,
+  getWorkflowTsFile,
 })

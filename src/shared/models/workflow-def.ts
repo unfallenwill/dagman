@@ -46,9 +46,15 @@ export interface WorkflowDefinition {
   entryNodes?: string[]
   /** Nodes connected to END (exit points) */
   exitNodes?: string[]
+  /** Workflow metadata (previously in manifest.yaml) */
+  version?: string
+  description?: string
+  author?: string
+  repository?: string
+  license?: string
 }
 
-/** manifest.yaml format */
+/** Workflow metadata type (extracted from WorkflowDefinition) */
 export interface WorkflowManifest {
   name: string
   version: string

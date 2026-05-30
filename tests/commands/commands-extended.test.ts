@@ -75,8 +75,8 @@ function createCompiledGraph(
   storeGraph(name, graph)
 }
 
-// Helper: create a workflow manifest
-async function createWorkflowManifest(
+// Helper: create a workflow with embedded metadata in index.ts
+async function createWorkflow(
   name: string,
   version = '1.0',
   description = 'Test workflow',
@@ -84,8 +84,8 @@ async function createWorkflowManifest(
   const tmpDir = process.cwd()
   const workflowDir = path.join(tmpDir, `.dagman/workflows/${name}`)
   await fs.mkdir(workflowDir, { recursive: true })
-  const manifest = `name: ${name}\nversion: '${version}'\ndescription: ${description}\n`
-  await fs.writeFile(path.join(workflowDir, 'manifest.yaml'), manifest)
+  const tsContent = `export default { name: '${name}', stateSchema: {}, nodes: [], edges: [], condEdges: [], fanOuts: [], version: '${version}', description: '${description}' }`
+  await fs.writeFile(path.join(workflowDir, 'index.ts'), tsContent)
   return workflowDir
 }
 
@@ -179,8 +179,8 @@ describe('ls command', () => {
   })
 
   it('should list discovered workflows', async () => {
-    await createWorkflowManifest('my-flow', '2.0', 'A great workflow')
-    await createWorkflowManifest('another-flow', '1.5', 'Another one')
+    await createWorkflow('my-flow', '2.0', 'A great workflow')
+    await createWorkflow('another-flow', '1.5', 'Another one')
 
     const program = createProgram(registerLsCommand)
     await program.parseAsync(['node', 'dagman', 'ls'])
@@ -194,12 +194,12 @@ describe('ls command', () => {
     ).toBe(true)
   })
 
-  it('should skip directories without valid manifest', async () => {
-    // Create a directory without manifest
+  it('should skip directories without valid workflow definition', async () => {
+    // Create a directory without index.ts
     const tmpDir = process.cwd()
     await fs.mkdir(path.join(tmpDir, '.dagman/workflows/no-manifest'), { recursive: true })
     // Create one valid workflow
-    await createWorkflowManifest('valid-flow')
+    await createWorkflow('valid-flow')
 
     const program = createProgram(registerLsCommand)
     await program.parseAsync(['node', 'dagman', 'ls'])
@@ -217,7 +217,7 @@ describe('start command', () => {
   it('should create a run from a compiled graph', async () => {
     // The start command calls compileWorkflow which needs a TS workflow file.
     // Set up the full workflow structure with manifest and TS file.
-    const workflowDir = await createWorkflowManifest('start-test', '1.0', 'Start test')
+    const workflowDir = await createWorkflow('start-test', '1.0', 'Start test')
 
     const tsContent = `
 import { workflow, node } from '../../src/api/index.js'
@@ -464,7 +464,7 @@ describe('help command', () => {
 // ---------------------------------------------------------------------------
 describe('show command', () => {
   it('should display workflow info from manifest', async () => {
-    await createWorkflowManifest('show-test', '1.0', 'A test workflow')
+    await createWorkflow('show-test', '1.0', 'A test workflow')
 
     const program = createProgram(registerShowCommand)
     await program.parseAsync(['node', 'dagman', 'show', 'show-test'])
@@ -476,7 +476,7 @@ describe('show command', () => {
   })
 
   it('should output JSON with --json flag', async () => {
-    await createWorkflowManifest('show-json', '2.5', 'JSON workflow')
+    await createWorkflow('show-json', '2.5', 'JSON workflow')
 
     const program = createProgram(registerShowCommand)
     await program.parseAsync(['node', 'dagman', 'show', 'show-json', '--json'])
@@ -510,7 +510,7 @@ describe('graph command', () => {
     // We test what we can: verify the command is wired up correctly.
 
     // Create workflow structure
-    const workflowDir = await createWorkflowManifest('graph-test', '1.0', 'Graph test')
+    const workflowDir = await createWorkflow('graph-test', '1.0', 'Graph test')
 
     // Create a minimal TS workflow file that the loader can import
     const tsContent = `

@@ -225,21 +225,16 @@ describe('compileWorkflow error handling', () => {
 
   it('throws ValidationError for non-existent workflow', async () => {
     const { compileWorkflow } = await import('../../src/domain/compiler/compiler.js')
-    await expect(compileWorkflow('non-existent')).rejects.toThrow('manifest not found')
+    await expect(compileWorkflow('non-existent')).rejects.toThrow('Cannot find module')
   })
 
   it('throws ValidationError for invalid manifest without name field', async () => {
     await fs.mkdir('.dagman/workflows/test-workflow', { recursive: true })
     await fs.writeFile('.dagman/workflows/test-workflow/index.ts', 'export default {}', 'utf-8')
-    await fs.writeFile(
-      '.dagman/workflows/test-workflow/manifest.yaml',
-      'version: 1.0.0\ndescription: No name',
-      'utf-8',
-    )
 
     const { compileWorkflow } = await import('../../src/domain/compiler/compiler.js')
     await expect(compileWorkflow('test-workflow')).rejects.toThrow(
-      "manifest must have a 'name' field",
+      "workflow definition must have a 'name' field",
     )
   })
 
@@ -259,22 +254,17 @@ describe('compileWorkflow error handling', () => {
   })
 
   it('throws ValidationError for workflow name mismatch', async () => {
-    // Create a mock workflow definition with wrong manifest name
+    // Create a mock workflow definition with wrong name
     await fs.mkdir('.dagman/workflows/test-workflow', { recursive: true })
     await fs.writeFile(
       '.dagman/workflows/test-workflow/index.ts',
-      'export default { name: "test-workflow", stateSchema: {}, nodes: [], edges: [], condEdges: [], fanOuts: [] }',
-      'utf-8',
-    )
-    await fs.writeFile(
-      '.dagman/workflows/test-workflow/manifest.yaml',
-      'name: wrong-name\nversion: 1.0.0',
+      'export default { name: "wrong-name", stateSchema: {}, nodes: [], edges: [], condEdges: [], fanOuts: [] }',
       'utf-8',
     )
 
     const { compileWorkflow } = await import('../../src/domain/compiler/compiler.js')
     await expect(compileWorkflow('test-workflow')).rejects.toThrow(
-      "workflow name mismatch: manifest has 'wrong-name' but expected 'test-workflow'",
+      "workflow name mismatch: definition has 'wrong-name' but expected 'test-workflow'",
     )
   })
 
@@ -302,12 +292,7 @@ describe('compileWorkflow error handling', () => {
     await fs.mkdir('.dagman/workflows/test-workflow', { recursive: true })
     await fs.writeFile(
       '.dagman/workflows/test-workflow/index.ts',
-      'export default { name: "test-workflow", stateSchema: {}, nodes: [], edges: [], condEdges: [], fanOuts: [] }',
-      'utf-8',
-    )
-    await fs.writeFile(
-      '.dagman/workflows/test-workflow/manifest.yaml',
-      'name: test-workflow\nversion: 2.0.0\ndescription: Test description',
+      'export default { name: "test-workflow", version: "2.0.0", description: "Test description", stateSchema: {}, nodes: [], edges: [], condEdges: [], fanOuts: [] }',
       'utf-8',
     )
 
