@@ -85,10 +85,6 @@ function getLog(): string[] {
   return logSpy.mock.calls.map((args: unknown[]) => args.join(' '))
 }
 
-function getErr(): string {
-  return errSpy.mock.calls.map((args: unknown[]) => args.join(' ')).join('\n')
-}
-
 // Graph: A → B → C (3 layers via edges)
 const chainEdges: Edge[] = [
   { from: 'B', to: 'A' },
