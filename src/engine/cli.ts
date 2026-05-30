@@ -13,7 +13,7 @@ import { registerCompileCommand } from '../slices/compile/index.js'
 import { getCommandMeta } from '../slices/_shared/command-meta.js'
 import { formatManHelp } from '../slices/_shared/format-help.js'
 
-export function run(): void {
+export function createProgram(): Command {
   const program = new Command()
   program.name('dagman')
 
@@ -38,7 +38,12 @@ export function run(): void {
     attachHelpText(cmd)
   }
 
-  program.parse()
+  return program
+}
+
+export function run(argv: string[] = process.argv): void {
+  const program = createProgram()
+  program.parse(argv)
 }
 
 function attachHelpText(cmd: Command): void {

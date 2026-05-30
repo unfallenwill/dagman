@@ -12,6 +12,7 @@ import { registerStartCommand } from '../../src/slices/start/index.js'
 import { registerShowCommand } from '../../src/slices/show/index.js'
 import { registerGraphCommand } from '../../src/slices/graph/index.js'
 import { registerCompileCommand } from '../../src/slices/compile/index.js'
+import { registerNextCommand } from '../../src/slices/next/index.js'
 import * as runService from '../../src/domain/run/run-service.js'
 import { CliError } from '../../src/shared/errors.js'
 
@@ -234,6 +235,13 @@ export default workflow('start-test')
       // This test validates the command wiring; the compile pipeline is tested elsewhere
     }
   })
+
+  it('should throw for non-existent workflow name', async () => {
+    const program = createProgram(registerStartCommand)
+    await expect(
+      program.parseAsync(['node', 'dagman', 'start', 'nonexistent-workflow']),
+    ).rejects.toThrow()
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -381,6 +389,59 @@ describe('help command', () => {
     expect(() => {
       program.parse(['node', 'dagman', 'help', 'nonexistent-cmd'])
     }).toThrow(CliError)
+  })
+
+  it('should include version string in overview output', async () => {
+    const program = createProgram(registerHelpCommand)
+    await program.parseAsync(['node', 'dagman', 'help'])
+
+    const calls = logSpy.mock.calls.map((args: unknown[]) => args.join(' '))
+    const fullOutput = calls.join('\n')
+    // The overview includes "dagman v<version>"
+    expect(fullOutput).toContain('dagman v')
+    // Should not be the fallback '0.0.0' since package.json exists in the project
+    expect(fullOutput).not.toContain('v0.0.0')
+  })
+
+  it('should exclude help command from command reference listing', async () => {
+    // Register help + other commands, then check the output does not list 'help' in reference
+    const program = createProgram(
+      registerHelpCommand,
+      registerLsCommand,
+      registerStartCommand,
+      registerNextCommand,
+    )
+    await program.parseAsync(['node', 'dagman', 'help'])
+
+    const calls = logSpy.mock.calls.map((args: unknown[]) => args.join(' '))
+    const fullOutput = calls.join('\n')
+    const refSection = fullOutput.split('Command Reference')[1] ?? ''
+    // The 'help' command should not appear as a listed command in the reference
+    const refLines = refSection.split('\n')
+    const helpLine = refLines.find(
+      (line: string) => line.trimStart().startsWith('help') && line.includes('Show'),
+    )
+    expect(helpLine).toBeUndefined()
+  })
+
+  it('should include category headers for Workflow, Execution, and Scheduling commands', async () => {
+    const program = createProgram(
+      registerHelpCommand,
+      registerLsCommand,
+      registerShowCommand,
+      registerCompileCommand,
+      registerGraphCommand,
+      registerStartCommand,
+      registerPsCommand,
+      registerNextCommand,
+    )
+    await program.parseAsync(['node', 'dagman', 'help'])
+
+    const calls = logSpy.mock.calls.map((args: unknown[]) => args.join(' '))
+    const fullOutput = calls.join('\n')
+    expect(fullOutput).toContain('Workflow:')
+    expect(fullOutput).toContain('Execution:')
+    expect(fullOutput).toContain('Scheduling (core):')
   })
 })
 
