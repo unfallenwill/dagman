@@ -132,7 +132,9 @@ describe('run (positive)', () => {
 
     await program.parseAsync(['node', 'dagman', 'ls'])
 
-    expect(logSpy).toHaveBeenCalledWith('No workflows found in .dagman/workflows/')
+    expect(logSpy).toHaveBeenCalledWith(
+      'No workflows found in .dagman/workflows/ or ~/.dagman/workflows/',
+    )
   })
 
   it('should run "ps" command without error', async () => {

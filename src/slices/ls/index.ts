@@ -10,11 +10,11 @@ export function registerLsCommand(program: Command): void {
       withErrorHandler(async () => {
         const workflows = await listWorkflows()
         if (workflows.length === 0) {
-          console.log('No workflows found in .dagman/workflows/')
+          console.log('No workflows found in .dagman/workflows/ or ~/.dagman/workflows/')
           return
         }
         for (const wf of workflows) {
-          console.log('  ' + wf.name + ' v' + wf.version + ' - ' + wf.description)
+          console.log(`  [${wf.source}] ${wf.name} v${wf.version} - ${wf.description}`)
         }
       }),
     )

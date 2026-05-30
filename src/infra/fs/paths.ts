@@ -1,3 +1,5 @@
+import { existsSync } from 'fs'
+import * as os from 'os'
 import * as path from 'path'
 import { fileExists } from './file-ops.js'
 
@@ -64,6 +66,37 @@ export function getEventsFile(runId: string): string {
   return resolve(`${RUNS_DIR}/${runId}/events.jsonl`)
 }
 
+// --- Global workflows directory ---
+
+/** Get the global workflows directory ($HOME/.dagman/workflows). */
+export function getGlobalWorkflowsDir(): string {
+  return path.join(os.homedir(), WORKFLOWS_DIR)
+}
+
+/** Return both workflow directories: [local, global]. Local first (takes priority). */
+export function getWorkflowsDirs(): string[] {
+  return [getWorkflowsDir(), getGlobalWorkflowsDir()]
+}
+
+/**
+ * Resolve a workflow-relative path by checking local first, then global.
+ * Uses sync existsSync (acceptable for CLI tool, not server).
+ * Rejects path traversal attempts (e.g., ".." segments).
+ */
+export function resolveWorkflowPathSync(relativePath: string): string {
+  if (relativePath.includes('..')) {
+    throw new Error(`invalid workflow path: ${relativePath}`)
+  }
+
+  const localPath = resolve(`${WORKFLOWS_DIR}/${relativePath}`)
+  if (existsSync(localPath)) return localPath
+
+  const globalPath = path.join(getGlobalWorkflowsDir(), relativePath)
+  if (existsSync(globalPath)) return globalPath
+
+  return localPath // fallback: let caller produce the proper error
+}
+
 // --- Workflow path resolvers ---
 
 export function getWorkflowDir(name: string): string {
@@ -80,14 +113,12 @@ export function getWorkflowManifest(name: string): string {
 
 /**
  * Get workflow entry file, checking index.ts first, then index.js.
- * This supports both TS and compiled JS workflows.
+ * Searches local first, then global. Supports both TS and compiled JS workflows.
  */
 export async function getWorkflowEntryFile(name: string): Promise<string> {
-  const tsFile = getWorkflowTsFile(name)
-  const jsFile = resolve(`${WORKFLOWS_DIR}/${name}/index.js`)
-
+  const tsFile = resolveWorkflowPathSync(`${name}/index.ts`)
   if (await fileExists(tsFile)) {
     return tsFile
   }
-  return jsFile
+  return resolveWorkflowPathSync(`${name}/index.js`)
 }

@@ -3,14 +3,17 @@ import type { WorkflowManifest } from '../../shared/models/workflow-def.js'
 
 // ===== Dependency Injection =====
 
+export type WorkflowSource = 'local' | 'global'
+
 export interface DiscoveredWorkflow {
   name: string
   version: string
   description: string
+  source: WorkflowSource
 }
 
 export interface DiscoveryDeps {
-  getWorkflowsDir?: () => string
+  getWorkflowsDirs?: () => string[]
   readdir?: (dir: string, opts?: { withFileTypes?: boolean }) => Promise<Dirent[]>
   readYAML?: <T>(filePath: string) => Promise<T>
   getWorkflowManifest?: (name: string) => string
@@ -23,10 +26,10 @@ export function setDefaultDiscoveryDeps(defaults: Partial<DiscoveryDeps>): void 
   _defaults = { ..._defaults, ...defaults }
 }
 
-function resolveDiscoveryDeps(deps?: DiscoveryDeps): Required<DiscoveryDeps> {
+function resolveDiscoveryDeps(deps?: DiscoveryDeps) {
   const merged = { ..._defaults, ...deps }
   return {
-    getWorkflowsDir: merged.getWorkflowsDir!,
+    getWorkflowsDirs: merged.getWorkflowsDirs!,
     readdir: merged.readdir!,
     readYAML: merged.readYAML!,
     getWorkflowManifest: merged.getWorkflowManifest!,
@@ -34,34 +37,42 @@ function resolveDiscoveryDeps(deps?: DiscoveryDeps): Required<DiscoveryDeps> {
 }
 
 /**
- * Scan .dagman/workflows/ subdirectories for manifest.yaml files.
+ * Scan multiple workflow directories for manifest.yaml files.
+ * Directories are scanned in priority order (global first, local last)
+ * so local entries naturally override global on name collision.
  */
 export async function listWorkflows(deps?: DiscoveryDeps): Promise<DiscoveredWorkflow[]> {
-  const { getWorkflowsDir, readdir, readYAML } = resolveDiscoveryDeps(deps)
-  const workflows: DiscoveredWorkflow[] = []
-  const absDir = getWorkflowsDir()
+  const { getWorkflowsDirs, readdir, readYAML } = resolveDiscoveryDeps(deps)
+  const seen = new Map<string, DiscoveredWorkflow>()
+  const dirs = getWorkflowsDirs()
 
-  try {
-    const entries = await readdir(absDir, { withFileTypes: true })
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue
-      const manifestPath = absDir + '/' + entry.name + '/manifest.yaml'
-      try {
-        const data = await readYAML<Record<string, unknown>>(manifestPath)
-        workflows.push({
-          name: (data.name as string) || entry.name,
-          version: (data.version as string) || '0.0.0',
-          description: (data.description as string) || '',
-        })
-      } catch {
-        // Skip workflows without valid manifest
+  // Scan global first (lower priority), then local (overrides on collision)
+  for (let i = dirs.length - 1; i >= 0; i--) {
+    const absDir = dirs[i]!
+    const source: WorkflowSource = i === 0 ? 'local' : 'global'
+    try {
+      const entries = await readdir(absDir, { withFileTypes: true })
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue
+        const manifestPath = absDir + '/' + entry.name + '/manifest.yaml'
+        try {
+          const data = await readYAML<Record<string, unknown>>(manifestPath)
+          seen.set(entry.name, {
+            name: (data.name as string) || entry.name,
+            version: (data.version as string) || '0.0.0',
+            description: (data.description as string) || '',
+            source,
+          })
+        } catch {
+          // Skip workflows without valid manifest
+        }
       }
+    } catch {
+      // workflows dir doesn't exist — silent skip
     }
-  } catch {
-    // workflows dir doesn't exist
   }
 
-  return workflows
+  return [...seen.values()]
 }
 
 /**

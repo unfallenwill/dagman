@@ -173,7 +173,9 @@ describe('ls command', () => {
   it('should show empty message when no workflows exist', async () => {
     const program = createProgram(registerLsCommand)
     await program.parseAsync(['node', 'dagman', 'ls'])
-    expect(logSpy).toHaveBeenCalledWith('No workflows found in .dagman/workflows/')
+    expect(logSpy).toHaveBeenCalledWith(
+      'No workflows found in .dagman/workflows/ or ~/.dagman/workflows/',
+    )
   })
 
   it('should list discovered workflows', async () => {

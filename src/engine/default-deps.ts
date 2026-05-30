@@ -3,7 +3,6 @@ import type { Dirent } from 'fs'
 import { FsWorkflowRepository } from '../infra/fs/fs-workflow-repo.js'
 import { FsEventRepository } from '../infra/fs/fs-event-repo.js'
 import { FsRunRepository } from '../infra/fs/fs-run-repo.js'
-import { getWorkflowsDir } from '../infra/fs/paths.js'
 import { ensureDir, writeJSON, fileExists, readJSON, readYAML } from '../infra/fs/file-ops.js'
 import {
   getRunDir,
@@ -11,8 +10,8 @@ import {
   getRunsDir,
   getDagmanDir,
   getCurrentRunFilePath,
-  getWorkflowTsFile,
-  getWorkflowManifest,
+  getWorkflowsDirs,
+  resolveWorkflowPathSync,
 } from '../infra/fs/paths.js'
 import { createDefaultLoader } from '../infra/loader/tsx-loader.js'
 import { setDefaultWorkflowDeps } from '../domain/workflow/workflow-engine.js'
@@ -56,21 +55,21 @@ setDefaultRunDeps({
 // Scheduling deps
 setDefaultSchedulingDeps({
   loader: createDefaultLoader(),
-  getWorkflowTsFile,
+  getWorkflowTsFile: (name: string) => resolveWorkflowPathSync(`${name}/index.ts`),
 })
 
 // Compiler deps
 setDefaultCompilerDeps({
   loader: createDefaultLoader(),
-  getWorkflowTsFile,
-  getWorkflowManifest,
+  getWorkflowTsFile: (name: string) => resolveWorkflowPathSync(`${name}/index.ts`),
+  getWorkflowManifest: (name: string) => resolveWorkflowPathSync(`${name}/manifest.yaml`),
 })
 
 // Discovery deps (workflow listing and manifest reading)
 setDefaultDiscoveryDeps({
-  getWorkflowsDir,
+  getWorkflowsDirs,
   readdir: (dir: string, opts?: { withFileTypes?: boolean }) =>
     fs.readdir(dir, opts as Parameters<typeof fs.readdir>[1]) as unknown as Promise<Dirent[]>,
   readYAML,
-  getWorkflowManifest,
+  getWorkflowManifest: (name: string) => resolveWorkflowPathSync(`${name}/manifest.yaml`),
 })
