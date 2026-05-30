@@ -1,9 +1,7 @@
 import type { Command } from 'commander'
-import { FsEventRepository } from '../../infra/fs/fs-event-repo.js'
-import { resolveCurrentRunId } from '../../domain/run/run-service.js'
+import { resolveCurrentRunId, runExists } from '../../domain/run/run-service.js'
+import { getEvents } from '../../domain/workflow/workflow-engine.js'
 import { RunNotFoundError } from '../../shared/errors.js'
-import { getRunMetaFile } from '../../infra/fs/paths.js'
-import { fileExists } from '../../infra/fs/file-ops.js'
 import { setCommandMeta } from '../_shared/command-meta.js'
 import { withErrorHandler, outputJson } from '../_shared/output.js'
 
@@ -39,13 +37,11 @@ to events for a specific node.`)
     .action(
       withErrorHandler(async (node?: string, options?: { run?: string; json?: boolean }) => {
         const runId = options?.run ?? (await resolveCurrentRunId())
-        const metaFile = getRunMetaFile(runId)
-        if (!(await fileExists(metaFile))) {
+        if (!(await runExists(runId))) {
           throw new RunNotFoundError(runId)
         }
 
-        const eventRepo = new FsEventRepository()
-        const events = await eventRepo.readEvents(runId)
+        const events = await getEvents(runId)
         const filtered = node ? events.filter((e) => e.node === node) : events
 
         if (options?.json) {

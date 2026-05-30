@@ -1,3 +1,4 @@
+import type { Event } from '../../shared/models/event.js'
 import type { Channel } from '../../shared/models/channel.js'
 import {
   globalChannelName,
@@ -49,6 +50,13 @@ function resolveDeps(deps?: WorkflowDeps): Required<WorkflowDeps> {
     eventRepo: merged.eventRepo!,
     runRepo: merged.runRepo!,
   }
+}
+
+// ===== Event Access =====
+
+export async function getEvents(runId: string, deps?: WorkflowDeps): Promise<Event[]> {
+  const { eventRepo } = resolveDeps(deps)
+  return eventRepo.readEvents(runId)
 }
 
 // ===== State Loading =====

@@ -1,22 +1,7 @@
 import type { Command } from 'commander'
-import { getWorkflowManifest } from '../../infra/fs/paths.js'
 import { graphExists } from '../../domain/graph/graph-service.js'
+import { loadManifest } from '../../domain/workflow/workflow-discovery.js'
 import { withErrorHandler, outputJson } from '../_shared/output.js'
-import { readYAML } from '../../infra/fs/file-ops.js'
-
-/** Load manifest for a specific workflow */
-async function loadManifest(name: string) {
-  const manifestFile = getWorkflowManifest(name)
-  const data = await readYAML<Record<string, unknown>>(manifestFile)
-  return {
-    name: (data.name as string) || name,
-    version: (data.version as string) || '0.0.0',
-    description: (data.description as string) || '',
-    author: data.author as string | undefined,
-    repository: data.repository as string | undefined,
-    license: data.license as string | undefined,
-  }
-}
 
 export function registerShowCommand(program: Command): void {
   program

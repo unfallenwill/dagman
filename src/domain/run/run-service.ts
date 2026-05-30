@@ -222,6 +222,12 @@ export async function resolveRunId(runId?: string, deps?: RunDeps): Promise<stri
   return d.resolveCurrentRunId()
 }
 
+export async function runExists(runId: string, deps?: RunDeps): Promise<boolean> {
+  const { getRunMetaFile, fileExists } = resolveRunDeps(deps)
+  const metaFile = getRunMetaFile(runId)
+  return fileExists(metaFile)
+}
+
 export async function showRun(
   runId: string,
   deps?: RunDeps,
