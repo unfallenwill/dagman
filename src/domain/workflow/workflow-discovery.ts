@@ -1,5 +1,4 @@
 import type { Dirent } from 'fs'
-import type { WorkflowManifest } from '../../shared/models/workflow-def.js'
 import type { WorkflowLoader } from '../../shared/utils/loader.js'
 
 // ===== Dependency Injection =====
@@ -11,6 +10,15 @@ export interface DiscoveredWorkflow {
   version: string
   description: string
   source: WorkflowSource
+}
+
+export interface WorkflowManifest {
+  name: string
+  version: string
+  description: string
+  author?: string
+  repository?: string
+  license?: string
 }
 
 export interface DiscoveryDeps {
@@ -78,7 +86,7 @@ export async function listWorkflows(deps?: DiscoveryDeps): Promise<DiscoveredWor
 
 /**
  * Load and return manifest metadata for a specific workflow.
- * Reads from the workflow's TS definition file, not from manifest.yaml.
+ * Reads from the workflow's TS definition file.
  */
 export async function loadManifest(name: string, deps?: DiscoveryDeps): Promise<WorkflowManifest> {
   const { loader, getWorkflowTsFile } = resolveDiscoveryDeps(deps)

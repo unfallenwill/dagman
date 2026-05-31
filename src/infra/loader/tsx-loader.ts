@@ -1,5 +1,5 @@
 import path from 'path'
-import type { WorkflowDefinition } from '../../shared/models/workflow-def.js'
+import type { WorkflowDefinition } from '../../shared/models/compiled-graph.js'
 import type { WorkflowLoader } from '../../shared/utils/loader.js'
 
 export function createDefaultLoader(): WorkflowLoader {

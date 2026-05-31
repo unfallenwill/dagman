@@ -1,5 +1,5 @@
-import type { Edge } from '../shared/models/graph.js'
-import type { WorkflowDefinition } from '../shared/models/workflow-def.js'
+import type { RouteFn, WorkflowDefinition } from '../shared/models/compiled-graph.js'
+import { isPlainEdge } from '../shared/models/compiled-graph.js'
 import type { NodeBuilder } from './node.js'
 import type { WorkflowBuilderState } from './types.js'
 
@@ -15,12 +15,8 @@ export interface WorkflowBuilder {
   edge(from: NodeRef, to: NodeRef): this
   /** Add a conditional edge — virtual routing node.
    *  Multiple `to` nodes share the same condEdge → candidate competition.
-   *  `fn` is evaluated to determine which target executes. */
-  condEdge(from: string, to: string[], fn: (state: any) => string): this
-  /** Add a fan-out edge — dynamic parallel task generation.
-   *  `from` triggers the fan-out, `templateNode` is the node to instantiate,
-   *  `fn` returns an array of items, each creating one task instance. */
-  fanOut(from: string, templateNode: string, fn: (state: any) => any[]): this
+   *  `fn` is evaluated to determine which targets execute. */
+  condEdge(from: string, to: string[], fn: RouteFn): this
   /** Embed a child workflow as a subgraph.
    *  Child nodes are prefixed with `name.`, edges are remapped.
    *  Example: .subgraph('process', childDef)
@@ -44,13 +40,9 @@ export function workflow(
 ): WorkflowBuilder {
   const state: WorkflowBuilderState = {
     name,
-    // Store the Zod schema as-is; the caller serializes to JSON Schema externally
-    // or we treat the zod object as a record for now.
     stateSchema: config.state as Record<string, unknown>,
     nodes: [],
     edges: [],
-    condEdges: [],
-    fanOuts: [],
     entryNodes: [],
     exitNodes: [],
     version: config.version,
@@ -68,7 +60,7 @@ export function workflow(
 
     edge(from: NodeRef, to: NodeRef) {
       if (typeof from === 'string' && typeof to === 'string') {
-        state.edges.push({ from, to } as Edge)
+        state.edges.push({ from, to })
       } else if (from === START && typeof to === 'string') {
         state.entryNodes.push(to)
       } else if (to === END && typeof from === 'string') {
@@ -77,23 +69,10 @@ export function workflow(
       return builder
     },
 
-    condEdge(from: string, targets: string[], fn: (state: any) => string) {
-      const nodeName = `cond:${from}→route`
-      state.condEdges.push({
-        nodeName,
+    condEdge(from: string, targets: string[], fn: RouteFn) {
+      state.edges.push({
         from,
         targets,
-        fn,
-      })
-      return builder
-    },
-
-    fanOut(from: string, templateNode: string, fn: (state: any) => any[]) {
-      const nodeName = `fanout:${from}→${templateNode}`
-      state.fanOuts.push({
-        nodeName,
-        from,
-        templateNode,
         fn,
       })
       return builder
@@ -104,36 +83,24 @@ export function workflow(
       for (const childNode of childDef.nodes) {
         state.nodes.push({
           name: `${wfName}.${childNode.name}`,
-          builder: { fn: childNode.fn, stateKey: childNode.stateKey },
+          builder: { fn: childNode.fn },
         })
       }
 
-      // Add remapped child edges
+      // Add remapped child edges (plain and conditional unified)
       for (const edge of childDef.edges) {
-        state.edges.push({
-          from: `${wfName}.${edge.from}`,
-          to: `${wfName}.${edge.to}`,
-        })
-      }
-
-      // Add remapped condEdges
-      for (const condEdge of childDef.condEdges) {
-        state.condEdges.push({
-          nodeName: `${wfName}.${condEdge.nodeName}`,
-          from: `${wfName}.${condEdge.from}`,
-          targets: condEdge.targets.map((t) => `${wfName}.${t}`),
-          fn: condEdge.fn,
-        })
-      }
-
-      // Add remapped fanOuts
-      for (const fanOut of childDef.fanOuts) {
-        state.fanOuts.push({
-          nodeName: `${wfName}.${fanOut.nodeName}`,
-          from: `${wfName}.${fanOut.from}`,
-          templateNode: `${wfName}.${fanOut.templateNode}`,
-          fn: fanOut.fn,
-        })
+        if (isPlainEdge(edge)) {
+          state.edges.push({
+            from: `${wfName}.${edge.from}`,
+            to: `${wfName}.${edge.to}`,
+          })
+        } else {
+          state.edges.push({
+            from: `${wfName}.${edge.from}`,
+            targets: edge.targets.map((t) => `${wfName}.${t}`),
+            fn: edge.fn,
+          })
+        }
       }
 
       return builder
@@ -146,13 +113,8 @@ export function workflow(
         nodes: state.nodes.map((n) => ({
           name: n.name,
           fn: n.builder.fn,
-          stateKey: n.builder.stateKey,
         })),
         edges: state.edges,
-        condEdges: state.condEdges,
-        fanOuts: state.fanOuts,
-        entryNodes: state.entryNodes,
-        exitNodes: state.exitNodes,
         version: state.version,
         description: state.description,
         author: state.author,

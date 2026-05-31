@@ -5,7 +5,7 @@ import { initTmpDir, cleanupTmpDir } from '../../helpers/setup.js'
 import '../../../src/engine/default-deps.js'
 import { FsRunRepository } from '../../../src/infra/fs/fs-run-repo.js'
 import { NodeNotFoundError } from '../../../src/shared/errors.js'
-import type { RunInfo } from '../../../src/shared/models/superstep.js'
+import type { RunInfo } from '../../../src/shared/models/compiled-graph.js'
 import {
   getDagmanDir,
   getRunsDir,
@@ -48,7 +48,6 @@ describe('FsRunRepository', () => {
         graphName: 'test-graph',
         currentStep: 3,
         status: 'running',
-        layerAssignment: { A: 0, B: 1, C: 1 },
       }
       await repo.writeRunInfo('run-002', info)
       const result = await repo.readRunInfo('run-002')

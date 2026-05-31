@@ -27,18 +27,7 @@ describe('createProgram', () => {
     const program = createProgram()
     const commandNames = program.commands.map((cmd) => cmd.name())
 
-    const expected = [
-      'help',
-      'ls',
-      'graph',
-      'start',
-      'ps',
-      'show',
-      'compile',
-      'next',
-      'collect',
-      'log',
-    ]
+    const expected = ['help', 'ls', 'start', 'ps', 'show', 'next', 'collect']
     for (const name of expected) {
       expect(commandNames, `missing subcommand "${name}"`).toContain(name)
     }

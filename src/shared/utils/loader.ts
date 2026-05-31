@@ -1,4 +1,4 @@
-import type { WorkflowDefinition } from '../models/workflow-def.js'
+import type { WorkflowDefinition } from '../models/compiled-graph.js'
 
 /**
  * Abstraction over workflow definition loading.

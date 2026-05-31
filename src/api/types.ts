@@ -1,12 +1,10 @@
-import type { Edge } from '../shared/models/graph.js'
-import type { CondEdgeDef, FanOutDef } from '../shared/models/workflow-def.js'
+import type { Edge, NodeFn } from '../shared/models/compiled-graph.js'
 
 /**
- * Internal builder state for a node created by node(fn, stateKey?)
+ * Internal builder state for a node created by node(fn)
  */
 export interface NodeBuilderState {
-  fn: (state: any) => void
-  stateKey?: string
+  fn: NodeFn
 }
 
 /**
@@ -16,9 +14,7 @@ export interface WorkflowBuilderState {
   name: string
   stateSchema: Record<string, unknown>
   nodes: Array<{ name: string; builder: NodeBuilderState }>
-  edges: Edge[]
-  condEdges: CondEdgeDef[]
-  fanOuts: FanOutDef[]
+  edges: Edge[] // unified: PlainEdge | ConditionalEdge
   /** Nodes connected from START (entry points) */
   entryNodes: string[]
   /** Nodes connected to END (exit points) */

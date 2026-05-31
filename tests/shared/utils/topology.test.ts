@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import type { Edge } from '../../../src/shared/models/graph.js'
+import type { Edge } from '../../../src/shared/utils/topology.js'
 import {
   buildAdjacencyMap,
   buildReverseAdjacencyMap,

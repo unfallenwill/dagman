@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs'
 import * as path from 'path'
-import type { RunStatus } from '../../shared/models/superstep.js'
+import type { RunStatus } from '../../shared/models/compiled-graph.js'
 
 const DEFAULT_RUN_ID = 'default'
 

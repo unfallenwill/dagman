@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs'
 import * as path from 'path'
 import type { RunRepository } from '../../shared/models/repository.js'
-import type { RunInfo } from '../../shared/models/superstep.js'
+import type { RunInfo } from '../../shared/models/compiled-graph.js'
 import { getRunMetaFile, getRunsDir, getCurrentRunFilePath, getDagmanDir } from './paths.js'
 import { ensureDir, readJSON, writeJSON, fileExists } from './file-ops.js'
 

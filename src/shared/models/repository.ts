@@ -1,23 +1,4 @@
-import type { WorkflowRecord, RunInfo } from './superstep.js'
-import type { Event } from './event.js'
-
-/**
- * Abstraction over JSONL workflow state persistence.
- * Enables testing workflow logic without a real filesystem.
- */
-export interface WorkflowRepository {
-  readRecords(runId: string): Promise<WorkflowRecord[]>
-  appendRecord(runId: string, record: WorkflowRecord): Promise<void>
-  rewriteRecords(runId: string, records: WorkflowRecord[]): Promise<void>
-}
-
-/**
- * Abstraction over the append-only event log.
- */
-export interface EventRepository {
-  appendEvent(runId: string, event: Event): Promise<void>
-  readEvents(runId: string): Promise<Event[]>
-}
+import type { RunInfo } from './compiled-graph.js'
 
 /**
  * Abstraction over run metadata and current-run pointer persistence.

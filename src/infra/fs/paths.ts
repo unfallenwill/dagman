@@ -105,3 +105,21 @@ export function getWorkflowDir(name: string): string {
 export function getWorkflowTsFile(name: string): string {
   return resolve(`${WORKFLOWS_DIR}/${name}/index.ts`)
 }
+
+// --- Direct-state storage path resolvers ---
+
+export function getStateFile(runId: string): string {
+  return resolve(`${RUNS_DIR}/${runId}/state.json`)
+}
+
+export function getChannelsFile(runId: string): string {
+  return resolve(`${RUNS_DIR}/${runId}/channels.json`)
+}
+
+export function getTasksFile(runId: string): string {
+  return resolve(`${RUNS_DIR}/${runId}/tasks.json`)
+}
+
+export function getGraphFile(runId: string): string {
+  return resolve(`${RUNS_DIR}/${runId}/graph.json`)
+}

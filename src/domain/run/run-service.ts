@@ -1,12 +1,9 @@
 import { promises as fs } from 'fs'
 import * as path from 'path'
-import { RunNotFoundError, RunExistsError } from '../../shared/errors.js'
-import type { RunInfo, RunStatus } from '../../shared/models/superstep.js'
-import type { Node } from '../../shared/models/node.js'
-import type { Graph } from '../../shared/models/graph.js'
-import { loadWorkflowGraph } from '../compiler/compiler.js'
-import * as workflowService from '../workflow/workflow-engine.js'
-import { computeTopologicalLayers } from '../../shared/utils/topology.js'
+import { RunNotFoundError } from '../../shared/errors.js'
+import type { RunInfo, RunStatus } from '../../shared/models/compiled-graph.js'
+import type { CompiledGraph } from '../../shared/models/compiled-graph.js'
+import { initRun } from '../engine/execution-engine.js'
 import { generateInstanceId } from '../../shared/utils/id.js'
 import { setCurrentRunId, resolveCurrentRunId } from './run-resolver.js'
 
@@ -30,10 +27,6 @@ export interface RunDeps {
   writeJSON?: <T>(filePath: string, data: T) => Promise<void>
   fileExists?: (filePath: string) => Promise<boolean>
   readdir?: (dirPath: string) => Promise<string[]>
-  loadGraph?: (graphName: string) => Promise<Graph>
-  initWorkflow?: typeof workflowService.initWorkflow
-  getCurrentStep?: typeof workflowService.getCurrentStep
-  computeTopologicalLayers?: typeof computeTopologicalLayers
   generateInstanceId?: typeof generateInstanceId
   setCurrentRunId?: typeof setCurrentRunId
   resolveCurrentRunId?: typeof resolveCurrentRunId
@@ -57,117 +50,41 @@ function resolveRunDeps(deps?: RunDeps) {
     writeJSON: merged.writeJSON!,
     fileExists: merged.fileExists!,
     readdir: merged.readdir ?? ((dir: string) => fs.readdir(dir)),
-    loadGraph: merged.loadGraph ?? loadWorkflowGraph,
-    initWorkflow: merged.initWorkflow ?? workflowService.initWorkflow,
-    getCurrentStep: merged.getCurrentStep ?? workflowService.getCurrentStep,
-    computeTopologicalLayers: merged.computeTopologicalLayers ?? computeTopologicalLayers,
     generateInstanceId: merged.generateInstanceId ?? generateInstanceId,
     setCurrentRunId: merged.setCurrentRunId ?? setCurrentRunId,
     resolveCurrentRunId: merged.resolveCurrentRunId ?? resolveCurrentRunId,
   }
 }
 
-async function createRunInternal(
-  runId: string,
-  label?: string,
-  graphName?: string,
-  deps?: RunDeps,
-): Promise<RunInfo> {
-  const d = resolveRunDeps(deps)
-  const runDir = d.getRunDir(runId)
-  if (await d.fileExists(d.getRunMetaFile(runId))) {
-    throw new RunExistsError(runId)
-  }
-
-  await d.ensureDir(runDir)
-
-  let layerAssignment: Record<string, number> | undefined
-  let currentStep = 0
-  let status: RunStatus = 'idle'
-
-  // If bound to a graph, compute layers and initialize workflow
-  if (graphName) {
-    const graph = await d.loadGraph(graphName)
-    const nodes: Node[] = graph.nodes ?? []
-    const nodeNames = nodes.map((n: Node) => n.name)
-    const layers = d.computeTopologicalLayers(graph.edges, nodeNames)
-
-    layerAssignment = {}
-    for (const [layer, names] of layers.entries()) {
-      for (const name of names) {
-        layerAssignment[name] = layer
-      }
-    }
-
-    status = 'running'
-
-    const info: RunInfo = {
-      id: runId,
-      createdAt: new Date().toISOString(),
-      label,
-      graphName,
-      currentStep,
-      status,
-      layerAssignment,
-    }
-    await d.writeJSON(d.getRunMetaFile(runId), info)
-
-    // Initialize workflow.jsonl
-    await d.initWorkflow(runId, layers, graph.edges)
-
-    return info
-  }
-
-  const info: RunInfo = {
-    id: runId,
-    createdAt: new Date().toISOString(),
-    label,
-    graphName,
-    currentStep,
-    status,
-    layerAssignment,
-  }
-  await d.writeJSON(d.getRunMetaFile(runId), info)
-  return info
-}
-
 export async function createRun(
-  label?: string,
-  graphName?: string,
+  _label?: string,
+  _graphName?: string,
   switchTo?: boolean,
   explicitRunId?: string,
+  compiledGraph?: CompiledGraph,
   deps?: RunDeps,
 ): Promise<RunInfo> {
   const d = resolveRunDeps(deps)
+
+  if (!compiledGraph) {
+    throw new Error('compiledGraph is required to create a run')
+  }
+
   let runId: string
 
   if (explicitRunId) {
     runId = explicitRunId
-  } else if (graphName) {
-    // When bound to a graph/workflow, generate <name>@<suffix>
-    runId = d.generateInstanceId(graphName)
-  } else if (label) {
-    // Otherwise use sanitized label
-    runId = label
-      .toLowerCase()
-      .replace(/[^a-z0-9-]/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '')
-    if (!runId) {
-      throw new Error('could not generate valid run ID from label')
-    }
   } else {
-    // Fallback to timestamp-based ID
-    runId = `run-${Date.now()}`
+    runId = d.generateInstanceId(compiledGraph.name)
   }
 
-  const info = await createRunInternal(runId, label, graphName, deps)
+  const runInfo = await initRun(runId, compiledGraph)
 
   if (switchTo) {
     await d.setCurrentRunId(runId)
   }
 
-  return info
+  return runInfo
 }
 
 export async function listRuns(deps?: RunDeps): Promise<RunInfo[]> {
@@ -233,18 +150,7 @@ export async function showRun(
 
   const info = await d.readJSON<RunInfo>(metaFile)
 
-  let taskCount = 0
-  let completedTasks = 0
-
-  try {
-    const currentStep = await d.getCurrentStep(runId)
-    taskCount = currentStep.tasks.length
-    completedTasks = currentStep.tasks.filter(
-      (t) => t.status === 'success' || t.status === 'skipped',
-    ).length
-  } catch {
-    // workflow not initialized
-  }
-
-  return { ...info, taskCount, completedTasks }
+  // For now, return basic info without task counts from workflow engine.
+  // Task counts can be read from the TaskStore if needed.
+  return { ...info, taskCount: 0, completedTasks: 0 }
 }

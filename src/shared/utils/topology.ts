@@ -1,4 +1,8 @@
-import type { Edge } from '../models/graph.js'
+export interface Edge {
+  from: string
+  to: string
+  expect?: 'success' | 'skipped'
+}
 
 /**
  * Build forward adjacency map: from -> [to, ...]

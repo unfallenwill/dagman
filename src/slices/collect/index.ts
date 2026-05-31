@@ -3,41 +3,44 @@ import * as fs from 'fs/promises'
 import * as path from 'path'
 import { withErrorHandler, outputJson } from '../_shared/output.js'
 import { setCommandMeta } from '../_shared/command-meta.js'
-import * as runService from '../../domain/run/run-service.js'
-import { loadWorkflowGraph } from '../../domain/compiler/compiler.js'
-import * as workflowService from '../../domain/workflow/workflow-engine.js'
-import { stateChannelName } from '../../shared/models/channel.js'
+import { completeNodeExternal } from '../../domain/engine/execution-engine.js'
+import { readState } from '../../domain/engine/state-service.js'
+import { listRunIds } from '../../domain/run/run-resolver.js'
 import { ValidationError } from '../../shared/errors.js'
 import { parseNodeRef } from '../../shared/utils/id.js'
-import { listRunIds } from '../../domain/run/run-resolver.js'
 
 export function registerCollectCommand(program: Command): void {
   const collectCmd = program.command('collect').summary('Collect results for a workflow node')
-    .description(`Collect and validate results for a node that has a stateKey.
+    .description(`Submit external results for a node in the current run.
 
-This command is used by the agent to submit results after a node
-execution. It validates the result against the state schema, writes
-the value to the appropriate state channel, and marks the collect
-task as complete.
+This command is used to provide results for nodes that wait for external
+input (e.g. user confirmation, agent response). It writes the value to
+the shared state, marks the node's task as completed, and writes the
+node's held channels so downstream nodes can trigger.
 
-Usage: dagman collect <node-name@id-xxx> -f <result.json>`)
+Usage: dagman collect <node-ref> -f <result.json>
+       dagman collect <node-ref> --value '{"key":"value"}'`)
 
   setCommandMeta(collectCmd, {
     examples: [
       {
         description: 'Collect result from a JSON file',
-        command: 'dagman collect classify@abc123 -f result.json',
+        command: 'dagman collect mynode@abc123 -f result.json',
       },
       {
         description: 'Collect result with inline value',
-        command: 'dagman collect classify@abc123 --value \'{"intent":"need_tool"}\'',
+        command: 'dagman collect mynode@abc123 --value \'{"intent":"done"}\'',
+      },
+      {
+        description: 'Collect with explicit state key',
+        command: 'dagman collect mynode@abc123 --value true --key myResult',
       },
     ],
     exitStatus: [
-      { code: 0, meaning: 'Success (result collected and validated)' },
+      { code: 0, meaning: 'Success (result collected and task completed)' },
       { code: 1, meaning: 'Error (validation failed, task not found, etc.)' },
     ],
-    seeAlso: ['dagman-next(1)', 'dagman-workflow(1)', 'dagman-channel(1)'],
+    seeAlso: ['dagman-next(1)', 'dagman-start(1)'],
     dataProducing: true,
   })
 
@@ -45,6 +48,7 @@ Usage: dagman collect <node-name@id-xxx> -f <result.json>`)
     .argument('<node-ref>', 'node reference in format <node-name@instance-suffix>')
     .option('-f, --file <path>', 'JSON file containing the result')
     .option('--value <json>', 'inline JSON value for the result')
+    .option('--key <stateKey>', 'state key to write the value to (defaults to node name)')
     .option('--json', 'output result as JSON')
     .action(
       withErrorHandler(
@@ -53,13 +57,14 @@ Usage: dagman collect <node-name@id-xxx> -f <result.json>`)
           options: {
             file?: string
             value?: string
+            key?: string
             json?: boolean
           },
         ) => {
           // Parse node reference: <node-name>@<instance-suffix>
           const { nodeName, instanceSuffix } = parseNodeRef(nodeRef)
 
-          // Find the matching run by scanning for instance suffix
+          // Resolve run ID from instance suffix
           const runIds = await listRunIds()
           const rid = runIds.find((id) => id.endsWith(`@${instanceSuffix}`))
           if (!rid) {
@@ -68,40 +73,8 @@ Usage: dagman collect <node-name@id-xxx> -f <result.json>`)
             )
           }
 
-          // Load graph for that run
-          const graphName = await runService.getGraphForRun(rid)
-          if (!graphName) {
-            throw new ValidationError(`workflow instance ${rid} is not bound to a graph`)
-          }
-
-          const graph = await loadWorkflowGraph(graphName)
-
-          // Look up node from graph.nodes
-          const node = graph.nodes?.find((n) => n.name === nodeName)
-          if (!node) {
-            throw new ValidationError(`node '${nodeName}' not found in workflow '${graphName}'`)
-          }
-
-          if (!node.stateKey) {
-            throw new ValidationError(
-              `node '${nodeName}' does not have a stateKey, nothing to collect`,
-            )
-          }
-
-          // Load the collect task
-          const collectName = `collect-${nodeName}`
-          const state = await workflowService.loadState(rid)
-          const collectTask = state.currentRecord.tasks.find((t) => t.nodeId === collectName)
-          if (!collectTask) {
-            throw new ValidationError(
-              `collect task '${collectName}' not found in current superstep`,
-            )
-          }
-          if (collectTask.status !== 'ready') {
-            throw new ValidationError(
-              `collect task '${collectName}' is '${collectTask.status}', cannot collect (expected 'ready')`,
-            )
-          }
+          // Determine the state key (defaults to node name)
+          const stateKey = options.key ?? nodeName
 
           // Read result value
           let resultValue: unknown
@@ -115,30 +88,25 @@ Usage: dagman collect <node-name@id-xxx> -f <result.json>`)
             throw new ValidationError('must provide --file <path> or --value <json>')
           }
 
-          // Write to state channel: _state.<stateKey> = resultValue
-          const channelName = stateChannelName(node.stateKey)
-          await workflowService.startTask(collectName, rid)
-          await workflowService.setChannel(channelName, resultValue, rid)
+          // Complete the node externally: patch state + write channels + mark task success
+          await completeNodeExternal(rid, nodeName, { [stateKey]: resultValue })
 
-          // Complete the collect task
-          const edges = graph.edges
-          await workflowService.completeTask(collectName, edges, rid)
+          // Read updated state for display
+          const state = await readState(rid)
 
           if (options.json) {
             outputJson({
               nodeName,
-              instanceId: rid,
-              stateKey: node.stateKey,
-              channel: channelName,
+              runId: rid,
+              stateKey,
               value: resultValue,
-              collectTask: collectName,
               status: 'success',
+              state,
             })
           } else {
-            console.log(`Collected '${node.stateKey}' for ${nodeName} (${rid})`)
-            console.log(`  Channel: ${channelName}`)
+            console.log(`Collected '${stateKey}' for ${nodeName} (${rid})`)
             console.log(`  Value: ${JSON.stringify(resultValue)}`)
-            console.log(`  Task: ${collectName} → success`)
+            console.log(`  Task: ${nodeName} → success`)
           }
         },
       ),
