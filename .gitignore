@@ -6,3 +6,4 @@ specs/
 .cache/
 .eslintcache
 coverage/
+.antigravitycli/
