@@ -915,3 +915,89 @@ describe('executeStep — full lifecycle', () => {
     expect(taskB?.status).toBe('failed')
   })
 })
+
+// =====================================================================
+// executeNode — node-not-found error
+// =====================================================================
+
+describe('executeNode — error cases', () => {
+  it('should throw when node not found in graph', async () => {
+    const graph = buildTestGraph(['A'], [], 'node-not-found')
+    const runId = await setupRun(graph)
+
+    await expect(executeNode(runId, 'NonExistent', graph)).rejects.toThrow(
+      "node 'NonExistent' not found in compiled graph",
+    )
+  })
+})
+
+// =====================================================================
+// autoAdvanceEmptyLayers
+// =====================================================================
+
+describe('autoAdvanceEmptyLayers', () => {
+  it('should auto-advance through empty layers and complete when nothing triggers', async () => {
+    // Graph: A→B→C. We execute step 0 (A), then reset B's trigger channel
+    // so layer 1 has no triggered nodes. autoAdvanceEmptyLayers should
+    // complete the run since all remaining layers are empty.
+    const graph = buildTestGraph(
+      ['A', 'B', 'C'],
+      [
+        { from: 'A', to: 'B' },
+        { from: 'B', to: 'C' },
+      ],
+      'auto-advance-empty',
+    )
+    const runId = await setupRun(graph)
+
+    // Execute step 0 — A runs and triggers B
+    const r0 = await executeStep(runId)
+    expect(r0.executed).toEqual(['A'])
+
+    // Now reset trigger:B channel version to 0 so layer 1 has no triggered nodes
+    await backend.initChannels(runId, {
+      'trigger:B': { type: 'trigger' },
+      'trigger:C': { type: 'trigger' },
+    })
+
+    // executeStep should auto-advance through empty layers and complete
+    const r1 = await executeStep(runId)
+    expect(r1.completed).toBe(true)
+    expect(r1.executed).toEqual([])
+
+    const info = await backend.readRunInfo(runId)
+    expect(info.status).toBe('completed')
+  })
+
+  it('should auto-advance to a layer with triggered nodes and execute them', async () => {
+    // Graph: A→B→C. Execute step 0 (A). Reset trigger:B but keep trigger:C.
+    // Then manually trigger:C so layer 2 (C) has triggered nodes.
+    // autoAdvanceEmptyLayers should skip layer 1 and find C in layer 2.
+    const graph = buildTestGraph(
+      ['A', 'B', 'C'],
+      [
+        { from: 'A', to: 'B' },
+        { from: 'B', to: 'C' },
+      ],
+      'auto-advance-partial',
+    )
+    const runId = await setupRun(graph)
+
+    // Execute step 0
+    await executeStep(runId)
+
+    // Reset all channels so nothing in layer 1 is triggered
+    await backend.initChannels(runId, {
+      'trigger:B': { type: 'trigger' },
+      'trigger:C': { type: 'trigger' },
+    })
+
+    // Manually trigger C's channel so layer 2 has a triggered node
+    await backend.triggerChannel(runId, 'trigger:C')
+
+    // executeStep should auto-advance past layer 1, schedule layer 2, and execute C
+    const r1 = await executeStep(runId)
+    expect(r1.completed).toBe(true)
+    expect(r1.executed).toEqual(['C'])
+  })
+})

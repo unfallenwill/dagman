@@ -148,5 +148,33 @@ describe('file utilities', () => {
       const result = await listFiles(tmpDir, '.yaml')
       expect(result).toEqual([])
     })
+
+    it('should re-throw non-ENOENT errors from readdir', async () => {
+      // listFiles calls readdir on the path. If the path is a file (not a dir),
+      // readdir throws ENOTDIR which is not ENOENT — so it should re-throw.
+      const filePath = path.join(tmpDir, 'afile.txt')
+      await fs.writeFile(filePath, 'hello', 'utf-8')
+      await expect(listFiles(filePath)).rejects.toThrow()
+    })
+  })
+
+  describe('non-ENOENT error re-throws', () => {
+    it('readJSON re-throws non-ENOENT errors (EISDIR)', async () => {
+      // readJSON on a directory path triggers EISDIR, not ENOENT
+      const dirPath = path.join(tmpDir, 'subdir')
+      await fs.mkdir(dirPath)
+      await expect(readJSON(dirPath)).rejects.toThrow()
+      // Should NOT be NodeNotFoundError
+      await expect(readJSON(dirPath)).rejects.not.toThrow(NodeNotFoundError)
+    })
+
+    it('deleteFile re-throws non-ENOENT errors', async () => {
+      // Try to delete a file in a non-existent directory that has a very deep path
+      // This triggers ENOENT from the parent, but we need a non-ENOENT error.
+      // Instead, try to delete a directory (not a file) — triggers EISDIR
+      const dirPath = path.join(tmpDir, 'a-dir')
+      await fs.mkdir(dirPath)
+      await expect(deleteFile(dirPath)).rejects.toThrow()
+    })
   })
 })

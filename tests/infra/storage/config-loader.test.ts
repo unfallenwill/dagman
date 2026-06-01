@@ -1,4 +1,5 @@
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
+import { existsSync, mkdirSync, writeFileSync, unlinkSync, rmSync } from 'fs'
 import {
   loadConfig,
   resetConfig,
@@ -10,6 +11,15 @@ import { DEFAULT_CONFIG } from '../../../src/shared/models/config.js'
 describe('config-loader', () => {
   afterEach(() => {
     resetConfig()
+    const configPath = getConfigPath()
+    if (existsSync(configPath)) {
+      unlinkSync(configPath)
+    }
+    const configDir = getConfigDir()
+    if (existsSync(configDir)) {
+      rmSync(configDir, { recursive: true, force: true })
+    }
+    vi.restoreAllMocks()
   })
 
   describe('loadConfig', () => {
@@ -74,6 +84,36 @@ describe('config-loader', () => {
       const dir = getConfigDir()
       const file = getConfigPath()
       expect(file.startsWith(dir)).toBe(true)
+    })
+  })
+
+  describe('loadConfig with malformed config file', () => {
+    it('should return defaults and warn when config file has malformed JSON', () => {
+      const configPath = getConfigPath()
+      const configDir = getConfigDir()
+      mkdirSync(configDir, { recursive: true })
+      writeFileSync(configPath, '{ invalid json !!!', 'utf-8')
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const config = loadConfig()
+
+      expect(config.storage).toEqual(DEFAULT_CONFIG.storage)
+      expect(warnSpy).toHaveBeenCalledOnce()
+      expect(warnSpy.mock.calls[0]![0]).toContain('failed to parse')
+    })
+
+    it('should return defaults and warn when config file has non-JSON content', () => {
+      const configPath = getConfigPath()
+      const configDir = getConfigDir()
+      mkdirSync(configDir, { recursive: true })
+      writeFileSync(configPath, 'this is not json at all', 'utf-8')
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const config = loadConfig()
+
+      expect(config.storage).toEqual(DEFAULT_CONFIG.storage)
+      expect(warnSpy).toHaveBeenCalledOnce()
+      expect(warnSpy.mock.calls[0]![0]).toContain('failed to parse')
     })
   })
 })
