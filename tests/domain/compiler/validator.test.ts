@@ -188,4 +188,201 @@ describe('validator', () => {
       expect(result.isOk()).toBe(true)
     })
   })
+
+  describe('reachability / orphan detection', () => {
+    it('should allow single node with no edges', () => {
+      expect(validateWorkflow(baseDef()).isOk()).toBe(true)
+    })
+
+    it('should allow two nodes connected by plain edge', () => {
+      const result = validateWorkflow(
+        baseDef({
+          nodes: [
+            { name: 'A', fn: (s) => s },
+            { name: 'B', fn: (s) => s },
+          ],
+          edges: [{ from: 'A', to: 'B' }],
+        }),
+      )
+      expect(result.isOk()).toBe(true)
+    })
+
+    it('should allow linear chain A→B→C', () => {
+      const result = validateWorkflow(
+        baseDef({
+          nodes: [
+            { name: 'A', fn: (s) => s },
+            { name: 'B', fn: (s) => s },
+            { name: 'C', fn: (s) => s },
+          ],
+          edges: [
+            { from: 'A', to: 'B' },
+            { from: 'B', to: 'C' },
+          ],
+        }),
+      )
+      expect(result.isOk()).toBe(true)
+    })
+
+    it('should allow diamond A→B, A→C, B→D, C→D', () => {
+      const result = validateWorkflow(
+        baseDef({
+          nodes: [
+            { name: 'A', fn: (s) => s },
+            { name: 'B', fn: (s) => s },
+            { name: 'C', fn: (s) => s },
+            { name: 'D', fn: (s) => s },
+          ],
+          edges: [
+            { from: 'A', to: 'B' },
+            { from: 'A', to: 'C' },
+            { from: 'B', to: 'D' },
+            { from: 'C', to: 'D' },
+          ],
+        }),
+      )
+      expect(result.isOk()).toBe(true)
+    })
+
+    it('should allow multiple entry nodes A→C, B→C', () => {
+      const result = validateWorkflow(
+        baseDef({
+          nodes: [
+            { name: 'A', fn: (s) => s },
+            { name: 'B', fn: (s) => s },
+            { name: 'C', fn: (s) => s },
+          ],
+          edges: [
+            { from: 'A', to: 'C' },
+            { from: 'B', to: 'C' },
+          ],
+        }),
+      )
+      expect(result.isOk()).toBe(true)
+    })
+
+    it('should allow conditional edge A→targets[B, C]', () => {
+      const result = validateWorkflow(
+        baseDef({
+          nodes: [
+            { name: 'A', fn: (s) => s },
+            { name: 'B', fn: (s) => s },
+            { name: 'C', fn: (s) => s },
+          ],
+          edges: [{ from: 'A', targets: ['B', 'C'], fn: () => ['B'] }],
+        }),
+      )
+      expect(result.isOk()).toBe(true)
+    })
+
+    it('should allow mixed plain and conditional edges', () => {
+      const result = validateWorkflow(
+        baseDef({
+          nodes: [
+            { name: 'A', fn: (s) => s },
+            { name: 'B', fn: (s) => s },
+            { name: 'C', fn: (s) => s },
+            { name: 'D', fn: (s) => s },
+          ],
+          edges: [
+            { from: 'A', to: 'B' },
+            { from: 'B', targets: ['C', 'D'], fn: () => ['C'] },
+          ],
+        }),
+      )
+      expect(result.isOk()).toBe(true)
+    })
+
+    it('should allow disconnected components with edges (A→B, C→D)', () => {
+      const result = validateWorkflow(
+        baseDef({
+          nodes: [
+            { name: 'A', fn: (s) => s },
+            { name: 'B', fn: (s) => s },
+            { name: 'C', fn: (s) => s },
+            { name: 'D', fn: (s) => s },
+          ],
+          edges: [
+            { from: 'A', to: 'B' },
+            { from: 'C', to: 'D' },
+          ],
+        }),
+      )
+      expect(result.isOk()).toBe(true)
+    })
+
+    it('should reject two nodes with no edges (all orphans)', () => {
+      const result = validateWorkflow(
+        baseDef({
+          nodes: [
+            { name: 'A', fn: (s) => s },
+            { name: 'B', fn: (s) => s },
+          ],
+        }),
+      )
+      expect(result.isErr()).toBe(true)
+      if (result.isErr()) {
+        expect(result.error.message).toContain('orphan')
+        expect(result.error.message).toContain("'A'")
+        expect(result.error.message).toContain("'B'")
+      }
+    })
+
+    it('should reject orphan node alongside connected nodes', () => {
+      const result = validateWorkflow(
+        baseDef({
+          nodes: [
+            { name: 'A', fn: (s) => s },
+            { name: 'B', fn: (s) => s },
+            { name: 'C', fn: (s) => s },
+          ],
+          edges: [{ from: 'A', to: 'B' }],
+        }),
+      )
+      expect(result.isErr()).toBe(true)
+      if (result.isErr()) {
+        expect(result.error.message).toContain('orphan')
+        expect(result.error.message).toContain("'C'")
+        expect(result.error.message).not.toContain("'A'")
+        expect(result.error.message).not.toContain("'B'")
+      }
+    })
+
+    it('should reject multiple orphan nodes', () => {
+      const result = validateWorkflow(
+        baseDef({
+          nodes: [
+            { name: 'A', fn: (s) => s },
+            { name: 'B', fn: (s) => s },
+            { name: 'C', fn: (s) => s },
+            { name: 'D', fn: (s) => s },
+          ],
+          edges: [{ from: 'A', to: 'B' }],
+        }),
+      )
+      expect(result.isErr()).toBe(true)
+      if (result.isErr()) {
+        expect(result.error.message).toContain("'C'")
+        expect(result.error.message).toContain("'D'")
+      }
+    })
+
+    it('should reject orphan with conditional edges present', () => {
+      const result = validateWorkflow(
+        baseDef({
+          nodes: [
+            { name: 'A', fn: (s) => s },
+            { name: 'B', fn: (s) => s },
+            { name: 'C', fn: (s) => s },
+          ],
+          edges: [{ from: 'A', targets: ['B'], fn: () => ['B'] }],
+        }),
+      )
+      expect(result.isErr()).toBe(true)
+      if (result.isErr()) {
+        expect(result.error.message).toContain('orphan')
+        expect(result.error.message).toContain("'C'")
+      }
+    })
+  })
 })

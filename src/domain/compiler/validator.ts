@@ -16,6 +16,7 @@ import * as R from 'remeda'
  * 4. All node names referenced in edges exist (PlainEdge + ConditionalEdge unified)
  * 5. ConditionalEdge targets must not be empty
  * 6. No cycles in the combined edge graph
+ * 7. All nodes reachable from entry nodes (no orphan or disconnected nodes)
  */
 export function validateWorkflow(def: WorkflowDefinition): Result<void, ValidationError> {
   const errors: string[] = []
@@ -65,6 +66,12 @@ export function validateWorkflow(def: WorkflowDefinition): Result<void, Validati
     return err(new ValidationError(cycleError))
   }
 
+  // ── 7. Reachability check (orphan / unreachable nodes) ──
+  const reachabilityError = detectUnreachableNodes(def.edges, nodeNameSet)
+  if (reachabilityError) {
+    return err(new ValidationError(reachabilityError))
+  }
+
   return ok(undefined)
 }
 
@@ -105,18 +112,13 @@ function validateEdgeReferences(edges: Edge[], nodeNames: Set<string>): string[]
 }
 
 /**
- * Detect cycles in the unified edge graph.
- * Uses DFS three-color marking.
- *
- * For cycle detection, conditional edges are expanded: from -> each target
- * creates a directed edge from the source to the target (dependency direction).
+ * Build forward adjacency map from unified Edge[].
+ * Direction: from -> [to, ...] represents data flow (upstream -> downstream).
  */
-function detectCycles(edges: Edge[]): string | null {
-  // Build adjacency: source -> [target, ...]
-  // Edge semantics: `from` depends on `to`, so the dependency graph edge is from -> to
+function buildForwardAdjacency(edges: Edge[]): Map<string, string[]> {
   const adj = new Map<string, string[]>()
 
-  function addEdge(from: string, to: string): void {
+  function add(from: string, to: string): void {
     const targets = adj.get(from) ?? []
     targets.push(to)
     adj.set(from, targets)
@@ -125,17 +127,30 @@ function detectCycles(edges: Edge[]): string | null {
   for (const edge of edges) {
     match(edge)
       .when(isPlainEdge, (e) => {
-        addEdge(e.from, e.to)
+        add(e.from, e.to)
       })
       .when(isConditionalEdge, (e) => {
         for (const target of e.targets) {
-          addEdge(e.from, target)
+          add(e.from, target)
         }
       })
       .exhaustive()
   }
 
-  // Collect all nodes
+  return adj
+}
+
+/**
+ * Detect cycles in the unified edge graph.
+ * Uses DFS three-color marking.
+ *
+ * For cycle detection, conditional edges are expanded: from -> each target
+ * creates a directed edge from the source to the target (dependency direction).
+ */
+function detectCycles(edges: Edge[]): string | null {
+  const adj = buildForwardAdjacency(edges)
+
+  // Collect all nodes referenced in edges
   const allNodes = new Set<string>()
   for (const [from, targets] of adj) {
     allNodes.add(from)
@@ -170,6 +185,44 @@ function detectCycles(edges: Edge[]): string | null {
         return 'workflow contains a cycle in its edge definitions'
       }
     }
+  }
+
+  return null
+}
+
+/**
+ * Detect orphan nodes (not connected to any edge).
+ *
+ * In a valid DAG where all nodes appear in edges, forward BFS from entry
+ * nodes (in-degree 0) always reaches every node. So the only unreachable
+ * case is orphan nodes — nodes that do not appear in any edge.
+ *
+ * Special case: a single-node workflow with no edges is valid
+ * (the node is the sole entry node and trivially reachable).
+ */
+function detectUnreachableNodes(edges: Edge[], nodeNames: Set<string>): string | null {
+  // Single-node workflow: the node is the start, no edges needed
+  if (nodeNames.size <= 1 && edges.length === 0) return null
+
+  // Build connected set: nodes that appear in at least one edge
+  const connectedNodes = new Set<string>()
+  for (const edge of edges) {
+    match(edge)
+      .when(isPlainEdge, (e) => {
+        connectedNodes.add(e.from)
+        connectedNodes.add(e.to)
+      })
+      .when(isConditionalEdge, (e) => {
+        connectedNodes.add(e.from)
+        for (const t of e.targets) connectedNodes.add(t)
+      })
+      .exhaustive()
+  }
+
+  // Orphan detection: nodes with no edges at all
+  const orphans = [...nodeNames].filter((name) => !connectedNodes.has(name)).sort()
+  if (orphans.length > 0) {
+    return `orphan node${orphans.length > 1 ? 's' : ''} with no edges: ${orphans.map((n) => `'${n}'`).join(', ')}`
   }
 
   return null
