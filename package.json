@@ -1,6 +1,6 @@
 {
   "name": "dagman",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "dagman - DAG-based agent task orchestration CLI",
   "main": "dist/src/index.js",
   "exports": {
@@ -21,7 +21,7 @@
   },
   "scripts": {
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "npm run clean && tsc -p tsconfig.build.json",
+    "build": "npm run clean && tsc -p tsconfig.build.json && chmod 755 dist/bin/dagman.js",
     "dev": "tsx bin/dagman.ts",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
