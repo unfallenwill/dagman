@@ -210,7 +210,8 @@ Embed a child workflow. Child nodes are prefixed with the subgraph name:
 ```typescript
 .subgraph('child', childDef)
 // Child node 'step1' becomes 'child.step1'
-// Connect with .edge('child.step1', 'parent-node')
+// .edge('setup', 'child.step1') runs parent setup before child step1
+// .edge('child.done', 'aggregate') runs parent aggregate after child done
 ```
 
 ## Core Concepts

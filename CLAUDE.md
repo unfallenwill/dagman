@@ -52,10 +52,10 @@ src/
 
 ### Channel + Version
 
-All runtime data is unified as Channels, each with `value` + `version`:
-- Node context channel: `{node}.{key}` (node execution output)
-- Edge channel: `edge:{from}→{to}` (dependency satisfaction signal)
-- Global channel: `_global.{key}` (shared across nodes)
+Runtime coordination uses versioned channels:
+- Trigger channel: `trigger:<target>` for single-source edges
+- Barrier channel: `barrier:<target>` for multi-source joins
+- Shared state stores node output patches
 
 ### Node → Task Separation
 

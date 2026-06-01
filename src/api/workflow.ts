@@ -21,7 +21,8 @@ export interface WorkflowBuilder {
    *  Child nodes are prefixed with `name.`, edges are remapped.
    *  Example: .subgraph('process', childDef)
    *    → child node 'step1' becomes 'process.step1'
-   *    → Use .edge('process.step1', 'setup') to connect to parent */
+   *    → .edge('setup', 'process.step1') runs parent setup before child step1
+   *    → .edge('process.done', 'aggregate') runs parent aggregate after child done */
   subgraph(name: string, childDef: WorkflowDefinition): this
   /** Build the workflow definition */
   build(): WorkflowDefinition

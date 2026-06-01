@@ -114,11 +114,11 @@ function computeSimpleLayers(
   }
 
   for (const edge of edges) {
-    // from depends on to → to executes before from
-    inDegree.set(edge.from, (inDegree.get(edge.from) ?? 0) + 1)
-    const list = dependents.get(edge.to) ?? []
-    list.push(edge.from)
-    dependents.set(edge.to, list)
+    // from triggers to → to depends on from
+    inDegree.set(edge.to, (inDegree.get(edge.to) ?? 0) + 1)
+    const list = dependents.get(edge.from) ?? []
+    list.push(edge.to)
+    dependents.set(edge.from, list)
   }
 
   const layers: string[][] = []
