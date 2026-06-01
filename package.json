@@ -1,6 +1,6 @@
 {
   "name": "dagman",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "dagman - DAG-based agent task orchestration CLI",
   "main": "dist/index.js",
   "exports": {
