@@ -124,8 +124,8 @@ function buildCompiledNodes(
 /**
  * Compute topological layers using BFS (Kahn's algorithm).
  *
- * Edge direction: `from` depends on `to` (from is triggered by to),
- * so in the dependency graph: from has in-degree from `to`.
+ * Edge direction: `from` triggers `to` (flow direction),
+ * so in the dependency graph: `to` depends on `from` (`to` has in-degree from `from`).
  * Entry nodes (no incoming edges = no triggers) go in layer 0.
  *
  * Handles the unified Edge[] using ts-pattern to dispatch PlainEdge / ConditionalEdge.

@@ -89,7 +89,7 @@ function displayWorkflowHeader(meta: {
 export function registerNextCommand(program: Command): void {
   const nextCmd = program
     .command('next')
-    .summary('Get the next executable task')
+    .summary('Execute the next superstep')
     .description(
       `Execute the next step in the current run.
 
@@ -194,7 +194,7 @@ The agent execution loop typically follows: next -> (nodes execute) -> next -> .
               console.log(`  ${icon} ${nodeId} → ${status}`)
             }
             console.log(
-              `\nRun paused — failed: ${failedNodes.join(', ')}. Use 'dagman task retry <node>' to continue.`,
+              `\nRun paused — failed: ${failedNodes.join(', ')}. Restart the run to retry.`,
             )
             return
           }

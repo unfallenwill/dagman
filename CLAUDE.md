@@ -119,7 +119,7 @@ Co-Authored-By: GLM 5.1 <noreply@z.ai>
 
 ## Edge Semantics
 
-- `Edge { from, to, expect? }` — `from` depends on `to`, `expect` defaults to `"success"`
-- `skipped` equals `success`: when `expect` is `"success"`, a `"skipped"` status on the `to` node also satisfies the dependency
+- `Edge { from, to }` — `from` triggers `to` (from executes first, to depends on from)
+- `skipped` equals `success`: when a node is skipped, its downstream dependencies are still satisfied
 - Run instances are created via `dagman start <name>`, which compiles the workflow and creates a run in one step
 - The run auto-computes topological layers from the graph definition
