@@ -1,23 +1,24 @@
 import type { Command } from 'commander'
-import { readFileSync } from 'fs'
+import { existsSync, readFileSync } from 'fs'
 import * as path from 'path'
+import { fileURLToPath } from 'url'
 import { CliError } from '../../shared/errors.js'
 
 function getVersion(): string {
   try {
-    // Search upward from script directory for package.json (dist/src/slices/help/index.js -> package.json)
-    const pkgPath = path.resolve(__dirname, '../../../../package.json')
-    const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'))
-    return pkg.version ?? '0.0.0'
-  } catch {
-    // Fallback to cwd
-    try {
-      const pkgPath = path.resolve('package.json')
-      const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'))
-      return pkg.version ?? '0.0.0'
-    } catch {
-      return '0.0.0'
+    // Walk up from bundle location to find package.json
+    let dir = path.dirname(fileURLToPath(import.meta.url))
+    for (let i = 0; i < 8; i++) {
+      const pkgPath = path.join(dir, 'package.json')
+      if (existsSync(pkgPath)) {
+        const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'))
+        return pkg.version ?? '0.0.0'
+      }
+      dir = path.dirname(dir)
     }
+    return '0.0.0'
+  } catch {
+    return '0.0.0'
   }
 }
 

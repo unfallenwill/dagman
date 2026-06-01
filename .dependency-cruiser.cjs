@@ -20,11 +20,19 @@ module.exports = {
     {
       name: 'no-dev-deps-in-src',
       severity: 'error',
-      comment: 'Production code must not use devDependencies',
+      comment:
+        'Production code must not use devDependencies (bundled deps are OK — tsdown inlines them at build time)',
       from: { path: '^src/' },
       to: {
         dependencyTypes: ['npm-dev'],
-        pathNot: ['tsx'],
+        pathNot: [
+          'tsx',
+          'commander',
+          'remeda',
+          'ts-pattern',
+          'neverthrow',
+          'picocolors',
+        ],
       },
     },
 

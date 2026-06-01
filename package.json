@@ -2,15 +2,16 @@
   "name": "dagman",
   "version": "0.1.2",
   "description": "dagman - DAG-based agent task orchestration CLI",
-  "main": "dist/src/index.js",
+  "type": "module",
+  "main": "dist/index.js",
   "exports": {
     ".": {
-      "import": "./dist/src/index.js",
-      "types": "./dist/src/index.d.ts"
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
     },
     "./api": {
-      "import": "./dist/src/api/index.js",
-      "types": "./dist/src/api/index.d.ts"
+      "import": "./dist/api.js",
+      "types": "./dist/api.d.ts"
     }
   },
   "bin": {
@@ -21,7 +22,7 @@
   },
   "scripts": {
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "npm run clean && tsc -p tsconfig.build.json && chmod 755 dist/bin/dagman.js",
+    "build": "tsdown",
     "dev": "tsx bin/dagman.ts",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -29,8 +30,8 @@
     "lint:fix": "eslint src bin tests --fix",
     "lint:deps": "depcruise src bin",
     "typecheck": "tsc --noEmit",
-    "format": "prettier --write 'src/**/*.ts' 'bin/**/*.ts' 'tests/**/*.ts'",
-    "format:check": "prettier --check 'src/**/*.ts' 'bin/**/*.ts' 'tests/**/*.ts'",
+    "format": "prettier --write \"src/**/*.ts\" \"bin/**/*.ts\" \"tests/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"bin/**/*.ts\" \"tests/**/*.ts\"",
     "check": "npm run typecheck && npm run lint && npm run format:check && npm run lint:deps",
     "prepublishOnly": "npm run build",
     "prepare": "husky"
@@ -52,18 +53,15 @@
     "access": "public"
   },
   "dependencies": {
+    "tsx": "^4.19.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
     "commander": "^12.1.0",
-    "handlebars": "^4.7.9",
     "neverthrow": "^8.2.0",
     "picocolors": "^1.1.1",
     "remeda": "^2.37.0",
     "ts-pattern": "^5.9.0",
-    "tsx": "^4.19.0",
-    "zod": "^4.3.6"
-  },
-  "devDependencies": {
-    "@types/handlebars": "^4.0.40",
-    "@types/node": "^25.6.0",
     "@vitest/coverage-v8": "^4.1.7",
     "dependency-cruiser": "^17.4.2",
     "eslint": "^10.4.0",
@@ -71,6 +69,7 @@
     "husky": "^9.1.7",
     "lint-staged": "^17.0.5",
     "prettier": "^3.8.3",
+    "tsdown": "^0.22.1",
     "typescript": "^5.7.0",
     "typescript-eslint": "^8.60.0",
     "vitest": "^4.1.7"

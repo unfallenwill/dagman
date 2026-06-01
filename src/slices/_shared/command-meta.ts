@@ -1,6 +1,7 @@
 import type { Command } from 'commander'
 import * as path from 'path'
 import { existsSync } from 'fs'
+import { fileURLToPath } from 'url'
 
 /**
  * Man page style metadata for a CLI command.
@@ -20,15 +21,15 @@ export interface CommandMeta {
 const META_KEY = Symbol('dagman:command-meta')
 
 // Detect package root by searching upward for package.json
-// Dev:    this file is at src/slices/_shared/ (3 levels up)
-// Compiled: this file is at dist/src/slices/_shared/ (4 levels up)
+// Works in dev (src/slices/_shared/), bundled (dist/bin/), or published package
 function findPkgRoot(): string {
-  let dir = __dirname
+  const startDir = path.dirname(fileURLToPath(import.meta.url))
+  let dir = startDir
   for (let i = 0; i < 8; i++) {
     if (existsSync(path.join(dir, 'package.json'))) return dir
     dir = path.dirname(dir)
   }
-  return __dirname
+  return startDir
 }
 
 const PKG_ROOT = findPkgRoot()
