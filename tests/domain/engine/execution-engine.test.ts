@@ -441,6 +441,32 @@ describe('executeNode', () => {
     expect(channels['trigger:Y']!.version).toBe(0)
   })
 
+  it('should route based on post-patch state (route sees node output)', async () => {
+    // Regression test: route function must see the state AFTER the node's
+    // patch is applied, not the pre-patch state.
+    // R sets destination='X' via its fn; the route reads destination.
+    const routeFn = (state: State): string[] => {
+      return state.destination === 'X' ? ['X'] : ['Y']
+    }
+
+    const graph = buildTestGraph(
+      ['R', 'X', 'Y'],
+      [{ from: 'R', targets: ['X', 'Y'], fn: routeFn }],
+      'cond-postpatch',
+      { destination: 'Y' }, // initial state would route to Y
+    )
+    // R's fn flips destination to X — route should see this
+    graph.nodes['R']!.fn = () => ({ destination: 'X' })
+
+    const runId = await setupRun(graph)
+
+    await executeNode(runId, 'R', graph)
+
+    const channels = await channelStore.readAll(runId)
+    expect(channels['trigger:X']!.version).toBe(1) // selected by route (post-patch)
+    expect(channels['trigger:Y']!.version).toBe(0) // NOT selected
+  })
+
   it('should set task to failed when fn throws', async () => {
     const graph = buildTestGraph(['A'])
     graph.nodes['A']!.fn = () => {

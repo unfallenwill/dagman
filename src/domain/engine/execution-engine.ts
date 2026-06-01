@@ -280,8 +280,9 @@ export async function executeNode(
     // 4. Merge patch into state
     await d.stateStore.patch(runId, patch)
 
-    // 5. Execute write strategies
-    await executeStrategies(runId, node, graph.channels, state, deps)
+    // 5. Execute write strategies (use post-patch state so route functions
+    //    can read keys written by the current node)
+    await executeStrategies(runId, node, graph.channels, { ...state, ...patch }, deps)
 
     // 6. Update task status to 'success'
     await d.taskStore.updateStatus(runId, nodeId, step, 'success')
