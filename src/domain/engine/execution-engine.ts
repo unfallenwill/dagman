@@ -73,6 +73,8 @@ interface GraphRef {
   readonly channels: Record<string, { type: 'trigger' | 'barrier'; writers?: string[] }>
   readonly layers: string[][]
   readonly stateSchema: Record<string, unknown>
+  readonly version?: string
+  readonly description?: string
 }
 
 /** Convert a CompiledGraph to a serializable GraphRef (strips functions) */
@@ -83,6 +85,8 @@ function toGraphRef(graph: CompiledGraph): GraphRef {
     channels: graph.channels,
     layers: graph.layers,
     stateSchema: graph.stateSchema,
+    version: graph.version,
+    description: graph.description,
   }
 }
 

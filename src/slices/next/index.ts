@@ -8,6 +8,8 @@ import { withErrorHandler, outputJson } from '../_shared/output.js'
 import { FsTaskRepository } from '../../infra/fs/fs-task-repo.js'
 import { FsRunStoreAdapter } from '../../infra/fs/fs-run-store-adapter.js'
 import { FsRunRepository } from '../../infra/fs/fs-run-repo.js'
+import { getGraphFile } from '../../infra/fs/paths.js'
+import { readJSON } from '../../infra/fs/file-ops.js'
 
 // ── Step Display Helpers ──────────────────────────────────────────────
 
@@ -47,6 +49,41 @@ function getTaskStore(): FsTaskRepository {
 
 function getRunStore(): FsRunStoreAdapter {
   return (_runStore ??= new FsRunStoreAdapter(new FsRunRepository()))
+}
+
+/** Read workflow metadata from graph.json */
+async function readGraphMeta(
+  runId: string,
+): Promise<{ name: string; version?: string; description?: string; totalSteps: number }> {
+  try {
+    const ref = await readJSON<{
+      name: string
+      version?: string
+      description?: string
+      layers?: string[][]
+    }>(getGraphFile(runId))
+    return {
+      name: ref.name,
+      version: ref.version,
+      description: ref.description,
+      totalSteps: ref.layers?.length ?? 0,
+    }
+  } catch {
+    return { name: '', totalSteps: 0 }
+  }
+}
+
+/** Display workflow metadata header (like `show` command style) */
+function displayWorkflowHeader(meta: {
+  name: string
+  version?: string
+  description?: string
+}): void {
+  if (!meta.name) return
+  console.log('Name:       ' + meta.name)
+  console.log('Version:    ' + (meta.version ?? '0.0.0'))
+  console.log('Description:' + (meta.description ?? ''))
+  console.log()
 }
 
 export function registerNextCommand(program: Command): void {
@@ -123,11 +160,12 @@ The agent execution loop typically follows: next -> (nodes execute) -> next -> .
             return
           }
 
-          // Read updated info and tasks for display
-          const [runInfo, tasks, state] = await Promise.all([
+          // Read updated info, tasks, state, and graph metadata for display
+          const [runInfo, tasks, state, graphMeta] = await Promise.all([
             getRunStore().read(runId),
             getTaskStore().readAll(runId),
             readState(runId).catch(() => ({})),
+            readGraphMeta(runId),
           ])
 
           // Check if run was paused after execution (task failures)
@@ -138,11 +176,13 @@ The agent execution loop typically follows: next -> (nodes execute) -> next -> .
                 completed: false,
                 step: executedStepDisplay(runInfo.currentStep, result.completed, true),
                 status: 'paused_for_intervention',
+                workflow: { name: graphMeta.name, version: graphMeta.version },
                 state,
                 tasks: tasks.map(toDisplayTask),
               })
               return
             }
+            displayWorkflowHeader(graphMeta)
             const failedNodes = tasks.filter((t) => t.status === 'failed').map((t) => t.nodeId)
             console.log(
               `Step ${executedStepDisplay(runInfo.currentStep, result.completed, true)}: ${result.executed.length} node(s) executed`,
@@ -165,13 +205,15 @@ The agent execution loop typically follows: next -> (nodes execute) -> next -> .
               completed: result.completed,
               step: executedStepDisplay(runInfo.currentStep, result.completed, false),
               status: runInfo.status,
+              workflow: { name: graphMeta.name, version: graphMeta.version },
               state,
               tasks: tasks.map(toDisplayTask),
             })
             return
           }
 
-          displayExecutionResult(result, runInfo, tasks, state)
+          displayWorkflowHeader(graphMeta)
+          displayExecutionResult(result, runInfo, tasks, state, graphMeta.totalSteps)
         },
       ),
     )
@@ -179,26 +221,29 @@ The agent execution loop typically follows: next -> (nodes execute) -> next -> .
 
 /** Display the current superstep status without executing */
 async function displayStepStatus(runId: string, json?: boolean): Promise<void> {
-  const [runInfo, allTasks] = await Promise.all([
+  const [runInfo, allTasks, graphMeta] = await Promise.all([
     getRunStore().read(runId),
     getTaskStore().readAll(runId),
+    readGraphMeta(runId),
   ])
 
   const stepTasks = allTasks.filter((t) => t.step === runInfo.currentStep)
-  const totalSteps = await estimateTotalSteps(runId)
+  const totalSteps = graphMeta.totalSteps
 
   if (json) {
     outputJson({
       step: currentStepDisplay(runInfo.currentStep),
       totalSteps,
       status: runInfo.status,
+      workflow: { name: graphMeta.name, version: graphMeta.version },
       tasks: stepTasks.map(toDisplayTask),
     })
     return
   }
 
+  displayWorkflowHeader(graphMeta)
   console.log(
-    `Step ${currentStepDisplay(runInfo.currentStep)}/${totalSteps} — status: ${runInfo.status}`,
+    `Step ${currentStepDisplay(runInfo.currentStep)}/${totalSteps || '?'} — status: ${runInfo.status}`,
   )
   console.log('Tasks:')
   for (const t of stepTasks) {
@@ -213,10 +258,13 @@ function displayExecutionResult(
   runInfo: RunInfo,
   tasks: Task[],
   state: Record<string, unknown>,
+  totalSteps: number,
 ): void {
   // Show executed nodes with their final status
   const displayStep = executedStepDisplay(runInfo.currentStep, result.completed, false)
-  console.log(`Step ${displayStep}: ${result.executed.length} node(s) executed`)
+  console.log(
+    `Step ${displayStep}/${totalSteps || '?'}: ${result.executed.length} node(s) executed`,
+  )
   for (const nodeId of result.executed) {
     const task = tasks.find(
       (t) => t.nodeId === nodeId && t.step === runInfo.currentStep - (result.completed ? 0 : 1),
@@ -239,9 +287,8 @@ function displayExecutionResult(
   }
 
   // Show run status
-  const totalSteps = '?' // We don't have graph info here; show what we have
   console.log(
-    `\nRun status: ${runInfo.status} (step ${executedStepDisplay(runInfo.currentStep, result.completed, false)}/${totalSteps})`,
+    `\nRun status: ${runInfo.status} (step ${executedStepDisplay(runInfo.currentStep, result.completed, false)}/${totalSteps || '?'})`,
   )
 }
 
@@ -261,10 +308,4 @@ function taskIcon(task: Task): string {
   }
 }
 
-/** Estimate total steps from the graph file (best effort) */
-async function estimateTotalSteps(_runId: string): Promise<number> {
-  // The total layers info is in graph.json, but reading it here would require
-  // importing getGraphFile + readJSON. For now, return 0 to indicate unknown.
-  // The --step display will show "step N/?"
-  return 0
-}
+/** @deprecated Use readGraphMeta instead */

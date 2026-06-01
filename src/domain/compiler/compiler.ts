@@ -85,6 +85,8 @@ export async function compile(workflowName: string, deps?: CompilerDeps): Promis
     stateSchema: definition.stateSchema,
     channels,
     layers,
+    version: definition.version,
+    description: definition.description,
   }
 }
 

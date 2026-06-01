@@ -247,6 +247,10 @@ export interface CompiledGraph {
 
   /** Topological layers: layer[0] = entry nodes, layer[N] = exit nodes */
   readonly layers: string[][]
+
+  /** Workflow metadata */
+  readonly version?: string
+  readonly description?: string
 }
 
 // ─── Builder Definition (input to compiler) ──────────────────────────
