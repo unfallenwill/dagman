@@ -12,17 +12,29 @@ npm run build
 npm run dev -- --workflows-dir examples ls
 
 # Start a workflow
-npm run dev -- --workflows-dir examples start hello-world
+npm run dev -- --workflows-dir examples start text-transform
 
 # Step through execution (repeat until complete)
-npm run dev -- next
+npm run dev -- --workflows-dir examples next
 ```
 
 > **Note:** Examples import from `../../src/index.js` so they work directly from source without publishing. Published examples would use `import { ... } from 'dagman'`.
 
 ## Examples
 
-### 1. hello-world
+### 1. text-transform
+
+```
+START → upper → reverse → END
+```
+
+The minimal workflow from the README Quick Start. It starts with `hello`, uppercases it to `HELLO`, then reverses it to `OLLEH`.
+
+**Features:** Initial state, linear state transformation, README-compatible output
+
+---
+
+### 2. hello-world
 
 ```
 START → greet → embellish → finish → END
@@ -34,7 +46,7 @@ The simplest possible workflow — a linear chain of three nodes that pass state
 
 ---
 
-### 2. etl-pipeline
+### 3. etl-pipeline
 
 ```
 START → extract → transform → load → END
@@ -46,7 +58,7 @@ An Extract-Transform-Load pipeline that simulates pulling raw records, parsing t
 
 ---
 
-### 3. ci-pipeline
+### 4. ci-pipeline
 
 ```
                  ┌→ lint  ─┐
@@ -65,7 +77,7 @@ A CI/CD pipeline where `setup` runs first, then `lint` and `test` execute in par
 
 ---
 
-### 4. conditional-router
+### 5. conditional-router
 
 ```
                            ┌→ process-json → END
@@ -81,7 +93,7 @@ A data processing pipeline that detects the input format (JSON, CSV, or raw text
 
 ---
 
-### 5. data-enrichment
+### 6. data-enrichment
 
 ```
 ┌→ fetch-users  → enrich-profiles ─┐
@@ -112,14 +124,14 @@ npm run build
 
 # Run with --workflows-dir flag
 npm run dev -- --workflows-dir examples start <name>
-npm run dev -- next    # repeat until complete
+npm run dev -- --workflows-dir examples next    # repeat until complete
 ```
 
 ### Installed dagman
 
 ```bash
 dagman --workflows-dir /path/to/examples start <name>
-dagman next    # repeat until complete
+dagman --workflows-dir /path/to/examples next    # repeat until complete
 ```
 
 ### Copy to project

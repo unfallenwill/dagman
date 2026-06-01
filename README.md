@@ -15,18 +15,18 @@ Requires Node.js ≥ 18.
 ### 1. Write a workflow
 
 ```bash
-mkdir -p .dagman/workflows/demo
+mkdir -p .dagman/workflows/text-transform
 ```
 
-Create `.dagman/workflows/demo/index.ts`:
+Create `.dagman/workflows/text-transform/index.ts`:
 
 ```typescript
 import { node, workflow, START, END } from 'dagman/api'
 
-export default workflow('demo', {
+export default workflow('text-transform', {
   state: { text: 'hello', result: '' },
   version: '1.0.0',
-  description: 'A minimal demo workflow',
+  description: 'Uppercase and reverse a text value',
 })
   .add('upper', node((state) => ({ text: String(state.text).toUpperCase() })))
   .add('reverse', node((state) => ({ result: String(state.text).split('').reverse().join('') })))
@@ -40,30 +40,40 @@ export default workflow('demo', {
 
 ```bash
 $ dagman ls                       # List discovered workflows
-  [local] demo v1.0.0 - A minimal demo workflow
+  [local] text-transform v1.0.0 - Uppercase and reverse a text value
 
-$ dagman start demo               # Compile and create a run instance
-demo@1a2b3c4d
+$ dagman start text-transform     # Compile and create a run instance
+text-transform@1a2b3c4d
 
 $ dagman next                     # Execute the next superstep
+
+Name:       text-transform
+Version:    1.0.0
+Description:Uppercase and reverse a text value
 
 Step 1/2: 1 node(s) executed
   ✓ upper → success
 
 State:
   text: "HELLO"
+  result: ""
 
 Run status: running (step 1/2)
 
 $ dagman next                     # Execute the next step
 
+Name:       text-transform
+Version:    1.0.0
+Description:Uppercase and reverse a text value
+
 Step 2/2: 1 node(s) executed
   ✓ reverse → success
 
 State:
+  text: "HELLO"
   result: "OLLEH"
 
-Run status: completed
+Run status: completed (step 2/2)
 ```
 
 ## Why dagman?
