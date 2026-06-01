@@ -12,15 +12,6 @@ export interface DiscoveredWorkflow {
   source: WorkflowSource
 }
 
-export interface WorkflowManifest {
-  name: string
-  version: string
-  description: string
-  author?: string
-  repository?: string
-  license?: string
-}
-
 export interface DiscoveryDeps {
   getWorkflowsDirs?: () => string[]
   readdir?: (dir: string, opts?: { withFileTypes?: boolean }) => Promise<Dirent[]>
@@ -35,7 +26,7 @@ export function setDefaultDiscoveryDeps(defaults: Partial<DiscoveryDeps>): void 
   _defaults = { ..._defaults, ...defaults }
 }
 
-function resolveDiscoveryDeps(deps?: DiscoveryDeps) {
+export function resolveDiscoveryDeps(deps?: DiscoveryDeps) {
   const merged = { ..._defaults, ...deps }
   return {
     getWorkflowsDirs: merged.getWorkflowsDirs!,
@@ -82,22 +73,4 @@ export async function listWorkflows(deps?: DiscoveryDeps): Promise<DiscoveredWor
   }
 
   return [...seen.values()]
-}
-
-/**
- * Load and return manifest metadata for a specific workflow.
- * Reads from the workflow's TS definition file.
- */
-export async function loadManifest(name: string, deps?: DiscoveryDeps): Promise<WorkflowManifest> {
-  const { loader, getWorkflowTsFile } = resolveDiscoveryDeps(deps)
-  const tsFile = getWorkflowTsFile(name)
-  const definition = await loader.load(tsFile)
-  return {
-    name: definition.name,
-    version: definition.version ?? '0.0.0',
-    description: definition.description ?? '',
-    author: definition.author,
-    repository: definition.repository,
-    license: definition.license,
-  }
 }

@@ -1,6 +1,5 @@
 import { promises as fs } from 'fs'
 import * as path from 'path'
-import * as yaml from 'js-yaml'
 import { NodeNotFoundError, ValidationError } from '../../shared/errors.js'
 
 export async function ensureDir(dirPath: string): Promise<void> {
@@ -31,24 +30,6 @@ export async function writeJSON<T>(filePath: string, data: T): Promise<void> {
   await ensureDir(path.dirname(abs))
   const content = JSON.stringify(data, null, 2) + '\n'
   await fs.writeFile(abs, content, 'utf-8')
-}
-
-export async function readYAML<T>(filePath: string): Promise<T> {
-  const abs = path.resolve(filePath)
-  let content: string
-  try {
-    content = await fs.readFile(abs, 'utf-8')
-  } catch (err: unknown) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-      throw new NodeNotFoundError(filePath)
-    }
-    throw err
-  }
-  try {
-    return yaml.load(content) as T
-  } catch {
-    throw new ValidationError(`file '${filePath}' is not valid YAML`)
-  }
 }
 
 export async function fileExists(filePath: string): Promise<boolean> {

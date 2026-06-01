@@ -6,7 +6,6 @@ import {
   ensureDir,
   readJSON,
   writeJSON,
-  readYAML,
   fileExists,
   deleteFile,
   listFiles,
@@ -89,37 +88,6 @@ describe('file utilities', () => {
       const filePath = path.join(tmpDir, 'bad.json')
       await fs.writeFile(filePath, 'not json', 'utf-8')
       await expect(readJSON(filePath)).rejects.toThrow('is not valid JSON')
-    })
-  })
-
-  describe('readYAML', () => {
-    it('should read a valid YAML file', async () => {
-      const filePath = path.join(tmpDir, 'data.yaml')
-      await fs.writeFile(filePath, 'name: test\ncount: 42\n', 'utf-8')
-      const result = await readYAML<{ name: string; count: number }>(filePath)
-      expect(result).toEqual({ name: 'test', count: 42 })
-    })
-
-    it('should read YAML with nested structures', async () => {
-      const filePath = path.join(tmpDir, 'nested.yaml')
-      await fs.writeFile(filePath, 'items:\n  - one\n  - two\nnested:\n  key: value\n', 'utf-8')
-      const result = await readYAML<{
-        items: string[]
-        nested: { key: string }
-      }>(filePath)
-      expect(result.items).toEqual(['one', 'two'])
-      expect(result.nested.key).toBe('value')
-    })
-
-    it('should throw NodeNotFoundError for non-existent file', async () => {
-      const filePath = path.join(tmpDir, 'missing.yaml')
-      await expect(readYAML(filePath)).rejects.toThrow(NodeNotFoundError)
-    })
-
-    it('should throw ValidationError for invalid YAML', async () => {
-      const filePath = path.join(tmpDir, 'bad.yaml')
-      await fs.writeFile(filePath, ':\n  :\n  - [\n', 'utf-8')
-      await expect(readYAML(filePath)).rejects.toThrow(ValidationError)
     })
   })
 

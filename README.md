@@ -30,14 +30,6 @@ npm link
 
 ### 1. Write a TypeScript workflow
 
-Create `.dagman/workflows/ci/manifest.yaml`:
-
-```yaml
-name: ci
-version: 1.0.0
-description: CI pipeline
-```
-
 Create `.dagman/workflows/ci/index.ts` using the builder API:
 
 ```typescript
@@ -104,7 +96,7 @@ dagman next
 
 ### `dagman workflow`
 
-Manage TypeScript workflow definitions. Workflows are defined using the builder API in `.dagman/workflows/<name>/index.ts` with a `manifest.yaml` metadata file.
+Manage TypeScript workflow definitions. Workflows are defined using the builder API in `.dagman/workflows/<name>/index.ts`.
 
 ```bash
 dagman workflow ls                 # List discovered workflows
@@ -252,7 +244,6 @@ All data is stored in `.dagman/` under the project directory:
   workflows/
     <name>/
       index.ts              # TypeScript workflow definition (builder API)
-      manifest.yaml         # Workflow metadata (name, version, description)
   runs/
     <run-id>/
       run.json              # Run metadata (graphName, currentStep, status, layerAssignment)
