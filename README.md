@@ -1,8 +1,6 @@
 # dagman
 
-A DAG-based agent task orchestration CLI.
-
-dagman splits complex multi-step tasks into nodes connected by edges to form a DAG. An external agent drives execution by repeatedly calling `dagman next`. dagman does not execute tasks itself — it acts as a scheduler, telling the agent what to do next and what context is available.
+A DAG-based agent task orchestration CLI. dagman splits complex multi-step tasks into a DAG of nodes. By default, `dagman next` executes node functions in-process. For external/agent-driven execution, use `dagman collect` to submit results without running the node function.
 
 ## Install
 
@@ -10,225 +8,271 @@ dagman splits complex multi-step tasks into nodes connected by edges to form a D
 npm install -g dagman
 ```
 
-Or use without installing:
-
-```bash
-npx -y dagman help
-```
-
-Or build from source:
-
-```bash
-git clone <repo-url> dagman
-cd dagman
-npm install
-npm run build
-npm link
-```
+Requires Node.js ≥ 18.
 
 ## Quick Start
 
-### 1. Write a TypeScript workflow
+### 1. Write a workflow
 
-Create `.dagman/workflows/ci/index.ts` using the builder API:
+```bash
+mkdir -p .dagman/workflows/demo
+```
+
+Create `.dagman/workflows/demo/index.ts`:
 
 ```typescript
-import { node, workflow, START, END } from "dagman";
+import { node, workflow, START, END } from 'dagman/api'
 
-const setup = node((state: any) => {
-  // Install dependencies and create config files
-}, "output");
-
-const lint = node((state: any) => {
-  // Run ESLint on all source files
-});
-
-const test = node((state: any) => {
-  // Execute the full test suite
-});
-
-const deploy = node((state: any) => {
-  // Build and deploy to production server
-});
-
-export default workflow("ci", { state: {} })
-  .add("setup", setup)
-  .add("lint", lint)
-  .add("test", test)
-  .add("deploy", deploy)
-  .edge("lint", "setup")
-  .edge("test", "setup")
-  .edge("deploy", "lint")
-  .edge("deploy", "test")
-  .build();
+export default workflow('demo', {
+  state: { text: '', result: '' },
+  version: '1.0.0',
+  description: 'A minimal demo workflow',
+})
+  .add('upper', node((state) => ({ text: String(state.text).toUpperCase() })))
+  .add('reverse', node((state) => ({ result: String(state.text).split('').reverse().join('') })))
+  .edge(START, 'upper')
+  .edge('upper', 'reverse')
+  .edge('reverse', END)
+  .build()
 ```
 
-### 2. Start the workflow
+### 2. Start and run
 
 ```bash
-dagman workflow start ci
+$ dagman ls                       # List discovered workflows
+  [local] demo v1.0.0 - A minimal demo workflow
+
+$ dagman start demo               # Compile and create a run instance
+demo@1a2b3c4d
+
+$ dagman next                     # Execute the next superstep
+
+Step 1/2: 1 node(s) executed
+  ✓ upper → success
+
+State:
+  text: ""
+
+Run status: running (step 1/2)
+
+$ dagman next                     # Execute the next step
+
+Step 2/2: 1 node(s) executed
+  ✓ reverse → success
+
+State:
+  result: ""
+
+Run status: completed
 ```
 
-This compiles the TypeScript workflow, persists the graph, and creates a run instance.
+## Why dagman?
 
-### 3. Drive execution
+Unlike LangGraph or CrewAI which embed the agent loop, dagman is agent-agnostic — it works with any agent framework or manual CLI usage. Unlike Temporal or BullMQ which require a server, dagman is file-based with zero infrastructure.
+
+- **AI agent loops** — the agent calls `dagman next`, performs the work, then calls `dagman next` again
+- **Human-in-the-loop** — pause on failure, inspect state, decide how to proceed
+- **External tool integration** — submit results from any source via `dagman collect`
+
+The core loop is:
+
+```
+start → loop { next } → completed
+```
+
+## Multiple Run Instances
+
+dagman supports multiple concurrent run instances. `dagman start` creates a new run and sets it as the active run. `dagman next` without `-r` operates on the active run (tracked in `.dagman/.current-run`). Use `-r <run-id>` to target a specific instance.
 
 ```bash
-# Get the next executable task
-dagman next
-
-# Start the task
-dagman task start setup
-
-# After executing, mark as complete
-dagman task complete setup
-
-# Collect the result (for nodes with stateKey)
-dagman collect setup@<run-id> -f result.json
-
-# Get the next task
-dagman next
-
-# ... repeat until no executable tasks
+$ dagman start demo               # Creates demo@a1b2c3d4, sets as active
+$ dagman start demo               # Creates demo@e5f6g7h8, sets as active
+$ dagman ps                       # Lists both running instances
+$ dagman next -r demo@a1b2c3d4    # Execute step on the first run
 ```
 
 ## Command Reference
 
-### `dagman workflow`
+| Command | Description |
+|---------|-------------|
+| `dagman ls` | List discovered workflows |
+| `dagman show <name>` | Show workflow metadata and graph visualization |
+| `dagman start <name>` | Compile workflow and start a run instance |
+| `dagman ps` | List run instances |
+| `dagman next` | Execute the next superstep |
+| `dagman collect <node-ref>` | Submit external results for a node |
+| `dagman help [subcommand]` | Show usage guide or command details |
 
-Manage TypeScript workflow definitions. Workflows are defined using the builder API in `.dagman/workflows/<name>/index.ts`.
+Global option: `--workflows-dir <path>` to override workflow search directories.
 
-```bash
-dagman workflow ls                 # List discovered workflows
-dagman workflow show <name>        # Show workflow info
-dagman workflow graph <name>       # Display layered topology
-dagman workflow start <name>       # Compile + create run instance
-dagman workflow compile <name>     # Dry-run compile (validate without persisting)
-dagman workflow ps [-a] [--json]   # List workflow instances
-```
+### `dagman start <name>`
 
-### `dagman collect`
-
-Collect and validate results for a node that has a `stateKey`. Used by the agent to submit results after node execution.
-
-```bash
-dagman collect <node@run-id> -f result.json    # Collect from file
-dagman collect <node@run-id> --value '{"key":"val"}'  # Inline value
-```
-
-### `dagman task`
-
-Task lifecycle management. Tasks are runtime entities created from nodes during execution.
-
-States: `ready` → `running` → `success` / `failed` / `skipped`
+Compile a workflow TypeScript definition into a graph, create a run instance, and set it as the active run. Outputs the run ID (format: `<name>@<8-char-hex>`).
 
 ```bash
-dagman task list [--step <n>] [-r <run-id>]   # List tasks in current superstep
-dagman task show <node> [-r <run-id>]          # Show task details
-dagman task start <node> [-r <run-id>]         # Start task (ready → running)
-dagman task complete <node> [-r <run-id>]      # Complete task (running → success)
-dagman task fail <node> [--reason <msg>]       # Mark as failed (running → failed)
-dagman task skip <node> [-r <run-id>]          # Skip task (→ skipped)
-dagman task retry <node> [-r <run-id>]         # Retry failed task (failed → ready)
-```
-
-### `dagman channel`
-
-Channel management. Channels are versioned key-value stores for passing data between nodes.
-
-```bash
-dagman channel list [node] [--global] [-r <run-id>]          # List channels
-dagman channel get <node> <key> [--global] [-r <run-id>]     # Get channel value
-dagman channel set <node> <key> <value> [--global] [-r <id>] # Set channel (auto-increments version)
-dagman channel clear <node> [-r <run-id>]                     # Clear all channels for a node
-```
-
-### `dagman step`
-
-Superstep management. Supersteps are BFS layers — all ready tasks within a layer run in parallel.
-
-```bash
-dagman step show [-r <run-id>]      # Current superstep status
-dagman step advance [-r <run-id>]   # Manually advance to next superstep
-dagman step history [-r <run-id>]   # Show completed superstep history
-```
-
-### `dagman graph`
-
-Graph visualization and validation.
-
-```bash
-dagman graph list                             # List all graphs
-dagman graph show [--graph <name>] [--run <id>]  # Show graph structure
-dagman graph validate [--graph <name>]        # Validate graph (missing deps, cycles, orphans)
-```
-
-### `dagman run`
-
-Run instance management. Each run has independent state, events, and channels, bound to a graph.
-
-```bash
-dagman run create [label] --graph <name> [--switch]  # Create a run bound to a graph
-dagman run list                                      # List all runs
-dagman run switch <run-id>                           # Switch current run
-dagman run show [run-id]                             # Show run details
+$ dagman start demo
+demo@1a2b3c4d
 ```
 
 ### `dagman next`
 
-The core scheduling command. Returns the next (or all) executable task(s) in the current superstep.
+The core execution command. Finds all triggered nodes in the current topological layer, executes their functions sequentially, and advances the step when all tasks in the layer reach a terminal state.
 
 ```bash
-dagman next                # Get next executable task
-dagman next --all          # Get all executable tasks in current superstep
-dagman next --json         # JSON output
-dagman next --step         # Show current superstep status
-dagman next -r <run-id>    # Specify run instance
+$ dagman next                    # Execute the next step (default)
+$ dagman next --all              # Same as default behavior
+$ dagman next --step             # Show current superstep status without executing
+$ dagman next --json             # JSON output
+$ dagman next -r demo@1a2b3c4d   # Specify run instance
 ```
 
-### `dagman log`
+When a task fails, the run pauses with status `paused_for_intervention`. Manual intervention is required — inspect the failure, then `dagman start` a new run to retry.
 
-View task event log.
+### `dagman collect <node-ref>`
+
+Submit results from an external source for a node, bypassing its function. The node is marked as success and downstream channels fire.
 
 ```bash
-dagman log                # View all events
-dagman log <node>         # View events for a specific node
-dagman log --run <id>     # Specify run instance
+$ dagman collect upper@1a2b3c4d --value '{"text":"HELLO"}'
+$ dagman collect upper@1a2b3c4d -f result.json
+$ dagman collect upper@1a2b3c4d --key customKey --value '{"data":42}'
+$ dagman collect upper@1a2b3c4d --json   # JSON output
 ```
 
-## Edges and Dependencies
+Node-ref format: `<node-name>@<run-hex-suffix>` (e.g. `upper@1a2b3c4d` from run ID `demo@1a2b3c4d`).
 
-Nodes do not contain dependency information. Dependencies are declared via edges in the workflow definition:
+### `dagman ps`
+
+List run instances. By default shows only running/paused runs.
+
+```bash
+$ dagman ps                      # Running instances only
+$ dagman ps -a                   # All instances including completed
+$ dagman ps --json               # JSON output
+```
+
+### `dagman show <name>`
+
+Display workflow metadata (name, version, description) and an ASCII DAG graph visualization.
+
+```bash
+$ dagman show demo               # Metadata + graph
+$ dagman show demo --json        # Metadata as JSON
+```
+
+## Builder API
+
+### `node(fn)`
+
+Define a workflow node. `fn` receives the shared state and returns a partial update (patch) that gets merged back.
 
 ```typescript
-export default workflow("ci", { state: {} })
-  .add("setup", node(fn))
-  .add("lint", node(fn))
-  .add("test", node(fn))
-  // lint depends on setup
-  .edge("lint", "setup")
-  // test depends on setup
-  .edge("test", "setup")
-  .build();
+import { node } from 'dagman/api'
+
+const upper = node((state) => ({
+  text: String(state.text).toUpperCase(),
+}))
 ```
 
-`Edge { from, to }` means `from` depends on `to` (i.e. `to` executes first). `expect` defaults to `"success"`; when expecting `"success"`, an upstream node with `"skipped"` status also satisfies the dependency (skipped equals success).
+### `workflow(name, config)`
 
-## Variable References
-
-Node instructions support Handlebars templates to reference upstream outputs:
+Create a workflow builder with initial state and optional metadata.
 
 ```typescript
-const build = node((state: any) => {
-  // Access upstream output via state channels
-}, "result");
+import { workflow, START, END } from 'dagman/api'
+
+const def = workflow('my-workflow', {
+  state: { count: 0, result: null },  // required
+  version: '1.0.0',                   // optional
+  description: 'Description',
+  author: 'Author',
+  repository: 'https://github.com/...',
+  license: 'MIT',
+})
+  .add('stepA', node((s) => ({ count: s.count + 1 })))
+  .add('stepB', node((s) => ({ result: s.count * 2 })))
+  .edge(START, 'stepA')          // stepA is an entry node
+  .edge('stepA', 'stepB')       // stepA executes before stepB
+  .edge('stepB', END)           // stepB is an exit node
+  .build()
 ```
 
-Templates in node instructions:
+### Conditional edges
 
-- `{{key}}` — current node's own channel
-- `{{node-name.key}}` — upstream node channel
-- `{{global.key}}` — global channel
+Route to different nodes based on state after execution. Only one conditional edge per source node is allowed.
+
+```typescript
+import { node, workflow } from 'dagman/api'
+
+workflow('router', { state: { type: '' } })
+  .add('classify', node((s) => ({ type: detectType(s) })))
+  .add('process-a', node((s) => ({ result: 'A' })))
+  .add('process-b', node((s) => ({ result: 'B' })))
+  .edge('classify', 'process-a')        // Plain edges for connectivity
+  .edge('classify', 'process-b')
+  .condEdge('classify', ['process-a', 'process-b'], (state) => {
+    // Evaluated after classify executes, using updated state
+    return state.type === 'a' ? ['process-a'] : ['process-b']
+  })
+  .build()
+```
+
+### Subgraphs
+
+Embed a child workflow. Child nodes are prefixed with the subgraph name:
+
+```typescript
+.subgraph('child', childDef)
+// Child node 'step1' becomes 'child.step1'
+// Connect with .edge('child.step1', 'parent-node')
+```
+
+## Core Concepts
+
+### Node
+
+A static task definition — a name plus a function. Nodes carry no runtime state.
+
+### Graph
+
+A DAG topology. Edges declare dependencies between nodes. Compiled from a TypeScript workflow via the builder API.
+
+### Run
+
+An execution instance of a graph, created via `dagman start`. Each run has isolated state, tasks, and channels. The run ID format is `<name>@<8-char-hex>`.
+
+### Task
+
+A runtime entity created from a node during execution. Lifecycle:
+
+```
+ready → running → success
+                  ↘ failed (terminal)
+```
+
+Failed tasks cannot be individually retried. To re-execute, start a new run with `dagman start`.
+
+### Superstep
+
+BFS-layered execution. The graph is split into topological layers. All ready tasks within a layer are eligible to execute. Tasks execute sequentially within the dagman process. When all tasks in the current layer reach a terminal state, the run advances to the next layer.
+
+### Channel
+
+Versioned signals for coordination between nodes:
+
+- **Trigger channel** (`trigger:<target>`) — single-source edge. Fires when the source node completes.
+- **Barrier channel** (`barrier:<target>`) — multi-source join (e.g. diamond DAG). Fires only when ALL declared source nodes have completed (countdown-latch semantics).
+
+### Edge semantics
+
+`.edge(from, to)` means `from` executes before `to` — `from` triggers `to`:
+
+```typescript
+.edge('setup', 'lint')   // setup must complete before lint can run
+.edge('setup', 'test')   // setup must complete before test can run
+.edge('lint', 'deploy')  // lint must complete before deploy
+.edge('test', 'deploy')  // test must complete before deploy (barrier join)
+```
 
 ## Data Storage
 
@@ -236,30 +280,55 @@ All data is stored in `.dagman/` under the project directory:
 
 ```
 .dagman/
-  .current-run              # Current active run ID
-  nodes/
-    <name>.yaml             # Node definitions (kind: Node)
-  graphs/
-    <name>.json             # Graph definitions (compiled from TypeScript workflow)
-  workflows/
-    <name>/
-      index.ts              # TypeScript workflow definition (builder API)
+  .current-run                          # Active run ID
   runs/
     <run-id>/
-      run.json              # Run metadata (graphName, currentStep, status, layerAssignment)
-      workflow.jsonl        # Workflow state (channels + tasks + snapshots, append-only)
-      events.jsonl          # Task event log (append-only)
+      run.json                          # Run metadata (step, status, timestamps)
+      graph.json                        # Compiled graph reference (no functions)
+      state.json                        # Shared mutable state
+      channels.json                     # Channel states (trigger/barrier versions)
+      tasks.json                        # Task execution statuses
 ```
 
-Node definitions are globally shared, graph definitions are compiled from TypeScript workflows and declare topology, and state/channels are isolated per run.
+Workflow definitions are discovered from:
+
+- `<project>/.dagman/workflows/<name>/index.ts` (local, higher priority)
+- `~/.dagman/workflows/<name>/index.ts` (global)
+
+Override with `--workflows-dir <path>`.
+
+## Agent Integration
+
+dagman supports two execution modes for agents:
+
+**Automatic execution** — node functions run in-process when `dagman next` is called:
+
+```bash
+dagman start my-workflow
+dagman next    # Executes step 1
+dagman next    # Executes step 2
+# ... repeat until "completed"
+```
+
+**External collection** — agent performs the work and submits results:
+
+```bash
+dagman start my-workflow
+dagman next --step --json    # Inspect which tasks are ready
+# ... agent performs work externally ...
+dagman collect <ref> -f result.json   # Submit results
+dagman next                  # Advance to next step
+# ... repeat until "completed"
+```
 
 ## Development
 
 ```bash
-npm install          # Install dependencies
-npm run build        # Compile TypeScript
-npm run dev          # Run in dev mode
-npm test             # Run tests
+npm install              # Install dependencies
+npm run build            # Compile TypeScript
+npm run dev              # Run in dev mode (tsx)
+npm test                 # Run tests
+npm run check            # Full quality gate (typecheck + lint + format + deps)
 ```
 
 ## License
