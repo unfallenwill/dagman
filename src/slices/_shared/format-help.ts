@@ -1,9 +1,9 @@
 import type { Command } from 'commander'
-import { getCommandMeta } from './command-meta.js'
+import { getCommandMeta, resolveCommandSource } from './command-meta.js'
 
 /**
  * Format man page style help text for a Commander command.
- * Sections: EXAMPLES, EXIT STATUS, SEE ALSO
+ * Sections: SOURCE, EXAMPLES, EXIT STATUS, SEE ALSO
  * (NAME / SYNOPSIS / DESCRIPTION / OPTIONS are handled by Commander itself)
  */
 export function formatManHelp(cmd: Command): string {
@@ -11,6 +11,11 @@ export function formatManHelp(cmd: Command): string {
   if (!meta) return ''
 
   const sections: string[] = []
+
+  // Source
+  sections.push('')
+  sections.push('Source:')
+  sections.push(`  ${resolveCommandSource(cmd.name())}`)
 
   // Examples
   if (meta.examples.length > 0) {
