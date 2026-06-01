@@ -5,6 +5,7 @@ export default defineConfig({
     'bin/dagman': 'bin/dagman.ts',
     index: 'src/index.ts',
     api: 'src/api/index.ts',
+    'bin/dagman-resolve-hook': 'src/infra/loader/dagman-resolve-hook.ts',
   },
   format: 'esm',
   platform: 'node',
