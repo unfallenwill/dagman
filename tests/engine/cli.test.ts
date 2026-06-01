@@ -225,3 +225,64 @@ describe('run function', () => {
     expect(() => run(['node', 'dagman', 'help'])).not.toThrow()
   })
 })
+
+// ---------------------------------------------------------------------------
+// --workflows-dir global option
+// ---------------------------------------------------------------------------
+describe('--workflows-dir option', () => {
+  it('should register --workflows-dir as a global option', () => {
+    const program = createProgram()
+    const option = program.options.find((o) => o.long === '--workflows-dir')
+    expect(option).toBeDefined()
+    expect(option?.description).toContain('Custom workflows directory')
+  })
+
+  it('should parse --workflows-dir value from argv', () => {
+    const program = createProgram()
+    program.exitOverride()
+    program.configureOutput({ writeErr: () => {} })
+    program.parse(['node', 'dagman', '--workflows-dir', '/custom/wf', 'ls'])
+    const opts = program.opts()
+    expect(opts.workflowsDir).toBe('/custom/wf')
+  })
+
+  it('should show --workflows-dir in help output', () => {
+    const captured: string[] = []
+    const program = createProgram()
+    program.exitOverride()
+    program.configureOutput({
+      writeOut: (str: string) => captured.push(str),
+      writeErr: () => {},
+    })
+
+    try {
+      program.parse(['node', 'dagman', '--help'])
+    } catch (err) {
+      expect((err as { exitCode?: number }).exitCode).toBe(0)
+    }
+
+    const output = captured.join('')
+    expect(output).toContain('--workflows-dir')
+    expect(output).toContain('Custom workflows directory')
+  })
+
+  it('should accept --workflows-dir with ls command without error', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    try {
+      const program = createProgram()
+      program.exitOverride()
+      program.configureOutput({ writeErr: () => {} })
+      await program.parseAsync([
+        'node',
+        'dagman',
+        '--workflows-dir',
+        '/nonexistent-dir-for-dagman-test',
+        'ls',
+      ])
+      // ls should complete without crashing — discovery catches ENOENT silently
+      expect(logSpy).toHaveBeenCalled()
+    } finally {
+      logSpy.mockRestore()
+    }
+  })
+})

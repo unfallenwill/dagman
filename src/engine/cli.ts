@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import './default-deps.js'
+import { applyWorkflowsDir } from './default-deps.js'
 import { registerHelpCommand } from '../slices/help/index.js'
 import { registerNextCommand } from '../slices/next/index.js'
 import { registerCollectCommand } from '../slices/collect/index.js'
@@ -17,6 +17,20 @@ export function createProgram(): Command {
   program.configureHelp({
     sortSubcommands: true,
     sortOptions: true,
+  })
+
+  // Global option for custom workflows directory
+  program.option(
+    '--workflows-dir <path>',
+    'Custom workflows directory (replaces default locations)',
+  )
+
+  // Wire --workflows-dir into DI before any command action runs
+  program.hook('preAction', (thisCommand) => {
+    const opts = thisCommand.opts()
+    if (opts.workflowsDir) {
+      applyWorkflowsDir(opts.workflowsDir as string)
+    }
   })
 
   registerHelpCommand(program)
