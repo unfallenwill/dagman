@@ -42,7 +42,11 @@
     ]
   },
   "files": [
-    "dist"
+    "dist",
+    "src/api/",
+    "src/shared/",
+    "src/slices/",
+    "examples/"
   ],
   "publishConfig": {
     "access": "public"

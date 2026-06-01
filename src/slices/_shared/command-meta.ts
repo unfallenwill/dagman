@@ -35,9 +35,7 @@ const PKG_ROOT = findPkgRoot()
 
 /** Resolve absolute source path for a command slice. */
 export function resolveCommandSource(cmdName: string): string {
-  const tsPath = path.resolve(PKG_ROOT, 'src', 'slices', cmdName, 'index.ts')
-  if (existsSync(tsPath)) return tsPath
-  return path.resolve(PKG_ROOT, 'dist', 'src', 'slices', cmdName, 'index.js')
+  return path.resolve(PKG_ROOT, 'src', 'slices', cmdName, 'index.ts')
 }
 
 /** Attach metadata to a Commander command object. */
