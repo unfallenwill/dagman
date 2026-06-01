@@ -197,7 +197,7 @@ const chainEdges = [
 // ── Tests ─────────────────────────────────────────────────────────────
 
 describe('E2E: dagman next — full A→B→C workflow (new architecture)', () => {
-  it('Step 0: --step shows step 0 with A ready (BEFORE execution)', async () => {
+  it('Step 0: --step shows step 1 with status running (no tasks scheduled yet)', async () => {
     const runId = await setupWorkflow(['A', 'B', 'C'], chainEdges, 'e2e-01')
 
     const prog = createProgram(registerNextCommand)
@@ -206,7 +206,8 @@ describe('E2E: dagman next — full A→B→C workflow (new architecture)', () =
     expect(exitSpy).not.toHaveBeenCalled()
     const out = getLog()
     expect(out.some((l) => l.includes('Step 1'))).toBe(true)
-    expect(out.some((l) => l.includes('A') && l.includes('ready'))).toBe(true)
+    // No tasks yet — scheduling deferred to executeStep
+    expect(out.some((l) => l.includes('status: running'))).toBe(true)
   })
 
   it('Step 0: next executes A → shows A success', async () => {
@@ -250,7 +251,7 @@ describe('E2E: dagman next — full A→B→C workflow (new architecture)', () =
     expect(out.some((l) => l.includes('B') && l.includes('success'))).toBe(true)
   })
 
-  it('Step 1: next --step shows step 1 with B ready (after A executed)', async () => {
+  it('Step 1: next --step shows step 2 after A executed (B not yet scheduled)', async () => {
     const runId = await setupWorkflow(['A', 'B', 'C'], chainEdges, 'e2e-05')
 
     // Execute step 0 (A) to advance to layer 1
@@ -260,14 +261,15 @@ describe('E2E: dagman next — full A→B→C workflow (new architecture)', () =
     // Clear log spy to inspect only the --step output
     logSpy.mockClear()
 
-    // Check step status before executing B
+    // Check step status — B not yet scheduled (currentStepScheduled=false)
     const prog2 = createProgram(registerNextCommand)
     await prog2.parseAsync(['node', 'dag', 'next', '--run', runId, '--step'])
 
     expect(exitSpy).not.toHaveBeenCalled()
     const out = getLog()
     expect(out.some((l) => l.includes('Step 2'))).toBe(true)
-    expect(out.some((l) => l.includes('B') && l.includes('ready'))).toBe(true)
+    // No tasks displayed — scheduling deferred to executeStep
+    expect(out.some((l) => l.includes('status: running'))).toBe(true)
   })
 
   it('Step 2: after A+B complete, next executes C → run completed', async () => {

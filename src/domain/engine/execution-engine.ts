@@ -93,8 +93,7 @@ function toGraphRef(graph: CompiledGraph): GraphRef {
  * 1. Store graph reference to graph.json
  * 2. Init state from stateSchema
  * 3. Init channels from compiled graph
- * 4. Create tasks for layer 0 (entry nodes)
- * 5. Create RunInfo
+ * 4. Create RunInfo (tasks are NOT created here — deferred to executeStep scheduling phase)
  */
 export async function initRun(
   runId: string,
@@ -112,19 +111,13 @@ export async function initRun(
   // 3. Init channels
   await d.channelStore.init(runId, graph.channels)
 
-  // 4. Create tasks for layer 0 entry nodes
-  const layer0 = graph.layers[0] ?? []
-  if (layer0.length > 0) {
-    const tasks: Task[] = layer0.map((nodeId) => createTask(nodeId, 0))
-    await d.taskStore.create(runId, tasks)
-  }
-
-  // 5. Create RunInfo
+  // 4. Create RunInfo — scheduling deferred to executeStep()
   const info: RunInfo = {
     id: runId,
     createdAt: d.clock(),
     graphName: graph.name,
     currentStep: 0,
+    currentStepScheduled: false,
     status: 'running',
   }
 
@@ -134,12 +127,13 @@ export async function initRun(
 }
 
 /**
- * Execute the next step:
- * 1. Read RunInfo to determine current step
- * 2. Re-compile the workflow to get CompiledGraph with functions
- * 3. Read current step's tasks
- * 4. Execute all ready tasks
- * 5. If all tasks are terminal, advance to next layer or mark completed
+ * Execute the next step with a clear four-phase flow:
+ *
+ * Phase A — Boundary Defense: early return for completed/invalid states
+ * Phase B — Scheduling: if currentStepScheduled=false, find triggered nodes,
+ *           create tasks, mark scheduled=true. Auto-advance through empty layers.
+ * Phase C — Execution: run all ready tasks
+ * Phase D — Settlement: check terminality, handle failures, advance step
  */
 export async function executeStep(
   runId: string,
@@ -147,36 +141,62 @@ export async function executeStep(
 ): Promise<{ executed: string[]; completed: boolean }> {
   const d = resolveEngineDeps(deps)
 
-  // 1. Read run info
+  // ── Phase A: Boundary Defense ──────────────────────────────────
   const info = await d.runStore.read(runId)
 
   if (info.status === 'completed') {
     return { executed: [], completed: true }
   }
 
-  // 2. Re-compile to get the full graph with functions
   const graphName = info.graphName
   if (!graphName) {
     throw new Error(`run '${runId}' is not bound to a graph`)
   }
   const graph = await d.compileWorkflow(graphName)
-
-  // 3. Read current step's tasks
   const step = info.currentStep
-  let tasks = await d.taskStore.readByStep(runId, step)
 
-  // If no tasks exist for this step, try to create them from triggered nodes
-  if (tasks.length === 0) {
-    const triggered = await findTriggeredNodes(runId, graph, step, deps)
-    if (triggered.length > 0) {
-      const newTasks: Task[] = triggered.map((nodeId) => createTask(nodeId, step))
-      await d.taskStore.create(runId, newTasks)
-      tasks = newTasks
-    }
+  // Past all layers — mark completed
+  if (step >= graph.layers.length) {
+    await d.runStore.update(runId, { status: 'completed' })
+    return { executed: [], completed: true }
   }
 
-  // 4. Execute all ready tasks
+  // ── Phase B: Scheduling ────────────────────────────────────────
+  if (!info.currentStepScheduled) {
+    const triggered = await findTriggeredNodes(runId, graph, step, deps)
+
+    if (triggered.length === 0) {
+      // Auto-advance through empty layers (e.g., all conditional edges skipped)
+      const result = await autoAdvanceEmptyLayers(runId, graph, step, deps)
+      if (result.completed) {
+        return { executed: [], completed: true }
+      }
+      // Found a layer with work — re-enter scheduling at the new step
+      return executeStep(runId, deps)
+    }
+
+    // Idempotent guard: skip task creation if tasks already exist (crash recovery)
+    const existing = await d.taskStore.readByStep(runId, step)
+    if (existing.length === 0) {
+      const newTasks: Task[] = triggered.map((nodeId) => createTask(nodeId, step))
+      await d.taskStore.create(runId, newTasks)
+    }
+
+    // Mark step as scheduled
+    const runUpdate: Partial<RunInfo> = { currentStepScheduled: true }
+
+    // Auto-restore: if paused and now scheduling tasks, resume to running
+    if (info.status === 'paused_for_intervention') {
+      runUpdate.status = 'running'
+    }
+
+    await d.runStore.update(runId, runUpdate)
+  }
+
+  // ── Phase C: Execution ─────────────────────────────────────────
+  const tasks = await d.taskStore.readByStep(runId, step)
   const executed: string[] = []
+
   for (const task of tasks) {
     if (task.status !== 'ready') continue
 
@@ -189,7 +209,7 @@ export async function executeStep(
     }
   }
 
-  // 5. Check if all tasks in this step are terminal
+  // ── Phase D: Settlement ────────────────────────────────────────
   const updatedTasks = await d.taskStore.readByStep(runId, step)
   const allTerminal = updatedTasks.every((t) => isTerminalStatus(t.status))
 
@@ -197,48 +217,68 @@ export async function executeStep(
     return { executed, completed: false }
   }
 
-  // Check if any task failed — if so, pause (don't advance)
+  // Any failed → pause for intervention
   const anyFailed = updatedTasks.some((t) => t.status === 'failed')
   if (anyFailed) {
+    await d.runStore.update(runId, { status: 'paused_for_intervention' })
     return { executed, completed: false }
   }
 
-  // 6. Try to advance to the next layer
+  // All success — advance to next step
   const nextStep = step + 1
-  const nextLayer = graph.layers[nextStep]
 
-  if (!nextLayer || nextLayer.length === 0) {
-    // No more layers — run is complete
+  if (nextStep >= graph.layers.length) {
     await d.runStore.update(runId, { status: 'completed' })
     return { executed, completed: true }
   }
 
-  // Find triggered nodes in the next layer
-  const triggered = await findTriggeredNodes(runId, graph, nextStep, deps)
-
-  if (triggered.length === 0) {
-    // No nodes triggered — advance step counter but don't create tasks yet.
-    // This can happen when all conditional edges skipped their targets.
-    // Check if there are more layers beyond.
-    const furtherStep = nextStep + 1
-    const furtherLayer = graph.layers[furtherStep]
-
-    if (!furtherLayer || furtherLayer.length === 0) {
-      await d.runStore.update(runId, { status: 'completed' })
-      return { executed, completed: true }
-    }
-
-    // Advance step and check further layers on next executeStep call
-    await d.runStore.update(runId, { currentStep: nextStep })
-    return { executed, completed: false }
-  }
-
-  // Create tasks for triggered nodes and advance
-  const nextTasks: Task[] = triggered.map((nodeId) => createTask(nodeId, nextStep))
-  await d.taskStore.create(runId, nextTasks)
-  await d.runStore.update(runId, { currentStep: nextStep })
+  await d.runStore.update(runId, {
+    currentStep: nextStep,
+    currentStepScheduled: false,
+    status: 'running', // restore from paused_for_intervention if was retrying
+  })
 
   return { executed, completed: false }
+}
+
+/**
+ * Auto-advance through consecutive empty layers (no triggered nodes).
+ * Returns when it finds a layer with work, or completes the run.
+ */
+async function autoAdvanceEmptyLayers(
+  runId: string,
+  graph: CompiledGraph,
+  startStep: number,
+  deps?: EngineDeps,
+): Promise<{ completed: boolean }> {
+  const d = resolveEngineDeps(deps)
+  let step = startStep
+
+  while (step < graph.layers.length) {
+    const triggered = await findTriggeredNodes(runId, graph, step, deps)
+
+    if (triggered.length > 0) {
+      // Found a layer with work — create tasks and mark scheduled
+      // Idempotent guard: skip task creation if tasks already exist (crash recovery)
+      const existing = await d.taskStore.readByStep(runId, step)
+      if (existing.length === 0) {
+        const newTasks: Task[] = triggered.map((nodeId) => createTask(nodeId, step))
+        await d.taskStore.create(runId, newTasks)
+      }
+      await d.runStore.update(runId, {
+        currentStep: step,
+        currentStepScheduled: true,
+      })
+      return { completed: false }
+    }
+
+    // Empty layer — skip it
+    step++
+  }
+
+  // No more layers with work — run is complete
+  await d.runStore.update(runId, { status: 'completed' })
+  return { completed: true }
 }
 
 /**

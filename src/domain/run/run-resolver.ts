@@ -99,7 +99,7 @@ export async function resolveActiveRunId(deps?: RunResolverDeps): Promise<string
     try {
       const d = resolveRunResolverDeps(deps)
       const meta = await d.readJSON<{ status?: RunStatus }>(d.getRunMetaFile(runId))
-      if (meta.status === 'running') {
+      if (meta.status === 'running' || meta.status === 'paused_for_intervention') {
         runningRuns.push(runId)
       }
     } catch {

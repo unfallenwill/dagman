@@ -9,6 +9,34 @@ import { FsTaskRepository } from '../../infra/fs/fs-task-repo.js'
 import { FsRunStoreAdapter } from '../../infra/fs/fs-run-store-adapter.js'
 import { FsRunRepository } from '../../infra/fs/fs-run-repo.js'
 
+// ── Step Display Helpers ──────────────────────────────────────────────
+
+/**
+ * Convert internal 0-based step to 1-based display for execution output.
+ *
+ * After executeStep(), currentStep semantics depend on outcome:
+ * - Not completed, not paused: currentStep was advanced → equals executed step (1-based)
+ * - Completed: currentStep was NOT advanced → need +1 for 1-based
+ * - Paused: currentStep was NOT advanced → need +1 for 1-based
+ */
+function executedStepDisplay(currentStep: number, completed: boolean, paused: boolean): number {
+  return currentStep + (completed || paused ? 1 : 0)
+}
+
+/** Convert internal 0-based step to 1-based display for status output (--step) */
+function currentStepDisplay(currentStep: number): number {
+  return currentStep + 1
+}
+
+/** Convert a task's internal 0-based step to 1-based for display */
+function toDisplayTask(task: Task): Task {
+  return {
+    ...task,
+    step: task.step + 1,
+    id: `${task.nodeId}@step${task.step + 1}`,
+  }
+}
+
 /** Lazy-initialized store instances for reading display data */
 let _taskStore: FsTaskRepository | undefined
 let _runStore: FsRunStoreAdapter | undefined
@@ -102,14 +130,43 @@ The agent execution loop typically follows: next -> (nodes execute) -> next -> .
             readState(runId).catch(() => ({})),
           ])
 
+          // Check if run was paused after execution (task failures)
+          if (runInfo.status === 'paused_for_intervention') {
+            if (options.json) {
+              outputJson({
+                executed: result.executed,
+                completed: false,
+                step: executedStepDisplay(runInfo.currentStep, result.completed, true),
+                status: 'paused_for_intervention',
+                state,
+                tasks: tasks.map(toDisplayTask),
+              })
+              return
+            }
+            const failedNodes = tasks.filter((t) => t.status === 'failed').map((t) => t.nodeId)
+            console.log(
+              `Step ${executedStepDisplay(runInfo.currentStep, result.completed, true)}: ${result.executed.length} node(s) executed`,
+            )
+            for (const nodeId of result.executed) {
+              const task = tasks.find((t) => t.nodeId === nodeId)
+              const status = task?.status ?? 'unknown'
+              const icon = status === 'success' ? '✓' : status === 'failed' ? '✗' : '·'
+              console.log(`  ${icon} ${nodeId} → ${status}`)
+            }
+            console.log(
+              `\nRun paused — failed: ${failedNodes.join(', ')}. Use 'dagman task retry <node>' to continue.`,
+            )
+            return
+          }
+
           if (options.json) {
             outputJson({
               executed: result.executed,
               completed: result.completed,
-              step: runInfo.currentStep,
+              step: executedStepDisplay(runInfo.currentStep, result.completed, false),
               status: runInfo.status,
               state,
-              tasks,
+              tasks: tasks.map(toDisplayTask),
             })
             return
           }
@@ -132,15 +189,17 @@ async function displayStepStatus(runId: string, json?: boolean): Promise<void> {
 
   if (json) {
     outputJson({
-      step: runInfo.currentStep,
+      step: currentStepDisplay(runInfo.currentStep),
       totalSteps,
       status: runInfo.status,
-      tasks: stepTasks,
+      tasks: stepTasks.map(toDisplayTask),
     })
     return
   }
 
-  console.log(`Step ${runInfo.currentStep + 1}/${totalSteps} — status: ${runInfo.status}`)
+  console.log(
+    `Step ${currentStepDisplay(runInfo.currentStep)}/${totalSteps} — status: ${runInfo.status}`,
+  )
   console.log('Tasks:')
   for (const t of stepTasks) {
     const icon = taskIcon(t)
@@ -156,7 +215,8 @@ function displayExecutionResult(
   state: Record<string, unknown>,
 ): void {
   // Show executed nodes with their final status
-  console.log(`Step ${runInfo.currentStep}: ${result.executed.length} node(s) executed`)
+  const displayStep = executedStepDisplay(runInfo.currentStep, result.completed, false)
+  console.log(`Step ${displayStep}: ${result.executed.length} node(s) executed`)
   for (const nodeId of result.executed) {
     const task = tasks.find(
       (t) => t.nodeId === nodeId && t.step === runInfo.currentStep - (result.completed ? 0 : 1),
@@ -180,7 +240,9 @@ function displayExecutionResult(
 
   // Show run status
   const totalSteps = '?' // We don't have graph info here; show what we have
-  console.log(`\nRun status: ${runInfo.status} (step ${runInfo.currentStep}/${totalSteps})`)
+  console.log(
+    `\nRun status: ${runInfo.status} (step ${executedStepDisplay(runInfo.currentStep, result.completed, false)}/${totalSteps})`,
+  )
 }
 
 /** Get a display icon for a task */

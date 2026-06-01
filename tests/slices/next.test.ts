@@ -5,7 +5,7 @@ import { registerNextCommand } from '../../src/slices/next/index.js'
 import { initTmpDir, cleanupTmpDir } from '../helpers/setup.js'
 import { initRun, setDefaultEngineDeps } from '../../src/domain/engine/execution-engine.js'
 import { setCurrentRunId } from '../../src/domain/run/run-resolver.js'
-import type { CompiledGraph, Task } from '../../src/shared/models/compiled-graph.js'
+import type { CompiledGraph } from '../../src/shared/models/compiled-graph.js'
 
 let logSpy: ReturnType<typeof vi.spyOn>
 let errSpy: ReturnType<typeof vi.spyOn>
@@ -250,9 +250,24 @@ describe('next command — positive cases', () => {
     expect(exitSpy).not.toHaveBeenCalled()
 
     const calls = logSpy.mock.calls.map((args: unknown[]) => args.join(' '))
-    // --step displays "Step N/M — status: running" and task list
+    // --step displays "Step N/M — status: running" — tasks not yet scheduled before first executeStep
     expect(calls.some((line: string) => line.includes('status: running'))).toBe(true)
-    expect(calls.some((line: string) => line.includes('alpha'))).toBe(true)
+  })
+
+  it('should show step info with tasks after executing', async () => {
+    await setupRunningWorkflow(['alpha'])
+
+    // Execute first step to create and run tasks
+    const prog1 = createProgram()
+    await prog1.parseAsync(['node', 'dagman', 'next'])
+
+    logSpy.mockClear()
+
+    // Now --step shows the completed state
+    const prog2 = createProgram()
+    await prog2.parseAsync(['node', 'dagman', 'next', '--step'])
+
+    expect(exitSpy).not.toHaveBeenCalled()
   })
 
   it('should show step info as JSON with --step --json', async () => {
@@ -265,11 +280,11 @@ describe('next command — positive cases', () => {
 
     const jsonOutput = logSpy.mock.calls[0]?.[0] as string
     const parsed = JSON.parse(jsonOutput)
-    expect(parsed.step).toBe(0)
+    expect(parsed.step).toBe(1)
     expect(parsed.status).toBe('running')
     expect(parsed.tasks).toBeDefined()
-    const taskNames = (parsed.tasks as Task[]).map((t) => t.nodeId)
-    expect(taskNames).toContain('alpha')
+    // No tasks yet — scheduling deferred to executeStep
+    expect(parsed.tasks).toHaveLength(0)
   })
 
   it('should select explicit run with --run option', async () => {

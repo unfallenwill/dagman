@@ -162,11 +162,24 @@ async function setupCollectScenario(
   await initRun(runId, graph)
   await setCurrentRunId(runId)
 
+  // Create tasks for layer 0 so collect can find them
+  // (initRun no longer creates tasks — scheduling is deferred to executeStep)
+  const { createTask } = await import('../../src/shared/models/compiled-graph.js')
+  const { FsTaskRepository } = await import('../../src/infra/fs/fs-task-repo.js')
+  const { FsRunStoreAdapter } = await import('../../src/infra/fs/fs-run-store-adapter.js')
+  const { FsRunRepository } = await import('../../src/infra/fs/fs-run-repo.js')
+  const taskRepo = new FsTaskRepository()
+  const runStore = new FsRunStoreAdapter(new FsRunRepository())
+  const layer0 = graph.layers[0] ?? []
+  if (layer0.length > 0) {
+    await taskRepo.create(
+      runId,
+      layer0.map((nodeId) => createTask(nodeId, 0)),
+    )
+    await runStore.update(runId, { currentStepScheduled: true })
+  }
+
   // Install mock compileWorkflow for the engine deps
-  // Since completeNodeExternal calls compileWorkflow, we need to make it return our graph
-  // The compiler deps are already set by installMockLoadGraph in old tests,
-  // but we need to ensure compile() works for our graph.
-  // Simplest approach: set the engine's compileWorkflow to return our graph.
   const { setDefaultEngineDeps } = await import('../../src/domain/engine/execution-engine.js')
   setDefaultEngineDeps({
     compileWorkflow: async (name: string) => {

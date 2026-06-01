@@ -22,7 +22,13 @@ export class FsRunStoreAdapter implements RunStore {
   }
 
   async read(runId: string): Promise<RunInfo> {
-    return this.repo.readRunInfo(runId)
+    const info = await this.repo.readRunInfo(runId)
+    // Backward compat: old run.json files lack currentStepScheduled
+    const scheduled = (info as unknown as Record<string, unknown>).currentStepScheduled
+    return {
+      ...info,
+      currentStepScheduled: typeof scheduled === 'boolean' ? scheduled : false,
+    }
   }
 
   async update(runId: string, partial: Partial<RunInfo>): Promise<void> {

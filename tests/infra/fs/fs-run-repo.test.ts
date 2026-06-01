@@ -33,6 +33,7 @@ describe('FsRunRepository', () => {
         id: 'run-001',
         createdAt: '2025-01-15T10:30:00.000Z',
         currentStep: 0,
+        currentStepScheduled: false,
         status: 'idle',
       }
       await repo.writeRunInfo('run-001', info)
@@ -47,6 +48,7 @@ describe('FsRunRepository', () => {
         label: 'my label',
         graphName: 'test-graph',
         currentStep: 3,
+        currentStepScheduled: true,
         status: 'running',
       }
       await repo.writeRunInfo('run-002', info)
@@ -78,6 +80,7 @@ describe('FsRunRepository', () => {
           id,
           createdAt: '2025-01-15T10:30:00.000Z',
           currentStep: 0,
+          currentStepScheduled: false,
           status: 'idle',
         }
         await repo.writeRunInfo(id, info)
@@ -99,6 +102,7 @@ describe('FsRunRepository', () => {
         id: 'valid-run',
         createdAt: '2025-01-15T10:30:00.000Z',
         currentStep: 0,
+        currentStepScheduled: false,
         status: 'idle',
       })
       // Create a directory without run.json (should be skipped)
@@ -157,6 +161,7 @@ describe('FsRunRepository', () => {
         id: 'auto-dir',
         createdAt: '2025-01-15T10:30:00.000Z',
         currentStep: 0,
+        currentStepScheduled: false,
         status: 'idle',
       }
       await repo.writeRunInfo('auto-dir', info)

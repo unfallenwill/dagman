@@ -32,7 +32,9 @@ export function registerPsCommand(program: Command): void {
     .action(
       withErrorHandler(async (opts: { all?: boolean; json?: boolean }) => {
         const runs = await runService.listRuns()
-        const filtered = opts.all ? runs : runs.filter((r) => r.status === 'running')
+        const filtered = opts.all
+          ? runs
+          : runs.filter((r) => r.status === 'running' || r.status === 'paused_for_intervention')
 
         if (opts.json) {
           outputJson(

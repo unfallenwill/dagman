@@ -206,7 +206,13 @@ export function createTask(nodeId: string, step: number): Task {
 
 // ─── Run ─────────────────────────────────────────────────────────────
 
-export const RUN_STATUSES = ['idle', 'running', 'completed', 'failed'] as const
+export const RUN_STATUSES = [
+  'idle',
+  'running',
+  'completed',
+  'failed',
+  'paused_for_intervention',
+] as const
 export type RunStatus = (typeof RUN_STATUSES)[number]
 
 /** Run metadata */
@@ -216,6 +222,7 @@ export interface RunInfo {
   readonly label?: string
   readonly graphName?: string
   currentStep: number
+  currentStepScheduled: boolean
   status: RunStatus
 }
 
