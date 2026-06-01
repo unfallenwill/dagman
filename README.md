@@ -1,6 +1,6 @@
 # dagman
 
-A DAG-based agent task orchestration CLI. dagman splits complex multi-step tasks into a DAG of nodes. By default, `dagman next` executes node functions in-process. For external/agent-driven execution, use `dagman collect` to submit results without running the node function.
+A DAG-based agent task orchestration CLI. dagman splits complex multi-step tasks into a DAG of nodes. `dagman next` executes node functions in-process, one topological layer at a time.
 
 ## Install
 
@@ -70,9 +70,9 @@ Run status: completed
 
 Unlike LangGraph or CrewAI which embed the agent loop, dagman is agent-agnostic — it works with any agent framework or manual CLI usage. Unlike Temporal or BullMQ which require a server, dagman is file-based with zero infrastructure.
 
-- **AI agent loops** — the agent calls `dagman next`, performs the work, then calls `dagman next` again
+- **AI agent loops** — the agent calls `dagman next` to execute each workflow step
 - **Human-in-the-loop** — pause on failure, inspect state, decide how to proceed
-- **External tool integration** — submit results from any source via `dagman collect`
+- **File-based orchestration** — inspect runs, state, and task history without a server
 
 The core loop is:
 
@@ -100,7 +100,6 @@ $ dagman next -r demo@a1b2c3d4    # Execute step on the first run
 | `dagman start <name>` | Compile workflow and start a run instance |
 | `dagman ps` | List run instances |
 | `dagman next` | Execute the next superstep |
-| `dagman collect <node-ref>` | Submit external results for a node |
 | `dagman help [subcommand]` | Show usage guide or command details |
 
 Global option: `--workflows-dir <path>` to override workflow search directories.
@@ -127,19 +126,6 @@ $ dagman next -r demo@1a2b3c4d   # Specify run instance
 ```
 
 When a task fails, the run pauses with status `paused_for_intervention`. Manual intervention is required — inspect the failure, then `dagman start` a new run to retry.
-
-### `dagman collect <node-ref>`
-
-Submit results from an external source for a node, bypassing its function. The node is marked as success and downstream channels fire.
-
-```bash
-$ dagman collect upper@1a2b3c4d --value '{"text":"HELLO"}'
-$ dagman collect upper@1a2b3c4d -f result.json
-$ dagman collect upper@1a2b3c4d --key customKey --value '{"data":42}'
-$ dagman collect upper@1a2b3c4d --json   # JSON output
-```
-
-Node-ref format: `<node-name>@<run-hex-suffix>` (e.g. `upper@1a2b3c4d` from run ID `demo@1a2b3c4d`).
 
 ### `dagman ps`
 
@@ -299,25 +285,12 @@ Override with `--workflows-dir <path>`.
 
 ## Agent Integration
 
-dagman supports two execution modes for agents:
-
-**Automatic execution** — node functions run in-process when `dagman next` is called:
+Node functions run in-process when `dagman next` is called:
 
 ```bash
 dagman start my-workflow
 dagman next    # Executes step 1
 dagman next    # Executes step 2
-# ... repeat until "completed"
-```
-
-**External collection** — agent performs the work and submits results:
-
-```bash
-dagman start my-workflow
-dagman next --step --json    # Inspect which tasks are ready
-# ... agent performs work externally ...
-dagman collect <ref> -f result.json   # Submit results
-dagman next                  # Advance to next step
 # ... repeat until "completed"
 ```
 

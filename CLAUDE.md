@@ -27,7 +27,7 @@ DAG-based agent task orchestration CLI. Developers write TypeScript workflow def
 ```
 src/
   engine/       CLI startup + composition root (DI defaults)
-  slices/       Each command is a self-contained slice (start/, next/, collect/, …)
+  slices/       Each command is a self-contained slice (start/, next/, show/, …)
     _shared/    CLI-only utilities (output, command-meta, format-help)
   domain/       Business logic (pure functions or DI-injected)
     workflow/   workflow-engine, channel-ops, superstep-logic, task-state-machine

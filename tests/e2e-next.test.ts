@@ -1,7 +1,7 @@
 /**
  * E2E test for `dagman next` — full A→B→C lifecycle using new compiled-graph architecture.
  *
- * Uses initRun + setDefaultEngineDeps pattern (same as collect.test.ts).
+ * Uses initRun + setDefaultEngineDeps pattern.
  * The `next` command now calls executeStep() which actually executes tasks and
  * advances through topological layers.
  */
@@ -44,7 +44,7 @@ function getLog(): string[] {
   return logSpy.mock.calls.map((args: unknown[]) => args.join(' '))
 }
 
-// ── Test Helpers (same pattern as collect.test.ts) ────────────────────
+// ── Test Helpers ─────────────────────────────────────────────────────
 
 /**
  * Build a minimal CompiledGraph for testing.

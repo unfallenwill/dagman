@@ -6,7 +6,6 @@ import {
   executeStep,
   executeNode,
   findTriggeredNodes,
-  completeNodeExternal,
   setDefaultEngineDeps,
 } from '../../../src/domain/engine/execution-engine.js'
 import { generateChannels } from '../../../src/domain/compiler/channel-gen.js'
@@ -805,7 +804,6 @@ describe('findTriggeredNodes', () => {
 
 // =====================================================================
 // executeStep — full lifecycle integration tests
-// (before completeNodeExternal — that test overrides stateStore DI)
 // =====================================================================
 
 describe('executeStep — full lifecycle', () => {
@@ -889,77 +887,5 @@ describe('executeStep — full lifecycle', () => {
     const taskB = tasks.find((t) => t.nodeId === 'B')
     expect(taskA?.status).toBe('success')
     expect(taskB?.status).toBe('failed')
-  })
-})
-
-// =====================================================================
-// completeNodeExternal
-// =====================================================================
-
-describe('completeNodeExternal', () => {
-  it('should patch state and mark task as success', async () => {
-    const graph = buildTestGraph(['A'], [], 'ext-complete', { value: null })
-    const runId = await setupRun(graph)
-
-    // Must schedule first
-    const { createTask } = await import('../../../src/shared/models/compiled-graph.js')
-    await taskStore.create(runId, [createTask('A', 0)])
-    await runStore.update(runId, { currentStepScheduled: true })
-
-    await completeNodeExternal(runId, 'A', { value: 'external-result' })
-
-    const state = await readState(runId)
-    expect(state.value).toBe('external-result')
-
-    const tasks = await taskStore.readAll(runId)
-    expect(tasks[0]!.status).toBe('success')
-  })
-
-  it('should execute strategies after completion', async () => {
-    // A→B: A has DirectWrite strategy for trigger:B
-    const graph = buildTestGraph(['A', 'B'], [{ from: 'A', to: 'B' }])
-    const runId = await setupRun(graph)
-
-    const { createTask } = await import('../../../src/shared/models/compiled-graph.js')
-    await taskStore.create(runId, [createTask('A', 0)])
-    await runStore.update(runId, { currentStepScheduled: true })
-
-    await completeNodeExternal(runId, 'A', {})
-
-    const channels = await channelStore.readAll(runId)
-    // A has DirectWrite strategy for trigger:B — should be triggered
-    expect(channels['trigger:B']!.version).toBe(1)
-  })
-
-  it('should mark task as failed on error', async () => {
-    const graph = buildTestGraph(['A'], [], 'ext-fail', { x: 1 })
-    const runId = await setupRun(graph)
-
-    const { createTask } = await import('../../../src/shared/models/compiled-graph.js')
-    await taskStore.create(runId, [createTask('A', 0)])
-    await runStore.update(runId, { currentStepScheduled: true })
-
-    // Override stateStore.patch to throw after task is set to 'running'
-    setDefaultEngineDeps({
-      compileWorkflow: async (name: string) => {
-        if (name === 'ext-fail') return graph
-        throw new Error(`unknown graph '${name}'`)
-      },
-      stateStore: {
-        init: async () => {},
-        read: async () => ({ x: 1 }),
-        patch: async () => {
-          throw new Error('state write failed')
-        },
-        reset: async () => {},
-      },
-    })
-
-    await expect(completeNodeExternal(runId, 'A', { x: 2 })).rejects.toThrow('state write failed')
-
-    const tasks = await taskStore.readAll(runId)
-    const taskA = tasks.find((t) => t.nodeId === 'A')
-    expect(taskA?.status).toBe('failed')
-    expect(taskA?.error).toBe('state write failed')
   })
 })

@@ -119,7 +119,7 @@ The agent execution loop typically follows: next -> (nodes execute) -> next -> .
       { code: 0, meaning: 'Success (step executed or no tasks remaining)' },
       { code: 1, meaning: 'Error (run not found, workflow not initialized)' },
     ],
-    seeAlso: ['dagman-start(1)', 'dagman-collect(1)'],
+    seeAlso: ['dagman-start(1)'],
     dataProducing: true,
   })
 

@@ -2,7 +2,6 @@ import { Command } from 'commander'
 import { applyWorkflowsDir } from './default-deps.js'
 import { registerHelpCommand } from '../slices/help/index.js'
 import { registerNextCommand } from '../slices/next/index.js'
-import { registerCollectCommand } from '../slices/collect/index.js'
 import { registerLsCommand } from '../slices/ls/index.js'
 import { registerStartCommand } from '../slices/start/index.js'
 import { registerPsCommand } from '../slices/ps/index.js'
@@ -39,7 +38,6 @@ export function createProgram(): Command {
   registerPsCommand(program)
   registerShowCommand(program)
   registerNextCommand(program)
-  registerCollectCommand(program)
 
   // Attach man page style after-help to all commands that have metadata
   for (const cmd of program.commands) {

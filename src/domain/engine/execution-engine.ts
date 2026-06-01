@@ -18,7 +18,6 @@ import type {
   CompiledNode,
   RunInfo,
   State,
-  StatePatch,
   Task,
 } from '../../shared/models/compiled-graph.js'
 import type { Clock } from '../../shared/utils/clock.js'
@@ -373,69 +372,6 @@ export async function findTriggeredNodes(
   }
 
   return triggered
-}
-
-// ── External Completion (for collect command) ────────────────────────
-
-/**
- * Complete a node externally (outside the normal execution loop).
- *
- * Used by the `collect` command to submit results for nodes that wait for
- * external input. This function:
- * 1. Re-compiles the workflow to get the CompiledGraph
- * 2. Updates task status to 'running'
- * 3. Reads current state
- * 4. Merges the provided patch into state
- * 5. Executes write strategies (trigger, barrier, conditional routing)
- * 6. Updates task status to 'success'
- */
-export async function completeNodeExternal(
-  runId: string,
-  nodeId: string,
-  statePatch: StatePatch,
-  deps?: EngineDeps,
-): Promise<void> {
-  const d = resolveEngineDeps(deps)
-
-  // Read run info to get graph name and current step
-  const info = await d.runStore.read(runId)
-  const graphName = info.graphName
-  if (!graphName) {
-    throw new Error(`run '${runId}' is not bound to a graph`)
-  }
-
-  // Re-compile to get the full graph with functions
-  const graph = await d.compileWorkflow(graphName)
-
-  // Find the node in the compiled graph
-  const node = graph.nodes[nodeId]
-  if (!node) {
-    throw new Error(`node '${nodeId}' not found in compiled graph`)
-  }
-
-  const step = info.currentStep
-
-  // Update task status to 'running'
-  await d.taskStore.updateStatus(runId, nodeId, step, 'running')
-
-  try {
-    // Read current state
-    const state = await d.stateStore.read(runId)
-
-    // Merge patch into state
-    await d.stateStore.patch(runId, statePatch)
-
-    // Execute write strategies
-    await executeStrategies(runId, node, graph.channels, { ...state, ...statePatch }, deps)
-
-    // Update task status to 'success'
-    await d.taskStore.updateStatus(runId, nodeId, step, 'success')
-  } catch (err) {
-    // Update task status to 'failed' with error message
-    const message = err instanceof Error ? err.message : String(err)
-    await d.taskStore.updateStatus(runId, nodeId, step, 'failed', message)
-    throw err
-  }
 }
 
 // ── Internal Helpers ────────────────────────────────────────────────

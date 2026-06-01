@@ -23,8 +23,8 @@ describe('help command', () => {
     // Should reference actual commands
     expect(fullOutput).toContain('dagman start')
     expect(fullOutput).toContain('dagman next')
-    expect(fullOutput).toContain('dagman collect')
     // Should NOT reference removed commands
+    expect(fullOutput).not.toContain('dagman collect')
     expect(fullOutput).not.toContain('dagman run create')
     expect(fullOutput).not.toContain('dagman task start')
     expect(fullOutput).not.toContain('dagman task complete')

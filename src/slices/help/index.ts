@@ -27,11 +27,11 @@ function buildOverview(version: string): string {
 
 ━━━ Overview ━━━
 
-dagman is a task scheduler based on directed acyclic graphs (DAGs). It does not
-execute tasks itself, but tells an external agent what to do next via \`dagman next\`.
+dagman is a task scheduler based on directed acyclic graphs (DAGs). It executes
+workflow nodes one topological layer at a time via \`dagman next\`.
 
 Core execution loop:
-  start -> loop { next -> (agent executes) -> collect } -> done
+  start -> loop { next } -> done
 
 ━━━ Core Concepts ━━━
 
@@ -51,9 +51,7 @@ Channel   Versioned signal for coordination between nodes:
 3. dagman show <name>                       # Inspect workflow graph and metadata
 4. dagman start <name>                      # Compile and start a run instance
 5. dagman next                              # Execute the next step
-6. (agent performs the actual work)
-7. dagman collect <node-ref> -f result.json # Submit external results for a node
-8. Go back to step 5, repeat until "No executable tasks"
+6. Go back to step 5, repeat until the run is completed
 
 ━━━ Edge Semantics ━━━
 
@@ -74,7 +72,7 @@ function buildCommandReference(program: Command): string {
   // Categorize commands into groups
   const discoveryCommands = ['ls', 'show']
   const executionCommands = ['start', 'ps']
-  const schedulingCommands = ['next', 'collect']
+  const schedulingCommands = ['next']
 
   for (const cmd of program.commands) {
     const cmdName = cmd.name()
