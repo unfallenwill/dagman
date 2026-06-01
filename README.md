@@ -24,7 +24,7 @@ Create `.dagman/workflows/demo/index.ts`:
 import { node, workflow, START, END } from 'dagman/api'
 
 export default workflow('demo', {
-  state: { text: '', result: '' },
+  state: { text: 'hello', result: '' },
   version: '1.0.0',
   description: 'A minimal demo workflow',
 })
@@ -51,7 +51,7 @@ Step 1/2: 1 node(s) executed
   ✓ upper → success
 
 State:
-  text: ""
+  text: "HELLO"
 
 Run status: running (step 1/2)
 
@@ -61,7 +61,7 @@ Step 2/2: 1 node(s) executed
   ✓ reverse → success
 
 State:
-  result: ""
+  result: "OLLEH"
 
 Run status: completed
 ```
@@ -70,7 +70,7 @@ Run status: completed
 
 Unlike LangGraph or CrewAI which embed the agent loop, dagman is agent-agnostic — it works with any agent framework or manual CLI usage. Unlike Temporal or BullMQ which require a server, dagman is file-based with zero infrastructure.
 
-- **AI agent loops** — the agent calls `dagman next` to execute each workflow step
+- **AI agent loops** — wrap agent or tool calls inside node functions, then step the DAG with `dagman next`
 - **Human-in-the-loop** — pause on failure, inspect state, decide how to proceed
 - **File-based orchestration** — inspect runs, state, and task history without a server
 
@@ -175,8 +175,8 @@ const def = workflow('my-workflow', {
   repository: 'https://github.com/...',
   license: 'MIT',
 })
-  .add('stepA', node((s) => ({ count: s.count + 1 })))
-  .add('stepB', node((s) => ({ result: s.count * 2 })))
+  .add('stepA', node((s) => ({ count: Number(s.count) + 1 })))
+  .add('stepB', node((s) => ({ result: Number(s.count) * 2 })))
   .edge(START, 'stepA')          // stepA is an entry node
   .edge('stepA', 'stepB')       // stepA executes before stepB
   .edge('stepB', END)           // stepB is an exit node
@@ -194,14 +194,14 @@ workflow('router', { state: { type: '' } })
   .add('classify', node((s) => ({ type: detectType(s) })))
   .add('process-a', node((s) => ({ result: 'A' })))
   .add('process-b', node((s) => ({ result: 'B' })))
-  .edge('classify', 'process-a')        // Plain edges for connectivity
-  .edge('classify', 'process-b')
   .condEdge('classify', ['process-a', 'process-b'], (state) => {
     // Evaluated after classify executes, using updated state
     return state.type === 'a' ? ['process-a'] : ['process-b']
   })
   .build()
 ```
+
+Only the selected conditional target writes its channel. Do not join mutually exclusive branches with a barrier node unless every declared writer can execute.
 
 ### Subgraphs
 
@@ -294,6 +294,8 @@ dagman next    # Executes step 1
 dagman next    # Executes step 2
 # ... repeat until "completed"
 ```
+
+For agent or tool-driven work, call the agent/tool inside a node function and return its result as a state patch.
 
 ## Development
 
