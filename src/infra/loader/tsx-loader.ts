@@ -1,4 +1,5 @@
 import path from 'path'
+import { pathToFileURL } from 'url'
 import type { WorkflowDefinition } from '../../shared/models/compiled-graph.js'
 import type { WorkflowLoader } from '../../shared/utils/loader.js'
 
@@ -17,7 +18,9 @@ export function createDefaultLoader(): WorkflowLoader {
 
       // Bust cache for repeated imports during development
       const timestamp = Date.now()
-      const mod = await import(`${absPath}?t=${timestamp}`)
+      // Use file:// URL to support Windows paths (e.g. C:\Users\...)
+      const fileUrl = `${pathToFileURL(absPath).href}?t=${timestamp}`
+      const mod = await import(fileUrl)
 
       if (!mod.default || typeof mod.default !== 'object') {
         throw new Error('workflow file must export a default WorkflowDefinition')
