@@ -50,6 +50,7 @@
     "commander": "^12.1.0",
     "handlebars": "^4.7.9",
     "neverthrow": "^8.2.0",
+    "picocolors": "^1.1.1",
     "remeda": "^2.37.0",
     "ts-pattern": "^5.9.0",
     "tsx": "^4.19.0",
