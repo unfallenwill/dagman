@@ -7,11 +7,5 @@
 export { JsonStorageBackend } from './json-backend.js'
 export { createStorageBackend } from './backend-factory.js'
 export type { BackendDeps } from './backend-factory.js'
-export {
-  BackendStateStore,
-  BackendChannelStore,
-  BackendTaskStore,
-  BackendRunStore,
-} from './backend-bridges.js'
 export { loadConfig, resetConfig, getConfigPath, getConfigDir } from './config-loader.js'
 export { setStorageBackend, getStorageBackend, resetStorageBackend } from './backend-instance.js'

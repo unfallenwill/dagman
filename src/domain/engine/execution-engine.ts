@@ -6,12 +6,7 @@
  */
 
 import { match } from 'ts-pattern'
-import type {
-  ChannelStore,
-  RunStore,
-  StateStore,
-  TaskStore,
-} from '../../shared/models/store-repository.js'
+import type { StorageBackend } from '../../shared/models/storage-backend.js'
 import type {
   ChannelDef,
   CompiledGraph,
@@ -26,15 +21,8 @@ import { createTask, isTerminalStatus } from '../../shared/models/compiled-graph
 // ── DI Pattern ──────────────────────────────────────────────────────
 
 export interface EngineDeps {
-  stateStore?: StateStore
-  channelStore?: ChannelStore
-  taskStore?: TaskStore
-  runStore?: RunStore
+  storageBackend?: StorageBackend
   clock?: Clock
-  /** Write JSON to a file path */
-  writeJSON?: (filePath: string, data: unknown) => Promise<void>
-  /** Get graph.json file path for a run */
-  getGraphFile?: (runId: string) => string
   /** Re-compile workflow to get CompiledGraph with functions */
   compileWorkflow?: (name: string) => Promise<CompiledGraph>
 }
@@ -49,13 +37,8 @@ export function setDefaultEngineDeps(defaults: Partial<EngineDeps>): void {
 function resolveEngineDeps(deps?: EngineDeps) {
   const merged = { ..._defaults, ...deps }
   return {
-    stateStore: merged.stateStore!,
-    channelStore: merged.channelStore!,
-    taskStore: merged.taskStore!,
-    runStore: merged.runStore!,
+    backend: merged.storageBackend!,
     clock: merged.clock!,
-    writeJSON: merged.writeJSON!,
-    getGraphFile: merged.getGraphFile!,
     compileWorkflow: merged.compileWorkflow!,
   }
 }
@@ -106,13 +89,13 @@ export async function initRun(
   const d = resolveEngineDeps(deps)
 
   // 1. Store graph reference (structural data only, no functions)
-  await d.writeJSON(d.getGraphFile(runId), toGraphRef(graph))
+  await d.backend.writeGraphRef(runId, toGraphRef(graph))
 
   // 2. Init state from schema
-  await d.stateStore.init(runId, graph.stateSchema)
+  await d.backend.initState(runId, graph.stateSchema)
 
   // 3. Init channels
-  await d.channelStore.init(runId, graph.channels)
+  await d.backend.initChannels(runId, graph.channels)
 
   // 4. Create RunInfo — scheduling deferred to executeStep()
   const info: RunInfo = {
@@ -124,7 +107,7 @@ export async function initRun(
     status: 'running',
   }
 
-  await d.runStore.create(info)
+  await d.backend.createRunInfo(info)
 
   return info
 }
@@ -145,7 +128,7 @@ export async function executeStep(
   const d = resolveEngineDeps(deps)
 
   // ── Phase A: Boundary Defense ──────────────────────────────────
-  const info = await d.runStore.read(runId)
+  const info = await d.backend.readRunInfo(runId)
 
   if (info.status === 'completed') {
     return { executed: [], completed: true }
@@ -160,7 +143,7 @@ export async function executeStep(
 
   // Past all layers — mark completed
   if (step >= graph.layers.length) {
-    await d.runStore.update(runId, { status: 'completed' })
+    await d.backend.updateRunInfo(runId, { status: 'completed' })
     return { executed: [], completed: true }
   }
 
@@ -179,10 +162,10 @@ export async function executeStep(
     }
 
     // Idempotent guard: skip task creation if tasks already exist (crash recovery)
-    const existing = await d.taskStore.readByStep(runId, step)
+    const existing = await d.backend.readTasksByStep(runId, step)
     if (existing.length === 0) {
       const newTasks: Task[] = triggered.map((nodeId) => createTask(nodeId, step))
-      await d.taskStore.create(runId, newTasks)
+      await d.backend.createTasks(runId, newTasks)
     }
 
     // Mark step as scheduled
@@ -193,11 +176,11 @@ export async function executeStep(
       runUpdate.status = 'running'
     }
 
-    await d.runStore.update(runId, runUpdate)
+    await d.backend.updateRunInfo(runId, runUpdate)
   }
 
   // ── Phase C: Execution ─────────────────────────────────────────
-  const tasks = await d.taskStore.readByStep(runId, step)
+  const tasks = await d.backend.readTasksByStep(runId, step)
   const executed: string[] = []
 
   for (const task of tasks) {
@@ -213,7 +196,7 @@ export async function executeStep(
   }
 
   // ── Phase D: Settlement ────────────────────────────────────────
-  const updatedTasks = await d.taskStore.readByStep(runId, step)
+  const updatedTasks = await d.backend.readTasksByStep(runId, step)
   const allTerminal = updatedTasks.every((t) => isTerminalStatus(t.status))
 
   if (!allTerminal) {
@@ -223,7 +206,7 @@ export async function executeStep(
   // Any failed → pause for intervention
   const anyFailed = updatedTasks.some((t) => t.status === 'failed')
   if (anyFailed) {
-    await d.runStore.update(runId, { status: 'paused_for_intervention' })
+    await d.backend.updateRunInfo(runId, { status: 'paused_for_intervention' })
     return { executed, completed: false }
   }
 
@@ -231,11 +214,11 @@ export async function executeStep(
   const nextStep = step + 1
 
   if (nextStep >= graph.layers.length) {
-    await d.runStore.update(runId, { status: 'completed' })
+    await d.backend.updateRunInfo(runId, { status: 'completed' })
     return { executed, completed: true }
   }
 
-  await d.runStore.update(runId, {
+  await d.backend.updateRunInfo(runId, {
     currentStep: nextStep,
     currentStepScheduled: false,
     status: 'running', // restore from paused_for_intervention if was retrying
@@ -263,12 +246,12 @@ async function autoAdvanceEmptyLayers(
     if (triggered.length > 0) {
       // Found a layer with work — create tasks and mark scheduled
       // Idempotent guard: skip task creation if tasks already exist (crash recovery)
-      const existing = await d.taskStore.readByStep(runId, step)
+      const existing = await d.backend.readTasksByStep(runId, step)
       if (existing.length === 0) {
         const newTasks: Task[] = triggered.map((nodeId) => createTask(nodeId, step))
-        await d.taskStore.create(runId, newTasks)
+        await d.backend.createTasks(runId, newTasks)
       }
-      await d.runStore.update(runId, {
+      await d.backend.updateRunInfo(runId, {
         currentStep: step,
         currentStepScheduled: true,
       })
@@ -280,7 +263,7 @@ async function autoAdvanceEmptyLayers(
   }
 
   // No more layers with work — run is complete
-  await d.runStore.update(runId, { status: 'completed' })
+  await d.backend.updateRunInfo(runId, { status: 'completed' })
   return { completed: true }
 }
 
@@ -307,32 +290,32 @@ export async function executeNode(
   }
 
   // Read run info to determine step
-  const info = await d.runStore.read(runId)
+  const info = await d.backend.readRunInfo(runId)
   const step = info.currentStep
 
   // 1. Update task status to 'running'
-  await d.taskStore.updateStatus(runId, nodeId, step, 'running')
+  await d.backend.updateTaskStatus(runId, nodeId, step, 'running')
 
   try {
     // 2. Read state
-    const state = await d.stateStore.read(runId)
+    const state = await d.backend.readState(runId)
 
     // 3. Execute node function → patch
     const patch = node.fn(state)
 
     // 4. Merge patch into state
-    await d.stateStore.patch(runId, patch)
+    await d.backend.patchState(runId, patch)
 
     // 5. Execute write strategies (use post-patch state so route functions
     //    can read keys written by the current node)
     await executeStrategies(runId, node, graph.channels, { ...state, ...patch }, deps)
 
     // 6. Update task status to 'success'
-    await d.taskStore.updateStatus(runId, nodeId, step, 'success')
+    await d.backend.updateTaskStatus(runId, nodeId, step, 'success')
   } catch (err) {
     // Update task status to 'failed' with error message
     const message = err instanceof Error ? err.message : String(err)
-    await d.taskStore.updateStatus(runId, nodeId, step, 'failed', message)
+    await d.backend.updateTaskStatus(runId, nodeId, step, 'failed', message)
     throw err
   }
 }
@@ -365,7 +348,7 @@ export async function findTriggeredNodes(
     const node = graph.nodes[nodeId]
     if (!node) continue
 
-    const version = await d.channelStore.getVersion(runId, node.triggeredBy)
+    const version = await d.backend.getChannelVersion(runId, node.triggeredBy)
     if (version > 0) {
       triggered.push(nodeId)
     }
@@ -384,8 +367,8 @@ export async function findTriggeredNodes(
  * - ConditionalWrite: write only if route selected the target
  *
  * How to write depends on channel type (looked up from graph channels):
- * - trigger channel → channelStore.trigger()
- * - barrier channel → channelStore.barrierWrite(runId, channel, nodeId)
+ * - trigger channel → backend.triggerChannel()
+ * - barrier channel → backend.barrierWrite(runId, channel, nodeId)
  */
 async function executeStrategies(
   runId: string,
@@ -417,9 +400,9 @@ async function executeStrategies(
     if (!channelDef) continue
 
     if (channelDef.type === 'trigger') {
-      await d.channelStore.trigger(runId, strategy.channel)
+      await d.backend.triggerChannel(runId, strategy.channel)
     } else {
-      await d.channelStore.barrierWrite(runId, strategy.channel, node.id)
+      await d.backend.barrierWrite(runId, strategy.channel, node.id)
     }
   }
 }

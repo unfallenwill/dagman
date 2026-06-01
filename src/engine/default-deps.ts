@@ -27,12 +27,6 @@ import { compile } from '../domain/compiler/compiler.js'
 import { systemClock } from '../shared/utils/clock.js'
 import { loadConfig } from '../infra/storage/config-loader.js'
 import { createStorageBackend } from '../infra/storage/backend-factory.js'
-import {
-  BackendStateStore,
-  BackendChannelStore,
-  BackendTaskStore,
-  BackendRunStore,
-} from '../infra/storage/backend-bridges.js'
 import { setStorageBackend } from '../infra/storage/backend-instance.js'
 
 const tsxLoader = createDefaultLoader()
@@ -88,32 +82,21 @@ const backend = createStorageBackend(config.storage, {
 // Register backend singleton for slice access
 setStorageBackend(backend)
 
-// Create bridge stores that delegate to the unified backend
-const stateStore = new BackendStateStore(backend)
-const channelStore = new BackendChannelStore(backend)
-const taskStore = new BackendTaskStore(backend)
-const runStore = new BackendRunStore(backend)
-
 // Wire execution engine deps
 setDefaultEngineDeps({
-  stateStore,
-  channelStore,
-  taskStore,
-  runStore,
+  storageBackend: backend,
   clock: systemClock,
-  writeJSON,
-  getGraphFile,
   compileWorkflow: compile,
 })
 
 // Wire state service deps
 setDefaultStateServiceDeps({
-  stateStore,
+  storageBackend: backend,
 })
 
 // Wire channel service deps
 setDefaultChannelServiceDeps({
-  channelStore,
+  storageBackend: backend,
 })
 
 // ── Dynamic overrides ──────────────────────────────────────────────

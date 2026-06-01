@@ -1,17 +1,17 @@
 /**
- * Channel service — thin convenience wrapper around ChannelStore.
+ * Channel service — thin convenience wrapper around StorageBackend.
  *
  * Provides simple trigger/barrier-write/read operations
  * on channel state. Uses DI pattern like other domain services.
  */
 
-import type { ChannelStore } from '../../shared/models/store-repository.js'
+import type { StorageBackend } from '../../shared/models/storage-backend.js'
 import type { Channel } from '../../shared/models/compiled-graph.js'
 
 // ── DI Pattern ──────────────────────────────────────────────────────
 
 export interface ChannelServiceDeps {
-  channelStore?: ChannelStore
+  storageBackend?: StorageBackend
 }
 
 let _defaults: Partial<ChannelServiceDeps> = {}
@@ -24,7 +24,7 @@ export function setDefaultChannelServiceDeps(defaults: Partial<ChannelServiceDep
 function resolveChannelServiceDeps(deps?: ChannelServiceDeps) {
   const merged = { ..._defaults, ...deps }
   return {
-    channelStore: merged.channelStore!,
+    backend: merged.storageBackend!,
   }
 }
 
@@ -37,7 +37,7 @@ export async function triggerChannel(
   deps?: ChannelServiceDeps,
 ): Promise<void> {
   const d = resolveChannelServiceDeps(deps)
-  await d.channelStore.trigger(runId, name)
+  await d.backend.triggerChannel(runId, name)
 }
 
 /** Write to a barrier channel as a specific writer */
@@ -48,7 +48,7 @@ export async function barrierWrite(
   deps?: ChannelServiceDeps,
 ): Promise<boolean> {
   const d = resolveChannelServiceDeps(deps)
-  return d.channelStore.barrierWrite(runId, name, writerId)
+  return d.backend.barrierWrite(runId, name, writerId)
 }
 
 /** Read a single channel by name */
@@ -58,5 +58,5 @@ export async function readChannel(
   deps?: ChannelServiceDeps,
 ): Promise<Channel | null> {
   const d = resolveChannelServiceDeps(deps)
-  return d.channelStore.read(runId, name)
+  return d.backend.readChannel(runId, name)
 }

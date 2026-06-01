@@ -12,11 +12,6 @@ import { generateChannels } from '../../../src/domain/compiler/channel-gen.js'
 import { readState } from '../../../src/domain/engine/state-service.js'
 import { JsonStorageBackend } from '../../../src/infra/storage/json-backend.js'
 import {
-  BackendTaskStore,
-  BackendChannelStore,
-  BackendRunStore,
-} from '../../../src/infra/storage/backend-bridges.js'
-import {
   getStateFile,
   getChannelsFile,
   getTasksFile,
@@ -58,9 +53,6 @@ const backendDeps = {
 }
 
 const backend = new JsonStorageBackend(backendDeps)
-const taskStore = new BackendTaskStore(backend)
-const channelStore = new BackendChannelStore(backend)
-const runStore = new BackendRunStore(backend)
 
 // ─── Topological Layer Computation ────────────────────────────────────
 
@@ -225,7 +217,7 @@ describe('initRun', () => {
     const graph = buildTestGraph(['A', 'B'], [{ from: 'A', to: 'B' }])
     const runId = await setupRun(graph)
 
-    const channels = await channelStore.readAll(runId)
+    const channels = await backend.readAllChannels(runId)
 
     // A triggers B → channel is trigger:B, written by A via DirectWrite strategy
     expect(channels['trigger:B']).toBeDefined()
@@ -237,7 +229,7 @@ describe('initRun', () => {
     const graph = buildTestGraph(['A', 'B'], [{ from: 'A', to: 'B' }])
     const runId = await setupRun(graph)
 
-    const tasks = await taskStore.readAll(runId)
+    const tasks = await backend.readAllTasks(runId)
 
     // No tasks created by initRun — scheduling is deferred
     expect(tasks).toHaveLength(0)
@@ -247,10 +239,13 @@ describe('initRun', () => {
     const graph = buildTestGraph(['A'], [], 'graphref-test')
     let capturedRef: unknown = null
 
+    const capturingBackend = Object.create(backend) as JsonStorageBackend
+    capturingBackend.writeGraphRef = async (_runId: string, data: unknown) => {
+      capturedRef = data
+    }
+
     setDefaultEngineDeps({
-      writeJSON: async (_filePath: string, data: unknown) => {
-        capturedRef = data
-      },
+      storageBackend: capturingBackend,
       compileWorkflow: async () => graph,
     })
 
@@ -293,7 +288,7 @@ describe('executeStep — boundary defense', () => {
         throw new Error('should not be called')
       },
     })
-    await runStore.create({
+    await backend.createRunInfo({
       id: runId,
       createdAt: new Date().toISOString(),
       currentStep: 0,
@@ -309,13 +304,13 @@ describe('executeStep — boundary defense', () => {
     const runId = await setupRun(graph)
 
     // Manually push currentStep past the last layer
-    await runStore.update(runId, { currentStep: 99 })
+    await backend.updateRunInfo(runId, { currentStep: 99 })
 
     const result = await executeStep(runId)
     expect(result.completed).toBe(true)
     expect(result.executed).toEqual([])
 
-    const info = await runStore.read(runId)
+    const info = await backend.readRunInfo(runId)
     expect(info.status).toBe('completed')
   })
 })
@@ -342,7 +337,7 @@ describe('executeStep — scheduling phase', () => {
     await executeStep(runId)
 
     // After executing layer 0, step should advance with scheduled=false (for next layer)
-    const info = await runStore.read(runId)
+    const info = await backend.readRunInfo(runId)
     expect(info.currentStep).toBe(1)
     expect(info.currentStepScheduled).toBe(false)
   })
@@ -373,14 +368,14 @@ describe('executeStep — scheduling phase', () => {
 
     // Manually create task for layer 0 (simulating crash after task creation but before scheduled=true)
     const { createTask } = await import('../../../src/shared/models/compiled-graph.js')
-    await taskStore.create(runId, [createTask('A', 0)])
+    await backend.createTasks(runId, [createTask('A', 0)])
     // currentStepScheduled is still false
 
     const result = await executeStep(runId)
     expect(result.executed).toEqual(['A'])
 
     // Verify no duplicate tasks were created
-    const allTasks = await taskStore.readAll(runId)
+    const allTasks = await backend.readAllTasks(runId)
     const aTasks = allTasks.filter((t) => t.nodeId === 'A')
     expect(aTasks).toHaveLength(1)
   })
@@ -438,7 +433,7 @@ describe('executeStep — execution phase', () => {
 
     await executeStep(runId)
 
-    const channels = await channelStore.readAll(runId)
+    const channels = await backend.readAllChannels(runId)
     expect(channels['trigger:B']!.version).toBe(1)
   })
 })
@@ -455,7 +450,7 @@ describe('executeStep — settlement phase', () => {
     const result = await executeStep(runId)
     expect(result.completed).toBe(true)
 
-    const info = await runStore.read(runId)
+    const info = await backend.readRunInfo(runId)
     expect(info.status).toBe('completed')
   })
 
@@ -471,10 +466,10 @@ describe('executeStep — settlement phase', () => {
     expect(result.executed).toEqual(['A'])
     expect(result.completed).toBe(false)
 
-    const info = await runStore.read(runId)
+    const info = await backend.readRunInfo(runId)
     expect(info.status).toBe('paused_for_intervention')
 
-    const tasks = await taskStore.readByStep(runId, 0)
+    const tasks = await backend.readTasksByStep(runId, 0)
     const taskA = tasks.find((t) => t.nodeId === 'A')
     expect(taskA?.status).toBe('failed')
     expect(taskA?.error).toBe('A failed')
@@ -489,7 +484,7 @@ describe('executeStep — settlement phase', () => {
 
     await executeStep(runId)
 
-    const info = await runStore.read(runId)
+    const info = await backend.readRunInfo(runId)
     expect(info.currentStep).toBe(0)
   })
 
@@ -499,7 +494,7 @@ describe('executeStep — settlement phase', () => {
 
     await executeStep(runId)
 
-    const info = await runStore.read(runId)
+    const info = await backend.readRunInfo(runId)
     expect(info.currentStep).toBe(1)
     expect(info.currentStepScheduled).toBe(false)
     expect(info.status).toBe('running')
@@ -525,11 +520,11 @@ describe('executeStep — paused_for_intervention and retry', () => {
 
     // First attempt: A fails
     await executeStep(runId)
-    let info = await runStore.read(runId)
+    let info = await backend.readRunInfo(runId)
     expect(info.status).toBe('paused_for_intervention')
 
     // Simulate retry: reset task to ready
-    await taskStore.updateStatus(runId, 'A', 0, 'ready')
+    await backend.updateTaskStatus(runId, 'A', 0, 'ready')
 
     // Fix A's function so it succeeds this time
     graph.nodes['A']!.fn = () => ({ result: 'A ok' })
@@ -539,7 +534,7 @@ describe('executeStep — paused_for_intervention and retry', () => {
     expect(result.executed).toEqual(['A'])
     expect(result.completed).toBe(false)
 
-    info = await runStore.read(runId)
+    info = await backend.readRunInfo(runId)
     expect(info.status).toBe('running')
   })
 
@@ -565,7 +560,7 @@ describe('executeStep — paused_for_intervention and retry', () => {
     await executeStep(runId)
 
     // Retry A
-    await taskStore.updateStatus(runId, 'A', 0, 'ready')
+    await backend.updateTaskStatus(runId, 'A', 0, 'ready')
     graph.nodes['A']!.fn = () => ({ result: 'A ok' })
 
     // Step 0 again: A succeeds, advances to layer 1
@@ -594,13 +589,13 @@ describe('executeStep — paused_for_intervention and retry', () => {
     await executeStep(runId)
 
     // Retry A (but it will fail again)
-    await taskStore.updateStatus(runId, 'A', 0, 'ready')
+    await backend.updateTaskStatus(runId, 'A', 0, 'ready')
 
     const result = await executeStep(runId)
     expect(result.executed).toEqual(['A'])
     expect(result.completed).toBe(false)
 
-    const info = await runStore.read(runId)
+    const info = await backend.readRunInfo(runId)
     expect(info.status).toBe('paused_for_intervention')
   })
 })
@@ -622,7 +617,7 @@ describe('executeStep — auto-advance through empty layers', () => {
     expect(r0.completed).toBe(false)
 
     // Verify channels are triggered
-    const channels = await channelStore.readAll(runId)
+    const channels = await backend.readAllChannels(runId)
     expect(channels['trigger:B']!.version).toBe(1)
 
     // Step 1: Execute B
@@ -643,12 +638,12 @@ describe('executeNode', () => {
 
     // Must schedule first (initRun no longer creates tasks)
     const { createTask } = await import('../../../src/shared/models/compiled-graph.js')
-    await taskStore.create(runId, [createTask('A', 0)])
-    await runStore.update(runId, { currentStepScheduled: true })
+    await backend.createTasks(runId, [createTask('A', 0)])
+    await backend.updateRunInfo(runId, { currentStepScheduled: true })
 
     await executeNode(runId, 'A', graph)
 
-    const tasks = await taskStore.readAll(runId)
+    const tasks = await backend.readAllTasks(runId)
     expect(tasks[0]!.nodeId).toBe('A')
     expect(tasks[0]!.status).toBe('success')
   })
@@ -660,8 +655,8 @@ describe('executeNode', () => {
     const runId = await setupRun(graph)
 
     const { createTask } = await import('../../../src/shared/models/compiled-graph.js')
-    await taskStore.create(runId, [createTask('A', 0)])
-    await runStore.update(runId, { currentStepScheduled: true })
+    await backend.createTasks(runId, [createTask('A', 0)])
+    await backend.updateRunInfo(runId, { currentStepScheduled: true })
 
     await executeNode(runId, 'A', graph)
 
@@ -675,13 +670,13 @@ describe('executeNode', () => {
     const runId = await setupRun(graph)
 
     const { createTask } = await import('../../../src/shared/models/compiled-graph.js')
-    await taskStore.create(runId, [createTask('A', 0)])
-    await runStore.update(runId, { currentStepScheduled: true })
+    await backend.createTasks(runId, [createTask('A', 0)])
+    await backend.updateRunInfo(runId, { currentStepScheduled: true })
 
     // Execute A — should write trigger:B via DirectWrite
     await executeNode(runId, 'A', graph)
 
-    const channels = await channelStore.readAll(runId)
+    const channels = await backend.readAllChannels(runId)
     expect(channels['trigger:B']!.version).toBe(1)
   })
 
@@ -697,13 +692,13 @@ describe('executeNode', () => {
     const runId = await setupRun(graph)
 
     const { createTask } = await import('../../../src/shared/models/compiled-graph.js')
-    await taskStore.create(runId, [createTask('A', 0)])
-    await runStore.update(runId, { currentStepScheduled: true })
+    await backend.createTasks(runId, [createTask('A', 0)])
+    await backend.updateRunInfo(runId, { currentStepScheduled: true })
 
     // Execute A — should write to barrier:C via DirectWrite
     await executeNode(runId, 'A', graph)
 
-    const channels = await channelStore.readAll(runId)
+    const channels = await backend.readAllChannels(runId)
     const barrierC = channels['barrier:C']! as BarrierChannel
     expect(barrierC).toBeDefined()
     expect(barrierC.type).toBe('barrier')
@@ -726,13 +721,13 @@ describe('executeNode', () => {
     const runId = await setupRun(graph)
 
     const { createTask } = await import('../../../src/shared/models/compiled-graph.js')
-    await taskStore.create(runId, [createTask('R', 0)])
-    await runStore.update(runId, { currentStepScheduled: true })
+    await backend.createTasks(runId, [createTask('R', 0)])
+    await backend.updateRunInfo(runId, { currentStepScheduled: true })
 
     // Execute R — should trigger X (selected) but not Y (ConditionalWrite)
     await executeNode(runId, 'R', graph)
 
-    const channels = await channelStore.readAll(runId)
+    const channels = await backend.readAllChannels(runId)
     expect(channels['trigger:X']!.version).toBe(1)
     expect(channels['trigger:Y']!.version).toBe(0)
   })
@@ -757,12 +752,12 @@ describe('executeNode', () => {
     const runId = await setupRun(graph)
 
     const { createTask } = await import('../../../src/shared/models/compiled-graph.js')
-    await taskStore.create(runId, [createTask('R', 0)])
-    await runStore.update(runId, { currentStepScheduled: true })
+    await backend.createTasks(runId, [createTask('R', 0)])
+    await backend.updateRunInfo(runId, { currentStepScheduled: true })
 
     await executeNode(runId, 'R', graph)
 
-    const channels = await channelStore.readAll(runId)
+    const channels = await backend.readAllChannels(runId)
     expect(channels['trigger:X']!.version).toBe(1) // selected by route (post-patch)
     expect(channels['trigger:Y']!.version).toBe(0) // NOT selected
   })
@@ -775,12 +770,12 @@ describe('executeNode', () => {
     const runId = await setupRun(graph)
 
     const { createTask } = await import('../../../src/shared/models/compiled-graph.js')
-    await taskStore.create(runId, [createTask('A', 0)])
-    await runStore.update(runId, { currentStepScheduled: true })
+    await backend.createTasks(runId, [createTask('A', 0)])
+    await backend.updateRunInfo(runId, { currentStepScheduled: true })
 
     await expect(executeNode(runId, 'A', graph)).rejects.toThrow('boom')
 
-    const tasks = await taskStore.readAll(runId)
+    const tasks = await backend.readAllTasks(runId)
     expect(tasks[0]!.status).toBe('failed')
     expect(tasks[0]!.error).toBe('boom')
   })
@@ -806,8 +801,8 @@ describe('findTriggeredNodes', () => {
 
     // Manually create and execute A to trigger B's channel
     const { createTask } = await import('../../../src/shared/models/compiled-graph.js')
-    await taskStore.create(runId, [createTask('A', 0)])
-    await runStore.update(runId, { currentStepScheduled: true })
+    await backend.createTasks(runId, [createTask('A', 0)])
+    await backend.updateRunInfo(runId, { currentStepScheduled: true })
     await executeNode(runId, 'A', graph)
 
     const triggered = await findTriggeredNodes(runId, graph, 1)
@@ -874,7 +869,7 @@ describe('executeStep — full lifecycle', () => {
     expect(result.executed).toEqual(['Solo'])
     expect(result.completed).toBe(true)
 
-    const info = await runStore.read(runId)
+    const info = await backend.readRunInfo(runId)
     expect(info.status).toBe('completed')
   })
 
@@ -910,10 +905,10 @@ describe('executeStep — full lifecycle', () => {
     expect(result.executed.sort()).toEqual(['A', 'B'])
     expect(result.completed).toBe(false)
 
-    const info = await runStore.read(runId)
+    const info = await backend.readRunInfo(runId)
     expect(info.status).toBe('paused_for_intervention')
 
-    const tasks = await taskStore.readByStep(runId, 0)
+    const tasks = await backend.readTasksByStep(runId, 0)
     const taskA = tasks.find((t) => t.nodeId === 'A')
     const taskB = tasks.find((t) => t.nodeId === 'B')
     expect(taskA?.status).toBe('success')
