@@ -5,11 +5,7 @@ import { readState } from '../../domain/engine/state-service.js'
 import { resolveActiveRunId } from '../../domain/run/run-resolver.js'
 import { setCommandMeta } from '../_shared/command-meta.js'
 import { withErrorHandler, outputJson } from '../_shared/output.js'
-import { FsTaskRepository } from '../../infra/fs/fs-task-repo.js'
-import { FsRunStoreAdapter } from '../../infra/fs/fs-run-store-adapter.js'
-import { FsRunRepository } from '../../infra/fs/fs-run-repo.js'
-import { getGraphFile } from '../../infra/fs/paths.js'
-import { readJSON } from '../../infra/fs/file-ops.js'
+import { getStorageBackend } from '../../infra/storage/backend-instance.js'
 
 // ── Step Display Helpers ──────────────────────────────────────────────
 
@@ -39,29 +35,18 @@ function toDisplayTask(task: Task): Task {
   }
 }
 
-/** Lazy-initialized store instances for reading display data */
-let _taskStore: FsTaskRepository | undefined
-let _runStore: FsRunStoreAdapter | undefined
-
-function getTaskStore(): FsTaskRepository {
-  return (_taskStore ??= new FsTaskRepository())
-}
-
-function getRunStore(): FsRunStoreAdapter {
-  return (_runStore ??= new FsRunStoreAdapter(new FsRunRepository()))
-}
-
-/** Read workflow metadata from graph.json */
+/** Read workflow metadata from graph.json via storage backend */
 async function readGraphMeta(
   runId: string,
 ): Promise<{ name: string; version?: string; description?: string; totalSteps: number }> {
   try {
-    const ref = await readJSON<{
+    const backend = getStorageBackend()
+    const ref = await backend.readGraphRef<{
       name: string
       version?: string
       description?: string
       layers?: string[][]
-    }>(getGraphFile(runId))
+    }>(runId)
     return {
       name: ref.name,
       version: ref.version,
@@ -161,9 +146,10 @@ The agent execution loop typically follows: next -> (nodes execute) -> next -> .
           }
 
           // Read updated info, tasks, state, and graph metadata for display
+          const backend = getStorageBackend()
           const [runInfo, tasks, state, graphMeta] = await Promise.all([
-            getRunStore().read(runId),
-            getTaskStore().readAll(runId),
+            backend.readRunInfo(runId),
+            backend.readAllTasks(runId),
             readState(runId).catch(() => ({})),
             readGraphMeta(runId),
           ])
@@ -221,9 +207,10 @@ The agent execution loop typically follows: next -> (nodes execute) -> next -> .
 
 /** Display the current superstep status without executing */
 async function displayStepStatus(runId: string, json?: boolean): Promise<void> {
+  const backend = getStorageBackend()
   const [runInfo, allTasks, graphMeta] = await Promise.all([
-    getRunStore().read(runId),
-    getTaskStore().readAll(runId),
+    backend.readRunInfo(runId),
+    backend.readAllTasks(runId),
     readGraphMeta(runId),
   ])
 
@@ -307,5 +294,3 @@ function taskIcon(task: Task): string {
       return '·'
   }
 }
-
-/** @deprecated Use readGraphMeta instead */

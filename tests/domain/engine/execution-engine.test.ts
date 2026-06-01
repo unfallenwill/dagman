@@ -10,10 +10,24 @@ import {
 } from '../../../src/domain/engine/execution-engine.js'
 import { generateChannels } from '../../../src/domain/compiler/channel-gen.js'
 import { readState } from '../../../src/domain/engine/state-service.js'
-import { FsTaskRepository } from '../../../src/infra/fs/fs-task-repo.js'
-import { FsChannelRepository } from '../../../src/infra/fs/fs-channel-repo.js'
-import { FsRunStoreAdapter } from '../../../src/infra/fs/fs-run-store-adapter.js'
-import { FsRunRepository } from '../../../src/infra/fs/fs-run-repo.js'
+import { JsonStorageBackend } from '../../../src/infra/storage/json-backend.js'
+import {
+  BackendTaskStore,
+  BackendChannelStore,
+  BackendRunStore,
+} from '../../../src/infra/storage/backend-bridges.js'
+import {
+  getStateFile,
+  getChannelsFile,
+  getTasksFile,
+  getRunMetaFile,
+  getGraphFile,
+  getRunsDir,
+  getDagmanDir,
+  getCurrentRunFilePath,
+} from '../../../src/infra/fs/paths.js'
+import { ensureDir, readJSON, writeJSON, fileExists } from '../../../src/infra/fs/file-ops.js'
+import { systemClock } from '../../../src/shared/utils/clock.js'
 import type {
   CompiledGraph,
   CompiledNode,
@@ -27,9 +41,26 @@ import { isPlainEdge } from '../../../src/shared/models/compiled-graph.js'
 
 // ─── Store instances for assertions ──────────────────────────────────
 
-const taskStore = new FsTaskRepository()
-const channelStore = new FsChannelRepository()
-const runStore = new FsRunStoreAdapter(new FsRunRepository())
+const backendDeps = {
+  getStateFile,
+  getChannelsFile,
+  getTasksFile,
+  getRunMetaFile,
+  getGraphFile,
+  getRunsDir,
+  getDagmanDir,
+  getCurrentRunFilePath,
+  ensureDir,
+  readJSON,
+  writeJSON,
+  fileExists,
+  clock: systemClock,
+}
+
+const backend = new JsonStorageBackend(backendDeps)
+const taskStore = new BackendTaskStore(backend)
+const channelStore = new BackendChannelStore(backend)
+const runStore = new BackendRunStore(backend)
 
 // ─── Topological Layer Computation ────────────────────────────────────
 

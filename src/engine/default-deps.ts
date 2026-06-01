@@ -1,11 +1,6 @@
 import { promises as fs } from 'fs'
 import type { Dirent } from 'fs'
 import * as path from 'path'
-import { FsRunRepository } from '../infra/fs/fs-run-repo.js'
-import { FsStateRepository } from '../infra/fs/fs-state-repo.js'
-import { FsChannelRepository } from '../infra/fs/fs-channel-repo.js'
-import { FsTaskRepository } from '../infra/fs/fs-task-repo.js'
-import { FsRunStoreAdapter } from '../infra/fs/fs-run-store-adapter.js'
 import { writeJSON } from '../infra/fs/file-ops.js'
 import {
   getRunMetaFile,
@@ -15,7 +10,11 @@ import {
   getGraphFile,
   getWorkflowsDirs,
   resolveWorkflowPathSync,
+  getStateFile,
+  getChannelsFile,
+  getTasksFile,
 } from '../infra/fs/paths.js'
+import { ensureDir, fileExists, readJSON } from '../infra/fs/file-ops.js'
 import { createDefaultLoader } from '../infra/loader/tsx-loader.js'
 import { setDefaultRunDeps } from '../domain/run/run-service.js'
 import { setDefaultRunResolverDeps } from '../domain/run/run-resolver.js'
@@ -26,7 +25,15 @@ import { setDefaultStateServiceDeps } from '../domain/engine/state-service.js'
 import { setDefaultChannelServiceDeps } from '../domain/engine/channel-service.js'
 import { compile } from '../domain/compiler/compiler.js'
 import { systemClock } from '../shared/utils/clock.js'
-import { ensureDir, fileExists, readJSON } from '../infra/fs/file-ops.js'
+import { loadConfig } from '../infra/storage/config-loader.js'
+import { createStorageBackend } from '../infra/storage/backend-factory.js'
+import {
+  BackendStateStore,
+  BackendChannelStore,
+  BackendTaskStore,
+  BackendRunStore,
+} from '../infra/storage/backend-bridges.js'
+import { setStorageBackend } from '../infra/storage/backend-instance.js'
 
 const tsxLoader = createDefaultLoader()
 const getWorkflowTsFile = (name: string) => resolveWorkflowPathSync(`${name}/index.ts`)
@@ -59,13 +66,33 @@ setDefaultRunDeps({
 // Compiler deps
 wireWorkflowDeps({ getWorkflowTsFile, getWorkflowsDirs })
 
-// ── New Architecture DI ──────────────────────────────────────────
+// ── Storage Backend (Unified) ────────────────────────────────────────
 
-const stateStore = new FsStateRepository()
-const channelStore = new FsChannelRepository()
-const taskStore = new FsTaskRepository()
-const runRepo = new FsRunRepository()
-const runStore = new FsRunStoreAdapter(runRepo)
+const config = loadConfig()
+const backend = createStorageBackend(config.storage, {
+  getStateFile,
+  getChannelsFile,
+  getTasksFile,
+  getRunMetaFile,
+  getGraphFile,
+  getRunsDir,
+  getDagmanDir,
+  getCurrentRunFilePath,
+  ensureDir,
+  readJSON,
+  writeJSON,
+  fileExists,
+  clock: systemClock,
+})
+
+// Register backend singleton for slice access
+setStorageBackend(backend)
+
+// Create bridge stores that delegate to the unified backend
+const stateStore = new BackendStateStore(backend)
+const channelStore = new BackendChannelStore(backend)
+const taskStore = new BackendTaskStore(backend)
+const runStore = new BackendRunStore(backend)
 
 // Wire execution engine deps
 setDefaultEngineDeps({
@@ -89,7 +116,7 @@ setDefaultChannelServiceDeps({
   channelStore,
 })
 
-// ── Dynamic overrides ──────────────────────────────────────────
+// ── Dynamic overrides ──────────────────────────────────────────────
 
 /**
  * Wire compiler and discovery DI defaults with the given path functions.
