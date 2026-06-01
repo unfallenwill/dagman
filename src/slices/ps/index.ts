@@ -1,5 +1,6 @@
 import type { Command } from 'commander'
 import * as runService from '../../domain/run/run-service.js'
+import { setCommandMeta } from '../_shared/command-meta.js'
 import { withErrorHandler, outputJson } from '../_shared/output.js'
 
 /** Render process status table */
@@ -24,9 +25,29 @@ function renderPsTable(
 }
 
 export function registerPsCommand(program: Command): void {
-  program
-    .command('ps')
-    .summary('List workflow instances')
+  const psCmd = program.command('ps').summary('List workflow instances')
+    .description(`List workflow run instances.
+
+Shows run ID, status, and creation time for each workflow instance.
+By default only shows active (running or paused) instances.
+
+Use --all to include completed runs. Use --json for machine-readable output.`)
+
+  setCommandMeta(psCmd, {
+    examples: [
+      { description: 'List active runs', command: 'dagman ps' },
+      { description: 'List all runs', command: 'dagman ps --all' },
+      { description: 'List as JSON', command: 'dagman ps --json' },
+    ],
+    exitStatus: [
+      { code: 0, meaning: 'Success (list displayed, even if empty)' },
+      { code: 1, meaning: 'Error (filesystem failure)' },
+    ],
+    seeAlso: ['dagman-start(1)', 'dagman-next(1)'],
+    dataProducing: true,
+  })
+
+  psCmd
     .option('-a, --all', 'Show all instances (not just running)')
     .option('--json', 'Output as JSON')
     .action(

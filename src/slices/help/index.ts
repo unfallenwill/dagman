@@ -31,39 +31,35 @@ dagman is a task scheduler based on directed acyclic graphs (DAGs). It does not
 execute tasks itself, but tells an external agent what to do next via \`dagman next\`.
 
 Core execution loop:
-  import -> run create -> loop { next -> task start -> execute -> task complete } -> done
+  start -> loop { next -> (agent executes) -> collect } -> done
 
 ━━━ Core Concepts ━━━
 
-Node      Static task definition (name, description, instructions), no runtime state
-Graph     DAG topology, declares dependencies between nodes via an edges list
-Run       Execution instance of a graph, \`run create --graph <name>\` auto-computes topological layers
-Task      Runtime entity, created from a Node, lifecycle: ready -> running -> success / failed / skipped
+Node      Static task definition (name + function), carries no runtime state
+Graph     DAG topology, declares dependencies between nodes via edges
+Run       Execution instance of a graph, created via \`dagman start <name>\`
+Task      Runtime entity, created from a Node, lifecycle: ready -> running -> success / failed
 Superstep BFS-layered execution, all ready tasks within a layer can run in parallel, advance when all reach terminal state
-Channel   Versioned key-value store for passing data between nodes:
-            Node output {node}.{key}    Edge signal edge:{from}->{to}    Global _global.{key}
+Channel   Versioned signal for coordination between nodes:
+            trigger:<target>    Single-source edge (version 0->1 = fired)
+            barrier:<target>    Multi-source join (all writers must write)
 
 ━━━ Workflow ━━━
 
 1. Write a TypeScript workflow definition using the builder API
-2. dagman run create --graph <name> -s    # Create a run and switch to it
-3. dagman next                            # Get the next executable task
-4. dagman task start <node>               # Mark task as running
-5. (agent performs the actual work)
-6. dagman task complete <node>            # Mark task as completed
-7. Go back to step 3, repeat until "No executable tasks"
+2. dagman ls                                # List available workflows
+3. dagman show <name>                       # Inspect workflow graph and metadata
+4. dagman start <name>                      # Compile and start a run instance
+5. dagman next                              # Execute the next step
+6. (agent performs the actual work)
+7. dagman collect <node-ref> -f result.json # Submit external results for a node
+8. Go back to step 5, repeat until "No executable tasks"
 
 ━━━ Edge Semantics ━━━
 
-Edge { from, to } means from depends on to (to executes first).
-expect defaults to "success"; when expect is "success", a "skipped" status on the to node also satisfies the dependency.
-
-━━━ Variable References ━━━
-
-Node instructions support Handlebars templates to reference upstream outputs:
-  {{key}}              Current node's own channel
-  {{node-name.key}}    Upstream node channel (dependencies validated at import time)
-  {{global.key}}       Global channel
+Edge { from, to } means from triggers to — from executes first, then to can run.
+Edges are compiled into channels: single-source edges become trigger channels,
+multi-source joins (diamond DAGs) become barrier channels.
 
 ━━━ More Help ━━━
 
@@ -76,23 +72,23 @@ function buildCommandReference(program: Command): string {
   const groups: Record<string, Array<{ usage: string; summary: string }>> = {}
 
   // Categorize commands into groups
-  const workflowCommands = ['ls', 'show', 'compile', 'graph']
+  const discoveryCommands = ['ls', 'show']
   const executionCommands = ['start', 'ps']
-  const schedulingCommands = ['next', 'task']
+  const schedulingCommands = ['next', 'collect']
 
   for (const cmd of program.commands) {
     const cmdName = cmd.name()
     if (cmdName === 'help') continue
 
     let category: string
-    if (workflowCommands.includes(cmdName)) {
-      category = 'Workflow'
+    if (discoveryCommands.includes(cmdName)) {
+      category = 'Discovery'
     } else if (executionCommands.includes(cmdName)) {
       category = 'Execution'
     } else if (schedulingCommands.includes(cmdName)) {
-      category = 'Scheduling (core)'
+      category = 'Scheduling'
     } else {
-      category = 'Data'
+      category = 'Other'
     }
 
     groups[category] ??= []
@@ -103,7 +99,7 @@ function buildCommandReference(program: Command): string {
     groups[category]!.push({ usage: usage.padEnd(32), summary })
   }
 
-  const categoryOrder = ['Workflow', 'Execution', 'Scheduling (core)', 'Data']
+  const categoryOrder = ['Discovery', 'Execution', 'Scheduling', 'Other']
   const lines: string[] = ['━━━ Command Reference ━━━\n']
 
   for (const category of categoryOrder) {
